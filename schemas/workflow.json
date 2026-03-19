@@ -1,0 +1,220 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Workflow",
+  "type": "object",
+  "required": [
+    "accountability",
+    "id",
+    "name",
+    "purpose",
+    "states",
+    "steps"
+  ],
+  "properties": {
+    "accountability": {
+      "$ref": "#/definitions/Raci"
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "guidance": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "hooks": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "$ref": "#/definitions/HookInvocationValue"
+      }
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9]*$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "purpose": {
+      "type": "string"
+    },
+    "states": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/WorkflowStateEntry"
+      },
+      "minItems": 2
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Step"
+      },
+      "minItems": 1
+    }
+  },
+  "definitions": {
+    "HookInvocation": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "required": [
+            "hook"
+          ],
+          "properties": {
+            "hook": {
+              "type": "string"
+            },
+            "with": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "HookInvocationValue": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/HookInvocation"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/HookInvocation"
+          }
+        }
+      ]
+    },
+    "Raci": {
+      "type": "object",
+      "required": [
+        "accountable",
+        "consulted",
+        "informed",
+        "responsible"
+      ],
+      "properties": {
+        "accountable": {
+          "type": "string"
+        },
+        "consulted": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "informed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "responsible": {
+          "type": "string"
+        }
+      }
+    },
+    "ReviewStep": {
+      "type": "object",
+      "required": [
+        "approver",
+        "id",
+        "on_reject"
+      ],
+      "properties": {
+        "approver": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9]*$"
+        },
+        "on_reject": {
+          "type": "string"
+        }
+      }
+    },
+    "Step": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/WorkStep"
+        },
+        {
+          "$ref": "#/definitions/ReviewStep"
+        }
+      ]
+    },
+    "WorkStep": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "depends_on": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9]*$"
+        }
+      }
+    },
+    "WorkflowSemantic": {
+      "type": "string",
+      "enum": [
+        "reviewing",
+        "complete",
+        "blocked",
+        "failed"
+      ]
+    },
+    "WorkflowStateEntry": {
+      "type": "object",
+      "required": [
+        "description",
+        "id"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9]*$"
+        },
+        "semantic": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/WorkflowSemantic"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

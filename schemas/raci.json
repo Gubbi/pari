@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Raci",
+  "type": "object",
+  "required": [
+    "accountable",
+    "consulted",
+    "informed",
+    "responsible"
+  ],
+  "properties": {
+    "accountable": {
+      "type": "string"
+    },
+    "consulted": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "informed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "responsible": {
+      "type": "string"
+    }
+  }
+}

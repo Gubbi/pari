@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Hook",
+  "type": "object",
+  "required": [
+    "description",
+    "id",
+    "instructions",
+    "name"
+  ],
+  "properties": {
+    "description": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9]*$"
+    },
+    "inputs": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/definitions/HookInput"
+      }
+    },
+    "instructions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "name": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "HookInput": {
+      "type": "object",
+      "required": [
+        "description",
+        "name",
+        "required"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

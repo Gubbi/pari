@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ReviewStep",
+  "type": "object",
+  "required": [
+    "approver",
+    "id",
+    "on_reject"
+  ],
+  "properties": {
+    "approver": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9]*$"
+    },
+    "on_reject": {
+      "type": "string"
+    }
+  }
+}

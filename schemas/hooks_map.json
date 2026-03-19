@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "hooks_map.json",
+  "title": "HooksMap",
+  "type": "object",
+  "additionalProperties": {
+    "oneOf": [
+      { "$ref": "hook_invocation.json" },
+      {
+        "type": "array",
+        "items": { "$ref": "hook_invocation.json" }
+      }
+    ]
+  },
+  "description": "Map of lifecycle point names to one or more hook invocations"
+}

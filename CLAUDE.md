@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This repository uses **OpenSpec** — a spec-driven development workflow. All feature work flows through the OpenSpec CLI and a structured change lifecycle. There is no application code here; the repo is a workspace for managing changes via OpenSpec artifacts.
+This repository uses **OpenSpec** — a spec-driven development workflow. All feature work flows through the OpenSpec CLI and a structured change lifecycle. The repo contains both application code (Rust library crate) and OpenSpec artifacts managing the development of that code.
 
 ## OpenSpec CLI Commands
 
@@ -27,6 +27,17 @@ openspec instructions <artifact-id> --change "<name>" --json  # Get instructions
 ## Repository Structure
 
 ```
+src/
+  lib.rs
+  schema/
+    mod.rs
+    validation.rs       # ValidationError, id format helpers, validate_raci, validate_hooks_map
+    types.rs            # Raci, HookInvocation, HooksMap, Step types, state entries, Artifact
+    context.rs          # RepoContext stub (populated by future parser)
+    entities/
+      role.rs, hook.rs, team.rs, workflow.rs, task.rs, relay.rs
+Cargo.toml
+schemas/                # JSON Schema files (canonical contract for all entities)
 openspec/
   config.yaml           # Schema config (currently: spec-driven)
   changes/              # Active changes, each containing:
@@ -38,6 +49,8 @@ openspec/
       specs/            # Delta specs (capability overrides)
     archive/            # Completed changes (moved here by /opsx:archive)
   specs/                # Main project specs by capability
+context/
+  handoff.md            # Entity schema decisions from explore sessions
 .claude/
   commands/opsx/        # Slash command definitions
   skills/               # Skill implementations for each workflow action
@@ -51,6 +64,7 @@ When implementing (`/opsx:apply`), mark each task checkbox `- [ ]` → `- [x]` i
 
 ## Key Behaviors
 
+- **Responses** Keep the responses focused to small atomic steps, keeping the surface area limited. In case of a long session, keep aggregating the decisions / conclusions / open questions and do not reproduce them in every response. Surface them when apt and summarize when we near the end of the session. Avoid long responses that has too much surface area to digest and discuss. This is especially true when in explore mode and plan mode.
 - **`context` and `rules`** from `openspec instructions` output are constraints for the AI — never copy them into artifact files.
 - **`template`** from `openspec instructions` output is the structure to follow when writing an artifact.
 - Delta specs in `openspec/changes/<name>/specs/` override main specs; they get synced to `openspec/specs/` during archive.

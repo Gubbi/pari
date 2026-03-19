@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "StateMapEntry",
+  "type": "object",
+  "required": [
+    "maps_to"
+  ],
+  "properties": {
+    "maps_to": {
+      "type": "string"
+    },
+    "semantic": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/RelayStateSemantic"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "RelayStateSemantic": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "blocked",
+        "failed"
+      ]
+    }
+  }
+}

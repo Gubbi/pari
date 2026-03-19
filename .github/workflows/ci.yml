@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Run tests
+        run: cargo test
+
+  schemas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Regenerate schemas
+        run: cargo xtask generate-schemas
+
+      - name: Fail if schemas differ from committed
+        run: |
+          if ! git diff --exit-code schemas/; then
+            echo "Generated schemas differ from committed schemas."
+            echo "Run 'cargo xtask generate-schemas' and commit the result."
+            exit 1
+          fi

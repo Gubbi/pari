@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HookInvocationValue",
+  "anyOf": [
+    {
+      "$ref": "#/definitions/HookInvocation"
+    },
+    {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/HookInvocation"
+      }
+    }
+  ],
+  "definitions": {
+    "HookInvocation": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "required": [
+            "hook"
+          ],
+          "properties": {
+            "hook": {
+              "type": "string"
+            },
+            "with": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

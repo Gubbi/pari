@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HookInvocation",
+  "anyOf": [
+    {
+      "type": "string"
+    },
+    {
+      "type": "object",
+      "required": [
+        "hook"
+      ],
+      "properties": {
+        "hook": {
+          "type": "string"
+        },
+        "with": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ]
+}
