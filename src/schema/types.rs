@@ -1,7 +1,36 @@
+//! Shared types used across multiple entity schemas.
+//!
+//! Includes RACI, artifact, hook invocation, state entry, extensions, and semantic enums.
+
 use std::collections::HashMap;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+// --- Extensions ---
+
+/// User-defined extension fields. All keys must be prefixed with `x-`.
+/// Validated at runtime by `validate_extensions`; enforced in JSON Schema via
+/// `patternProperties: { "^x-": {} }` contributed when this type is flattened
+/// into an entity struct.
+#[derive(Default, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Extensions(pub HashMap<String, serde_json::Value>);
+
+impl JsonSchema for Extensions {
+    fn schema_name() -> String {
+        "Extensions".to_string()
+    }
+
+    fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        use schemars::schema::{Schema, SchemaObject};
+        let mut obj = SchemaObject::default();
+        obj.object()
+            .pattern_properties
+            .insert("^x-".to_string(), Schema::Bool(true));
+        Schema::Object(obj)
+    }
+}
 
 // --- RACI ---
 
@@ -52,38 +81,8 @@ impl HookInvocationValue {
 
 pub type HooksMap = HashMap<String, HookInvocationValue>;
 
-// --- Step types ---
-
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct WorkStep {
-    #[schemars(regex(pattern = r"^[A-Z][A-Za-z0-9]*$"))]
-    pub id: String,
-    pub depends_on: Option<Vec<String>>,
-}
-
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct ReviewStep {
-    #[schemars(regex(pattern = r"^[A-Z][A-Za-z0-9]*$"))]
-    pub id: String,
-    pub approver: String,
-    pub on_reject: String,
-}
-
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(untagged)]
-pub enum Step {
-    Work(WorkStep),
-    Review(ReviewStep),
-}
-
-impl Step {
-    pub fn id(&self) -> &str {
-        match self {
-            Self::Work(s) => &s.id,
-            Self::Review(s) => &s.id,
-        }
-    }
-}
+// Step types (WorkStep, ReviewStep, Step, WorkStepDefinition, SharedStep, etc.)
+// live in entities/workflow.rs to avoid circular imports with Task/Relay entity types.
 
 // --- State entry types ---
 
@@ -235,55 +234,6 @@ mod tests {
         assert_eq!(val.invocations().len(), 2);
     }
 
-    // --- 7.1: WorkStep and ReviewStep tests ---
-
-    #[test]
-    fn work_step_with_depends_on() {
-        let s = WorkStep {
-            id: "Proposal".to_string(),
-            depends_on: Some(vec!["Shape".to_string()]),
-        };
-        assert_eq!(s.id, "Proposal");
-        assert_eq!(s.depends_on.as_ref().unwrap().len(), 1);
-    }
-
-    #[test]
-    fn work_step_without_depends_on() {
-        let s = WorkStep {
-            id: "Shape".to_string(),
-            depends_on: None,
-        };
-        assert!(s.depends_on.is_none());
-    }
-
-    #[test]
-    fn review_step_all_fields_required() {
-        let s = ReviewStep {
-            id: "LegalApproval".to_string(),
-            approver: "legal-counsel".to_string(),
-            on_reject: "Shape".to_string(),
-        };
-        assert_eq!(s.id, "LegalApproval");
-        assert_eq!(s.approver, "legal-counsel");
-        assert_eq!(s.on_reject, "Shape");
-    }
-
-    #[test]
-    fn step_id_returns_correct_value() {
-        let ws = Step::Work(WorkStep {
-            id: "Proposal".to_string(),
-            depends_on: None,
-        });
-        assert_eq!(ws.id(), "Proposal");
-
-        let rs = Step::Review(ReviewStep {
-            id: "LegalApproval".to_string(),
-            approver: "legal-counsel".to_string(),
-            on_reject: "Proposal".to_string(),
-        });
-        assert_eq!(rs.id(), "LegalApproval");
-    }
-
     // --- 8.1: State entry type tests ---
 
     #[test]
@@ -348,8 +298,7 @@ mod tests {
         match e.semantic.unwrap() {
             TaskSemantic::Complete => {}
             TaskSemantic::Blocked => {}
-            TaskSemantic::Failed => {}
-            // No Reviewing variant — compiler enforces this
+            TaskSemantic::Failed => {} // No Reviewing variant — compiler enforces this
         }
     }
 
@@ -370,5 +319,82 @@ mod tests {
             semantic: None,
         };
         assert!(e.semantic.is_none());
+    }
+
+    // --- Extensions tests ---
+
+    #[test]
+    fn extensions_serde_round_trip_x_keys() {
+        let json = r#"{"x-team": "platform", "x-sla": "24h"}"#;
+        let ext: Extensions = serde_json::from_str(json).unwrap();
+        assert_eq!(ext.0.len(), 2);
+        assert_eq!(ext.0["x-team"], serde_json::json!("platform"));
+        let back = serde_json::to_string(&ext).unwrap();
+        let re: serde_json::Value = serde_json::from_str(&back).unwrap();
+        assert_eq!(re["x-team"], "platform");
+    }
+
+    #[test]
+    fn extensions_empty_round_trip() {
+        let ext: Extensions = serde_json::from_str("{}").unwrap();
+        assert!(ext.0.is_empty());
+    }
+
+    #[test]
+    fn extensions_schema_has_pattern_properties() {
+        use schemars::schema_for;
+
+        // Define a minimal struct that flattens Extensions to test schema output.
+        #[derive(schemars::JsonSchema)]
+        #[allow(dead_code)]
+        struct WithExt {
+            id: String,
+            #[schemars(flatten)]
+            extensions: Extensions,
+        }
+
+        let schema = schema_for!(WithExt);
+        let json = serde_json::to_value(&schema).unwrap();
+
+        // schemars 0.8 DOES propagate patternProperties from flattened custom JsonSchema impls
+        // natively — no xtask post-processing required.
+        let pattern_props = &json["patternProperties"];
+        assert!(
+            !pattern_props.is_null(),
+            "Expected patternProperties in schema root, got: {}",
+            json
+        );
+        assert_eq!(pattern_props["^x-"], serde_json::json!(true));
+    }
+
+    #[test]
+    fn deny_unknown_fields_with_flatten_does_not_emit_additional_properties() {
+        use schemars::schema_for;
+
+        // schemars 0.8 known limitation: when a struct has a `#[serde(flatten)]` field,
+        // `deny_unknown_fields` does NOT emit `additionalProperties: false` — schemars
+        // treats additional key space as owned by the flattened schema.
+        // Entity schemas require xtask post-processing to add `additionalProperties: false`.
+        #[derive(schemars::JsonSchema)]
+        #[schemars(deny_unknown_fields)]
+        #[allow(dead_code)]
+        struct WithExtStrict {
+            id: String,
+            #[schemars(flatten)]
+            extensions: Extensions,
+        }
+
+        let schema = schema_for!(WithExtStrict);
+        let json = serde_json::to_value(&schema).unwrap();
+
+        // patternProperties IS present (from Extensions flatten)
+        assert_eq!(json["patternProperties"]["^x-"], serde_json::json!(true));
+        // additionalProperties: false is NOT emitted by schemars 0.8 when flatten is present
+        assert!(
+            json["additionalProperties"].is_null(),
+            "schemars 0.8 behavior changed: now emitting additionalProperties with flatten. \
+             xtask post-processing may no longer be needed. schema: {}",
+            json
+        );
     }
 }

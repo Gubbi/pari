@@ -1,3 +1,5 @@
+//! Entity definitions — one module per entity type.
+
 pub mod hook;
 pub mod relay;
 pub mod role;

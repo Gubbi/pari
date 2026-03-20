@@ -10,6 +10,180 @@
     }
   ],
   "definitions": {
+    "Artifact": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "template": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "HookInvocation": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "required": [
+            "hook"
+          ],
+          "properties": {
+            "hook": {
+              "type": "string"
+            },
+            "with": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "HookInvocationValue": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/HookInvocation"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/HookInvocation"
+          }
+        }
+      ]
+    },
+    "Raci": {
+      "type": "object",
+      "required": [
+        "accountable",
+        "consulted",
+        "informed",
+        "responsible"
+      ],
+      "properties": {
+        "accountable": {
+          "type": "string"
+        },
+        "consulted": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "informed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "responsible": {
+          "type": "string"
+        }
+      }
+    },
+    "Relay": {
+      "type": "object",
+      "required": [
+        "delegates_to",
+        "id",
+        "name",
+        "purpose",
+        "state_map"
+      ],
+      "properties": {
+        "accountability": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Raci"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "briefing": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "debriefing": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "delegates_to": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "guidance": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hooks": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "$ref": "#/definitions/HookInvocationValue"
+          }
+        },
+        "id": {
+          "$ref": "#/definitions/RelayId"
+        },
+        "name": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "state_map": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/StateMapEntry"
+          }
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      }
+    },
+    "RelayId": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9]*$"
+    },
+    "RelayStateSemantic": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "blocked",
+        "failed"
+      ]
+    },
     "ReviewStep": {
       "type": "object",
       "required": [
@@ -30,12 +204,165 @@
         }
       }
     },
-    "WorkStep": {
+    "StateMapEntry": {
       "type": "object",
       "required": [
+        "maps_to"
+      ],
+      "properties": {
+        "maps_to": {
+          "type": "string"
+        },
+        "semantic": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/RelayStateSemantic"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Step": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/WorkStep"
+        },
+        {
+          "$ref": "#/definitions/ReviewStep"
+        }
+      ]
+    },
+    "Task": {
+      "type": "object",
+      "required": [
+        "artifact",
+        "criteria",
+        "id",
+        "instructions",
+        "name",
+        "purpose",
+        "states"
+      ],
+      "properties": {
+        "accountability": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Raci"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifact": {
+          "$ref": "#/definitions/Artifact"
+        },
+        "criteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "guidance": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hooks": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "$ref": "#/definitions/HookInvocationValue"
+          }
+        },
+        "id": {
+          "$ref": "#/definitions/TaskId"
+        },
+        "instructions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TaskStateEntry"
+          },
+          "minItems": 2
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      }
+    },
+    "TaskId": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9]*$"
+    },
+    "TaskSemantic": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "blocked",
+        "failed"
+      ]
+    },
+    "TaskStateEntry": {
+      "type": "object",
+      "required": [
+        "description",
         "id"
       ],
       "properties": {
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9]*$"
+        },
+        "semantic": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TaskSemantic"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "WorkStep": {
+      "type": "object",
+      "required": [
+        "definition"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/definitions/WorkStepDefinition"
+        },
         "depends_on": {
           "type": [
             "array",
@@ -44,10 +371,122 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+    "WorkStepDefinition": {
+      "description": "Embedded definition inside a WorkStep. Discriminated by required fields: - Task   → has `artifact` - Relay  → has `delegates_to` - Workflow → has `steps`",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Task"
+        },
+        {
+          "$ref": "#/definitions/Relay"
+        },
+        {
+          "$ref": "#/definitions/WorkflowDef_for_Step"
+        }
+      ]
+    },
+    "WorkflowDef_for_Step": {
+      "type": "object",
+      "required": [
+        "accountability",
+        "id",
+        "name",
+        "purpose",
+        "states",
+        "steps"
+      ],
+      "properties": {
+        "accountability": {
+          "$ref": "#/definitions/Raci"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "guidance": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hooks": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "$ref": "#/definitions/HookInvocationValue"
+          }
+        },
+        "id": {
+          "$ref": "#/definitions/WorkflowId"
+        },
+        "name": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/WorkflowStateEntry"
+          },
+          "minItems": 2
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Step"
+          },
+          "minItems": 1
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      }
+    },
+    "WorkflowId": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9]*$"
+    },
+    "WorkflowSemantic": {
+      "type": "string",
+      "enum": [
+        "reviewing",
+        "complete",
+        "blocked",
+        "failed"
+      ]
+    },
+    "WorkflowStateEntry": {
+      "type": "object",
+      "required": [
+        "description",
+        "id"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
         },
         "id": {
           "type": "string",
           "pattern": "^[A-Z][A-Za-z0-9]*$"
+        },
+        "semantic": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/WorkflowSemantic"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     }

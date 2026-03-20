@@ -1,16 +1,23 @@
+//! [`Task`] entity — an embedded unit of work within a workflow step.
+
 use std::collections::HashSet;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::schema::context::RepoContext;
-use crate::schema::types::{Artifact, HooksMap, Raci, TaskSemantic, TaskStateEntry};
-use crate::schema::validation::{is_camel_case, validate_hooks_map, validate_raci, ValidationError};
+use crate::schema::{
+    ids::TaskId,
+    store::EntityStore,
+    types::{Artifact, Extensions, HooksMap, Raci, TaskSemantic, TaskStateEntry},
+    validation::{
+        is_camel_case, validate_extensions, validate_hooks_map, validate_raci, ValidationError,
+    },
+};
 
 #[derive(Serialize, Deserialize, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct Task {
-    #[schemars(regex(pattern = r"^[A-Z][A-Za-z0-9]*$"))]
-    pub id: String,
+    pub id: TaskId,
     pub name: String,
     pub description: Option<String>,
     pub purpose: String,
@@ -24,9 +31,11 @@ pub struct Task {
     pub states: Vec<TaskStateEntry>,
     pub hooks: Option<HooksMap>,
     pub guidance: Option<String>,
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
 
-pub fn validate(task: &Task, ctx: &RepoContext) -> Vec<ValidationError> {
+pub fn validate(task: &Task, ctx: &EntityStore) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     errors.extend(validate_structural(task));
@@ -74,11 +83,13 @@ fn validate_structural(task: &Task) -> Vec<ValidationError> {
     for (i, state) in task.states.iter().enumerate() {
         if !is_camel_case(&state.id) {
             errors.push(ValidationError {
-                path: format!("states[{}].id", i),
+                path: format!("states[{i}].id"),
                 message: format!("id must be CamelCase, got '{}'", state.id),
             });
         }
     }
+
+    errors.extend(validate_extensions(&task.extensions, "extensions"));
 
     errors
 }
@@ -120,7 +131,7 @@ fn validate_state_id_uniqueness(task: &Task) -> Vec<ValidationError> {
     for (i, state) in task.states.iter().enumerate() {
         if !seen.insert(state.id.as_str()) {
             errors.push(ValidationError {
-                path: format!("states[{}].id", i),
+                path: format!("states[{i}].id"),
                 message: format!("duplicate state id '{}'", state.id),
             });
         }
@@ -129,7 +140,7 @@ fn validate_state_id_uniqueness(task: &Task) -> Vec<ValidationError> {
     errors
 }
 
-fn validate_referential_integrity(task: &Task, ctx: &RepoContext) -> Vec<ValidationError> {
+fn validate_referential_integrity(task: &Task, ctx: &EntityStore) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     if let Some(raci) = &task.accountability {
@@ -145,17 +156,51 @@ fn validate_referential_integrity(task: &Task, ctx: &RepoContext) -> Vec<Validat
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::schema::types::{
-        Artifact, HookInvocation, HookInvocationValue, Raci, TaskSemantic, TaskStateEntry,
-    };
     use std::collections::HashMap;
 
-    fn make_ctx() -> RepoContext {
-        let mut ctx = RepoContext::new();
-        ctx.role_ids.insert("eng-lead".to_string());
-        ctx.role_ids.insert("pm".to_string());
-        ctx.hook_ids.insert("NotifySlack".to_string());
+    use super::*;
+    use crate::schema::types::{
+        Artifact, Extensions, HookInvocation, HookInvocationValue, Raci, TaskSemantic,
+        TaskStateEntry,
+    };
+
+    fn make_ctx() -> EntityStore {
+        use crate::schema::{
+            entities::{hook::Hook, role::Role},
+            types::Extensions,
+        };
+        let mut ctx = EntityStore::new();
+        ctx.roles.insert(
+            "eng-lead".to_string(),
+            Role {
+                id: "eng-lead".into(),
+                name: "Engineering Lead".to_string(),
+                purpose: "test".to_string(),
+                traits: None,
+                extensions: Extensions::default(),
+            },
+        );
+        ctx.roles.insert(
+            "pm".to_string(),
+            Role {
+                id: "pm".into(),
+                name: "Product Manager".to_string(),
+                purpose: "test".to_string(),
+                traits: None,
+                extensions: Extensions::default(),
+            },
+        );
+        ctx.hooks.insert(
+            "NotifySlack".to_string(),
+            Hook {
+                id: "NotifySlack".into(),
+                name: "Notify Slack".to_string(),
+                description: "test".to_string(),
+                instructions: vec!["send message".to_string()],
+                inputs: None,
+                extensions: Extensions::default(),
+            },
+        );
         ctx
     }
 
@@ -176,7 +221,7 @@ mod tests {
 
     fn valid_task() -> Task {
         Task {
-            id: "Proposal".to_string(),
+            id: "Proposal".into(),
             name: "Proposal".to_string(),
             description: None,
             purpose: "Define the initiative scope".to_string(),
@@ -190,6 +235,7 @@ mod tests {
             states: two_states_with_complete(),
             hooks: None,
             guidance: None,
+            extensions: Extensions::default(),
         }
     }
 
@@ -204,7 +250,7 @@ mod tests {
     #[test]
     fn task_kebab_id_fails() {
         let task = Task {
-            id: "write-proposal".to_string(),
+            id: "write-proposal".into(),
             ..valid_task()
         };
         let errors = validate_structural(&task);
@@ -430,5 +476,33 @@ mod tests {
         };
         let errors = validate_referential_integrity(&task, &ctx);
         assert!(errors.is_empty());
+    }
+
+    // --- 8.2: Task extensions validation tests ---
+
+    #[test]
+    fn task_x_prefixed_extension_passes() {
+        let mut map = HashMap::new();
+        map.insert("x-jira-id".to_string(), serde_json::json!("ENG-123"));
+        let task = Task {
+            extensions: Extensions(map),
+            ..valid_task()
+        };
+        let errors = validate_structural(&task);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn task_non_x_extension_key_fails() {
+        let mut map = HashMap::new();
+        map.insert("jira-id".to_string(), serde_json::json!("ENG-123"));
+        let task = Task {
+            extensions: Extensions(map),
+            ..valid_task()
+        };
+        let errors = validate_structural(&task);
+        assert!(!errors.is_empty());
+        assert!(errors[0].path.contains("extensions"));
+        assert!(errors[0].message.contains("x-"));
     }
 }

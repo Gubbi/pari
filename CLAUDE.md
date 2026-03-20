@@ -1,71 +1,63 @@
-# CLAUDE.md
+# Pari — Codebase Guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## What This Is
 
-## Overview
+Rust library (`pari`) — a workflow runtime for hybrid human-agent teams. Two top-level modules:
 
-This repository uses **OpenSpec** — a spec-driven development workflow. All feature work flows through the OpenSpec CLI and a structured change lifecycle. The repo contains both application code (Rust library crate) and OpenSpec artifacts managing the development of that code.
+- `src/schema/` — entity types, validation, entity store
+- `src/substrate/` — persistence backend trait + repo (filesystem) implementation
 
-## OpenSpec CLI Commands
+---
 
-```bash
-openspec new change "<name>"                        # Scaffold a new change
-openspec list --json                                # List all changes
-openspec status --change "<name>" --json            # Get artifact status for a change
-openspec instructions <artifact-id> --change "<name>" --json  # Get instructions for creating an artifact
-```
-
-## Workflow (Slash Commands)
-
-| Command | Description |
-|---|---|
-| `/opsx:explore` | Think through ideas before committing to a change |
-| `/opsx:propose <name>` | Create a change and generate all artifacts (proposal, design, tasks) |
-| `/opsx:apply <name>` | Implement tasks from a change |
-| `/opsx:archive <name>` | Archive a completed change |
-
-## Repository Structure
+## Module Map
 
 ```
 src/
-  lib.rs
   schema/
-    mod.rs
-    validation.rs       # ValidationError, id format helpers, validate_raci, validate_hooks_map
-    types.rs            # Raci, HookInvocation, HooksMap, Step types, state entries, Artifact
-    context.rs          # RepoContext stub (populated by future parser)
-    entities/
-      role.rs, hook.rs, team.rs, workflow.rs, task.rs, relay.rs
-Cargo.toml
-schemas/                # JSON Schema files (canonical contract for all entities)
-openspec/
-  config.yaml           # Schema config (currently: spec-driven)
-  changes/              # Active changes, each containing:
-    <name>/
-      .openspec.yaml
-      proposal.md       # What & why
-      design.md         # How
-      tasks.md          # Implementation steps (- [ ] / - [x])
-      specs/            # Delta specs (capability overrides)
-    archive/            # Completed changes (moved here by /opsx:archive)
-  specs/                # Main project specs by capability
-context/
-  handoff.md            # Entity schema decisions from explore sessions
-.claude/
-  commands/opsx/        # Slash command definitions
-  skills/               # Skill implementations for each workflow action
+    entities/    Role, Hook, Team, Workflow, SharedWorkflow
+                 Task, Relay — embedded-only (no standalone entity, no top-level schema)
+    store.rs     EntityStore — HashMap collections keyed by id; dual-purpose: validation context + persist input
+    types.rs     Shared types (Raci, Artifact, HookInvocation, state types, Extensions, ...)
+    validation.rs  validate() implementations per entity
+  substrate/
+    mod.rs       Substrate trait (persist only; load deferred to future proposal), SubstrateError
+    repo/
+      storage.rs   RepoSubstrate — atomic write via sibling .part/ dir, then fs::rename
+      render.rs    Markdown+YAML-frontmatter renderers per entity type
 ```
 
-## Spec-Driven Schema Artifact Order
+---
 
-Artifacts are created in dependency order. The `applyRequires` field in `openspec status --json` tells you which artifacts must exist before implementation can start. For the **spec-driven** schema that is typically: `proposal` → `design` → `tasks`.
+## Key Decisions
 
-When implementing (`/opsx:apply`), mark each task checkbox `- [ ]` → `- [x]` immediately after completing it.
+**EntityStore invariant**: the entity being validated must NOT already be in the store. Callers enforce this.
 
-## Key Behaviors
+**Task and Relay are embedded-only**: they live inside workflow steps, not as top-level entities. No standalone schema is generated for them.
 
-- **Responses** Keep the responses focused to small atomic steps, keeping the surface area limited. In case of a long session, keep aggregating the decisions / conclusions / open questions and do not reproduce them in every response. Surface them when apt and summarize when we near the end of the session. Avoid long responses that has too much surface area to digest and discuss. This is especially true when in explore mode and plan mode.
-- **`context` and `rules`** from `openspec instructions` output are constraints for the AI — never copy them into artifact files.
-- **`template`** from `openspec instructions` output is the structure to follow when writing an artifact.
-- Delta specs in `openspec/changes/<name>/specs/` override main specs; they get synced to `openspec/specs/` during archive.
-- Archive target name format: `YYYY-MM-DD-<change-name>`.
+**Atomic persistence**: RepoSubstrate writes to `<root>.part/`, then renames. On failure, `.part/` is cleaned up and errors are collected (not short-circuited).
+
+**Extensions pattern**: every entity has an `extensions: Extensions` field (`HashMap<String, serde_json::Value>`) via `#[serde(flatten)]`. Only `x-` prefixed keys are allowed by schema.
+
+**Schema generation**: `cargo xtask` drives `schemars` codegen into `schemas/`. Post-processing step adds `additionalProperties: false` to schemas with `patternProperties` (schemars 0.8 limitation with `#[serde(flatten)]`).
+
+**Substrate::load is not yet defined**: the trait currently has `persist()` only. Loading from a substrate is a future proposal.
+
+---
+
+## Running Things
+
+```sh
+cargo test               # all tests (inline unit + schema coherence + storage integration)
+cargo xtask              # regenerate schemas/ from Rust types
+```
+
+Tests: ~269 total across unit (inline), `tests/schema_coherence.rs`, `tests/storage_integration.rs`.
+
+---
+
+## Conventions
+
+- IDs: kebab-case for Role/Team/Hook (e.g. `eng-lead`), CamelCase for Workflow/Task/Relay (e.g. `InitiativeWorkflow`)
+- Inline unit tests in `#[cfg(test)]` blocks within each source file
+- Integration tests in `tests/`
+- No `pub use` re-exports at crate root — callers use full paths (`pari::schema::entities::role::Role`)

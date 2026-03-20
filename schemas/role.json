@@ -1,16 +1,18 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Role",
-  "type": "object",
-  "required": [
-    "id",
-    "name",
-    "purpose"
-  ],
+  "additionalProperties": false,
+  "definitions": {
+    "RoleId": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "type": "string"
+    }
+  },
+  "patternProperties": {
+    "^x-": true
+  },
   "properties": {
     "id": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9-]*$"
+      "$ref": "#/definitions/RoleId"
     },
     "name": {
       "type": "string"
@@ -19,13 +21,20 @@
       "type": "string"
     },
     "traits": {
+      "items": {
+        "type": "string"
+      },
       "type": [
         "array",
         "null"
-      ],
-      "items": {
-        "type": "string"
-      }
+      ]
     }
-  }
+  },
+  "required": [
+    "id",
+    "name",
+    "purpose"
+  ],
+  "title": "Role",
+  "type": "object"
 }

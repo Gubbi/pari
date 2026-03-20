@@ -1,11 +1,31 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Team",
-  "type": "object",
-  "required": [
-    "id",
-    "name"
-  ],
+  "additionalProperties": false,
+  "definitions": {
+    "TeamId": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "type": "string"
+    },
+    "TeamMember": {
+      "properties": {
+        "handle": {
+          "pattern": "^@[a-z0-9._-]+$",
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "handle",
+        "role"
+      ],
+      "type": "object"
+    }
+  },
+  "patternProperties": {
+    "^x-": true
+  },
   "properties": {
     "description": {
       "type": [
@@ -14,58 +34,45 @@
       ]
     },
     "id": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9-]*$"
+      "$ref": "#/definitions/TeamId"
     },
     "import": {
       "description": "List of team_ids whose members carry their own roles from the source team.",
+      "items": {
+        "type": "string"
+      },
       "type": [
         "array",
         "null"
-      ],
-      "items": {
-        "type": "string"
-      }
+      ]
     },
     "include": {
+      "additionalProperties": {
+        "type": "string"
+      },
       "description": "Map of team_id → role_id: all members of the referenced team are assigned this role.",
       "type": [
         "object",
         "null"
-      ],
-      "additionalProperties": {
-        "type": "string"
-      }
+      ]
     },
     "members": {
+      "items": {
+        "$ref": "#/definitions/TeamMember"
+      },
       "type": [
         "array",
         "null"
-      ],
-      "items": {
-        "$ref": "#/definitions/TeamMember"
-      }
+      ]
     },
     "name": {
       "type": "string"
     }
   },
-  "definitions": {
-    "TeamMember": {
-      "type": "object",
-      "required": [
-        "handle",
-        "role"
-      ],
-      "properties": {
-        "handle": {
-          "type": "string",
-          "pattern": "^@[a-z0-9._-]+$"
-        },
-        "role": {
-          "type": "string"
-        }
-      }
-    }
-  }
+  "required": [
+    "id",
+    "name"
+  ],
+  "title": "Team",
+  "type": "object"
 }

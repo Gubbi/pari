@@ -16,7 +16,7 @@ Pari is the answer to that erosion.
 
 ## What Pari Does
 
-Teams use Pari to **define** their workflow — the stages, gates, roles, artifacts, and the *why* behind each step. Then Pari **enforces** it, deterministically, for everyone operating within it.
+Teams use Pari to **define** their workflow — the tasks, reviews, roles, artifacts, and the *why* behind each step. Then Pari **enforces** it, deterministically, for everyone operating within it.
 
 AI agents don't just receive context about how the team works. They **check in with Pari** — asking what's next, what's blocking, what the task is really for. Pari answers authoritatively, based on the workflow the team defined.
 
@@ -52,7 +52,7 @@ Pari is for anyone who has felt the friction of a team — human and agent — n
 
 ## Built in Rust
 
-Pari is lightweight and fast. It runs as a live service, and exposes an **MCP server** so any MCP-compatible agent can interact with it — no per-agent integrations required.
+Pari is lightweight, fast and runs as a live service.
 
 ---
 

@@ -1,10 +1,16 @@
+//! [`Team`] entity — a named group of role handles with optional include/import composition.
+
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::schema::context::RepoContext;
-use crate::schema::validation::{is_kebab_case, is_valid_handle, ValidationError};
+use crate::schema::{
+    ids::TeamId,
+    store::EntityStore,
+    types::Extensions,
+    validation::{is_kebab_case, is_valid_handle, validate_extensions, ValidationError},
+};
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct TeamMember {
@@ -14,19 +20,36 @@ pub struct TeamMember {
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct Team {
-    #[schemars(regex(pattern = r"^[a-z][a-z0-9-]*$"))]
-    pub id: String,
+    pub id: TeamId,
     pub name: String,
     pub description: Option<String>,
     pub members: Option<Vec<TeamMember>>,
-    /// Map of team_id → role_id: all members of the referenced team are assigned this role.
+    /// Map of `team_id` → `role_id`: all members of the referenced team are assigned this role.
     pub include: Option<HashMap<String, String>>,
-    /// List of team_ids whose members carry their own roles from the source team.
+    /// List of `team_ids` whose members carry their own roles from the source team.
     pub import: Option<Vec<String>>,
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
 
-pub fn validate(team: &Team, ctx: &RepoContext) -> Vec<ValidationError> {
+impl Team {
+    /// Returns an iterator over all team ids directly referenced by this team
+    /// via `include` (map keys) and `import` (list entries).
+    pub fn get_refs(&self) -> impl Iterator<Item = &str> {
+        self.include
+            .iter()
+            .flat_map(|m| m.keys().map(String::as_str))
+            .chain(
+                self.import
+                    .iter()
+                    .flat_map(|v| v.iter().map(String::as_str)),
+            )
+    }
+}
+
+pub fn validate(team: &Team, ctx: &EntityStore) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     errors.extend(validate_structural(team));
@@ -46,22 +69,21 @@ fn validate_structural(team: &Team) -> Vec<ValidationError> {
         });
     }
 
+    errors.extend(validate_extensions(&team.extensions, "extensions"));
+
     // Handle format and uniqueness
     if let Some(members) = &team.members {
         let mut seen_handles: HashSet<&str> = HashSet::new();
         for (i, member) in members.iter().enumerate() {
             if !is_valid_handle(&member.handle) {
                 errors.push(ValidationError {
-                    path: format!("members[{}].handle", i),
-                    message: format!(
-                        "handle '{}' must match @[a-z0-9._-]+",
-                        member.handle
-                    ),
+                    path: format!("members[{i}].handle"),
+                    message: format!("handle '{}' must match @[a-z0-9._-]+", member.handle),
                 });
             }
             if !seen_handles.insert(member.handle.as_str()) {
                 errors.push(ValidationError {
-                    path: format!("members[{}].handle", i),
+                    path: format!("members[{i}].handle"),
                     message: format!("duplicate handle '{}'", member.handle),
                 });
             }
@@ -71,7 +93,7 @@ fn validate_structural(team: &Team) -> Vec<ValidationError> {
     errors
 }
 
-fn validate_cross_entity(team: &Team, ctx: &RepoContext) -> Vec<ValidationError> {
+fn validate_cross_entity(team: &Team, ctx: &EntityStore) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     // include: team_id keys and role_id values must exist
@@ -79,14 +101,14 @@ fn validate_cross_entity(team: &Team, ctx: &RepoContext) -> Vec<ValidationError>
         for (team_id, role_id) in include {
             if !ctx.has_team(team_id) {
                 errors.push(ValidationError {
-                    path: format!("include.{}", team_id),
-                    message: format!("unknown team '{}'", team_id),
+                    path: format!("include.{team_id}"),
+                    message: format!("unknown team '{team_id}'"),
                 });
             }
             if !ctx.has_role(role_id) {
                 errors.push(ValidationError {
-                    path: format!("include.{}", team_id),
-                    message: format!("unknown role '{}'", role_id),
+                    path: format!("include.{team_id}"),
+                    message: format!("unknown role '{role_id}'"),
                 });
             }
         }
@@ -97,8 +119,8 @@ fn validate_cross_entity(team: &Team, ctx: &RepoContext) -> Vec<ValidationError>
         for (i, team_id) in import.iter().enumerate() {
             if !ctx.has_team(team_id) {
                 errors.push(ValidationError {
-                    path: format!("import[{}]", i),
-                    message: format!("unknown team '{}'", team_id),
+                    path: format!("import[{i}]"),
+                    message: format!("unknown team '{team_id}'"),
                 });
             }
         }
@@ -109,7 +131,7 @@ fn validate_cross_entity(team: &Team, ctx: &RepoContext) -> Vec<ValidationError>
         for (i, member) in members.iter().enumerate() {
             if !ctx.has_role(&member.role) {
                 errors.push(ValidationError {
-                    path: format!("members[{}].role", i),
+                    path: format!("members[{i}].role"),
                     message: format!("unknown role '{}'", member.role),
                 });
             }
@@ -120,10 +142,10 @@ fn validate_cross_entity(team: &Team, ctx: &RepoContext) -> Vec<ValidationError>
 }
 
 /// Validates that team does not form a circular chain through include/import.
-/// Uses BFS over team references via RepoContext. Since no existing team in
-/// RepoContext can reference the incoming team, a cycle can only occur if the
+/// Uses BFS over team references via `RepoContext`. Since no existing team in
+/// `RepoContext` can reference the incoming team, a cycle can only occur if the
 /// incoming team's id appears in the reachable set starting from its own references.
-fn validate_no_cycle(team: &Team, ctx: &RepoContext) -> Vec<ValidationError> {
+fn validate_no_cycle(team: &Team, ctx: &EntityStore) -> Vec<ValidationError> {
     let mut to_visit: VecDeque<String> = VecDeque::new();
     let mut visited: HashSet<String> = HashSet::new();
 
@@ -140,19 +162,16 @@ fn validate_no_cycle(team: &Team, ctx: &RepoContext) -> Vec<ValidationError> {
     }
 
     while let Some(current) = to_visit.pop_front() {
-        if current == team.id {
+        if team.id == current {
             return vec![ValidationError {
                 path: "include/import".to_string(),
-                message: format!(
-                    "circular reference: team '{}' forms a cycle",
-                    team.id
-                ),
+                message: format!("circular reference: team '{}' forms a cycle", team.id),
             }];
         }
         if visited.insert(current.clone()) {
-            if let Some(refs) = ctx.get_team_refs(&current) {
-                for r in refs {
-                    to_visit.push_back(r.clone());
+            if let Some(current_team) = ctx.get_team(&current) {
+                for r in current_team.get_refs() {
+                    to_visit.push_back(r.to_string());
                 }
             }
         }
@@ -164,25 +183,66 @@ fn validate_no_cycle(team: &Team, ctx: &RepoContext) -> Vec<ValidationError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::context::RepoContext;
+    use crate::schema::{store::EntityStore, types::Extensions};
 
-    fn base_ctx() -> RepoContext {
-        let mut ctx = RepoContext::new();
-        ctx.role_ids.insert("eng-lead".to_string());
-        ctx.role_ids.insert("pm".to_string());
-        ctx.team_ids.insert("backend-team".to_string());
-        ctx.team_ids.insert("qa-team".to_string());
+    fn base_ctx() -> EntityStore {
+        let mut ctx = EntityStore::new();
+        ctx.roles.insert(
+            "eng-lead".to_string(),
+            crate::schema::entities::role::Role {
+                id: "eng-lead".into(),
+                name: "Engineering Lead".to_string(),
+                purpose: "test".to_string(),
+                traits: None,
+                extensions: Extensions::default(),
+            },
+        );
+        ctx.roles.insert(
+            "pm".to_string(),
+            crate::schema::entities::role::Role {
+                id: "pm".into(),
+                name: "Product Manager".to_string(),
+                purpose: "test".to_string(),
+                traits: None,
+                extensions: Extensions::default(),
+            },
+        );
+        ctx.teams.insert(
+            "backend-team".to_string(),
+            Team {
+                id: "backend-team".into(),
+                name: "Backend Team".to_string(),
+                description: None,
+                members: None,
+                include: None,
+                import: None,
+                extensions: Extensions::default(),
+            },
+        );
+        ctx.teams.insert(
+            "qa-team".to_string(),
+            Team {
+                id: "qa-team".into(),
+                name: "QA Team".to_string(),
+                description: None,
+                members: None,
+                include: None,
+                import: None,
+                extensions: Extensions::default(),
+            },
+        );
         ctx
     }
 
     fn valid_team() -> Team {
         Team {
-            id: "platform-team".to_string(),
+            id: "platform-team".into(),
             name: "Platform Team".to_string(),
             description: None,
             members: None,
             include: None,
             import: None,
+            extensions: Extensions::default(),
         }
     }
 
@@ -197,7 +257,7 @@ mod tests {
     #[test]
     fn team_camel_case_id_fails() {
         let team = Team {
-            id: "PlatformTeam".to_string(),
+            id: "PlatformTeam".into(),
             ..valid_team()
         };
         let errors = validate_structural(&team);
@@ -262,7 +322,9 @@ mod tests {
         };
         let errors = validate_structural(&team);
         assert!(!errors.is_empty());
-        assert!(errors.iter().any(|e| e.message.contains("duplicate handle")));
+        assert!(errors
+            .iter()
+            .any(|e| e.message.contains("duplicate handle")));
     }
 
     #[test]
@@ -400,7 +462,7 @@ mod tests {
         let mut include = HashMap::new();
         include.insert("platform-team".to_string(), "eng-lead".to_string());
         let team = Team {
-            id: "platform-team".to_string(),
+            id: "platform-team".into(),
             include: Some(include),
             ..valid_team()
         };
@@ -409,26 +471,111 @@ mod tests {
         assert!(errors[0].message.contains("circular reference"));
     }
 
+    // --- 8.2: Team extensions validation tests ---
+
+    #[test]
+    fn team_x_prefixed_extension_passes() {
+        let mut map = std::collections::HashMap::new();
+        map.insert("x-cost-center".to_string(), serde_json::json!("eng"));
+        let team = Team {
+            extensions: Extensions(map),
+            ..valid_team()
+        };
+        let errors = validate_structural(&team);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn team_non_x_extension_key_fails() {
+        let mut map = std::collections::HashMap::new();
+        map.insert("cost-center".to_string(), serde_json::json!("eng"));
+        let team = Team {
+            extensions: Extensions(map),
+            ..valid_team()
+        };
+        let errors = validate_structural(&team);
+        assert!(!errors.is_empty());
+        assert!(errors[0].path.contains("extensions"));
+        assert!(errors[0].message.contains("x-"));
+    }
+
     #[test]
     fn team_transitive_cycle_fails() {
         let mut ctx = base_ctx();
         // team-b's refs include the incoming team (team-x)
-        let mut b_refs = std::collections::HashSet::new();
-        b_refs.insert("team-x".to_string());
-        ctx.team_direct_refs.insert("team-b".to_string(), b_refs);
-        ctx.team_ids.insert("team-b".to_string());
+        // With EntityStore, we insert team-b as a full Team whose import contains "team-x"
+        ctx.teams.insert(
+            "team-b".to_string(),
+            Team {
+                id: "team-b".into(),
+                name: "Team B".to_string(),
+                description: None,
+                members: None,
+                include: None,
+                import: Some(vec!["team-x".to_string()]),
+                extensions: Extensions::default(),
+            },
+        );
 
         // Incoming team "team-x" imports "team-b"
         let team = Team {
-            id: "team-x".to_string(),
+            id: "team-x".into(),
             name: "Team X".to_string(),
             description: None,
             members: None,
             include: None,
             import: Some(vec!["team-b".to_string()]),
+            extensions: Extensions::default(),
         };
         let errors = validate_no_cycle(&team, &ctx);
         assert!(!errors.is_empty());
         assert!(errors[0].message.contains("circular reference"));
+    }
+
+    // --- Team::get_refs tests ---
+
+    #[test]
+    fn get_refs_yields_include_keys() {
+        let mut include = HashMap::new();
+        include.insert("backend-team".to_string(), "eng-lead".to_string());
+        let team = Team {
+            include: Some(include),
+            ..valid_team()
+        };
+        let refs: Vec<&str> = team.get_refs().collect();
+        assert_eq!(refs, vec!["backend-team"]);
+    }
+
+    #[test]
+    fn get_refs_yields_import_entries() {
+        let team = Team {
+            import: Some(vec!["design-team".to_string()]),
+            ..valid_team()
+        };
+        let refs: Vec<&str> = team.get_refs().collect();
+        assert_eq!(refs, vec!["design-team"]);
+    }
+
+    #[test]
+    fn get_refs_yields_both_include_and_import() {
+        let mut include = HashMap::new();
+        include.insert("backend-team".to_string(), "eng-lead".to_string());
+        let team = Team {
+            include: Some(include),
+            import: Some(vec!["design-team".to_string()]),
+            ..valid_team()
+        };
+        let mut refs: Vec<&str> = team.get_refs().collect();
+        refs.sort();
+        assert!(refs.contains(&"backend-team"));
+        assert!(refs.contains(&"design-team"));
+        assert_eq!(refs.len(), 2);
+    }
+
+    #[test]
+    fn get_refs_yields_nothing_for_team_with_no_references() {
+        let team = valid_team();
+        let refs: Vec<&str> = team.get_refs().collect();
+        assert!(refs.is_empty());
     }
 }

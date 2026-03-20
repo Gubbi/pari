@@ -1,14 +1,18 @@
 /// Schema coherence tests — verify that schemars annotations on Rust types produce
 /// JSON schemas that match the structural constraints from the original hand-written schemas.
 use pari::schema::entities::hook::Hook;
-use pari::schema::entities::relay::Relay;
-use pari::schema::entities::role::Role;
-use pari::schema::entities::task::Task;
-use pari::schema::entities::team::Team;
-use pari::schema::entities::workflow::Workflow;
-use pari::schema::types::{
-    Artifact, HookInvocation, HookInvocationValue, Raci, RelayStateSemantic, StateMapEntry, Step,
-    TaskSemantic, TaskStateEntry, WorkflowSemantic, WorkflowStateEntry,
+use pari::schema::{
+    entities::{
+        relay::Relay,
+        role::Role,
+        task::Task,
+        team::Team,
+        workflow::{Step, Workflow},
+    },
+    types::{
+        Artifact, HookInvocation, HookInvocationValue, Raci, RelayStateSemantic, StateMapEntry,
+        TaskSemantic, TaskStateEntry, WorkflowSemantic, WorkflowStateEntry,
+    },
 };
 use schemars::{schema_for, JsonSchema};
 use serde_json::Value;
@@ -26,10 +30,25 @@ fn required_fields(schema: &Value) -> Vec<String> {
         .collect()
 }
 
+/// Resolve `properties.id.pattern`, following a `$ref` into `definitions` if present.
+fn id_pattern(schema: &Value) -> &str {
+    let id_prop = &schema["properties"]["id"];
+    if let Some(ref_str) = id_prop["$ref"].as_str() {
+        // ref_str is like "#/definitions/RoleId"
+        let def_name = ref_str.trim_start_matches("#/definitions/");
+        schema["definitions"][def_name]["pattern"].as_str().unwrap()
+    } else {
+        id_prop["pattern"].as_str().unwrap()
+    }
+}
+
 fn enum_values(schema: &Value) -> Vec<String> {
     let direct = schema["enum"].as_array();
     if let Some(arr) = direct {
-        return arr.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+        return arr
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect();
     }
     schema["anyOf"]
         .as_array()
@@ -74,7 +93,10 @@ fn raci_consulted_and_informed_are_arrays() {
 #[test]
 fn hook_invocation_is_any_of() {
     let schema = schema_json::<HookInvocation>();
-    assert!(schema["anyOf"].is_array(), "HookInvocation should generate anyOf");
+    assert!(
+        schema["anyOf"].is_array(),
+        "HookInvocation should generate anyOf"
+    );
 }
 
 #[test]
@@ -92,7 +114,10 @@ fn hook_invocation_has_string_variant() {
 #[test]
 fn hook_invocation_value_is_any_of() {
     let schema = schema_json::<HookInvocationValue>();
-    assert!(schema["anyOf"].is_array(), "HookInvocationValue should generate anyOf");
+    assert!(
+        schema["anyOf"].is_array(),
+        "HookInvocationValue should generate anyOf"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -190,8 +215,7 @@ fn artifact_name_required() {
 #[test]
 fn role_id_has_kebab_pattern() {
     let schema = schema_json::<Role>();
-    let pattern = schema["properties"]["id"]["pattern"].as_str().unwrap();
-    assert_eq!(pattern, r"^[a-z][a-z0-9-]*$");
+    assert_eq!(id_pattern(&schema), r"^[a-z][a-z0-9-]*$");
 }
 
 // ---------------------------------------------------------------------------
@@ -201,8 +225,7 @@ fn role_id_has_kebab_pattern() {
 #[test]
 fn hook_id_has_camel_pattern() {
     let schema = schema_json::<Hook>();
-    let pattern = schema["properties"]["id"]["pattern"].as_str().unwrap();
-    assert_eq!(pattern, r"^[A-Z][A-Za-z0-9]*$");
+    assert_eq!(id_pattern(&schema), r"^[A-Z][A-Za-z0-9]*$");
 }
 
 #[test]
@@ -218,8 +241,7 @@ fn hook_instructions_has_min_items_1() {
 #[test]
 fn team_id_has_kebab_pattern() {
     let schema = schema_json::<Team>();
-    let pattern = schema["properties"]["id"]["pattern"].as_str().unwrap();
-    assert_eq!(pattern, r"^[a-z][a-z0-9-]*$");
+    assert_eq!(id_pattern(&schema), r"^[a-z][a-z0-9-]*$");
 }
 
 // ---------------------------------------------------------------------------
@@ -229,8 +251,7 @@ fn team_id_has_kebab_pattern() {
 #[test]
 fn workflow_id_has_camel_pattern() {
     let schema = schema_json::<Workflow>();
-    let pattern = schema["properties"]["id"]["pattern"].as_str().unwrap();
-    assert_eq!(pattern, r"^[A-Z][A-Za-z0-9]*$");
+    assert_eq!(id_pattern(&schema), r"^[A-Z][A-Za-z0-9]*$");
 }
 
 #[test]
@@ -252,8 +273,7 @@ fn workflow_states_has_min_items_2() {
 #[test]
 fn task_id_has_camel_pattern() {
     let schema = schema_json::<Task>();
-    let pattern = schema["properties"]["id"]["pattern"].as_str().unwrap();
-    assert_eq!(pattern, r"^[A-Z][A-Za-z0-9]*$");
+    assert_eq!(id_pattern(&schema), r"^[A-Z][A-Za-z0-9]*$");
 }
 
 #[test]
@@ -281,6 +301,5 @@ fn task_states_has_min_items_2() {
 #[test]
 fn relay_id_has_camel_pattern() {
     let schema = schema_json::<Relay>();
-    let pattern = schema["properties"]["id"]["pattern"].as_str().unwrap();
-    assert_eq!(pattern, r"^[A-Z][A-Za-z0-9]*$");
+    assert_eq!(id_pattern(&schema), r"^[A-Z][A-Za-z0-9]*$");
 }

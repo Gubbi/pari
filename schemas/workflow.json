@@ -1,15 +1,491 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Workflow",
-  "type": "object",
-  "required": [
-    "accountability",
-    "id",
-    "name",
-    "purpose",
-    "states",
-    "steps"
-  ],
+  "additionalProperties": false,
+  "definitions": {
+    "Artifact": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "template": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "HookInvocation": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "properties": {
+            "hook": {
+              "type": "string"
+            },
+            "with": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "hook"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "HookInvocationValue": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/HookInvocation"
+        },
+        {
+          "items": {
+            "$ref": "#/definitions/HookInvocation"
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "Raci": {
+      "properties": {
+        "accountable": {
+          "type": "string"
+        },
+        "consulted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "informed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "responsible": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountable",
+        "consulted",
+        "informed",
+        "responsible"
+      ],
+      "type": "object"
+    },
+    "Relay": {
+      "patternProperties": {
+        "^x-": true
+      },
+      "properties": {
+        "accountability": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Raci"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "briefing": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "debriefing": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "delegates_to": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "guidance": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hooks": {
+          "additionalProperties": {
+            "$ref": "#/definitions/HookInvocationValue"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "id": {
+          "$ref": "#/definitions/RelayId"
+        },
+        "name": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "state_map": {
+          "additionalProperties": {
+            "$ref": "#/definitions/StateMapEntry"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "delegates_to",
+        "id",
+        "name",
+        "purpose",
+        "state_map"
+      ],
+      "type": "object"
+    },
+    "RelayId": {
+      "pattern": "^[A-Z][A-Za-z0-9]*$",
+      "type": "string"
+    },
+    "RelayStateSemantic": {
+      "enum": [
+        "complete",
+        "blocked",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "ReviewStep": {
+      "properties": {
+        "approver": {
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Z][A-Za-z0-9]*$",
+          "type": "string"
+        },
+        "on_reject": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "approver",
+        "id",
+        "on_reject"
+      ],
+      "type": "object"
+    },
+    "StateMapEntry": {
+      "properties": {
+        "maps_to": {
+          "type": "string"
+        },
+        "semantic": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/RelayStateSemantic"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "maps_to"
+      ],
+      "type": "object"
+    },
+    "Step": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/WorkStep"
+        },
+        {
+          "$ref": "#/definitions/ReviewStep"
+        }
+      ]
+    },
+    "Task": {
+      "patternProperties": {
+        "^x-": true
+      },
+      "properties": {
+        "accountability": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Raci"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifact": {
+          "$ref": "#/definitions/Artifact"
+        },
+        "criteria": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "guidance": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hooks": {
+          "additionalProperties": {
+            "$ref": "#/definitions/HookInvocationValue"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "id": {
+          "$ref": "#/definitions/TaskId"
+        },
+        "instructions": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "states": {
+          "items": {
+            "$ref": "#/definitions/TaskStateEntry"
+          },
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "artifact",
+        "criteria",
+        "id",
+        "instructions",
+        "name",
+        "purpose",
+        "states"
+      ],
+      "type": "object"
+    },
+    "TaskId": {
+      "pattern": "^[A-Z][A-Za-z0-9]*$",
+      "type": "string"
+    },
+    "TaskSemantic": {
+      "enum": [
+        "complete",
+        "blocked",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "TaskStateEntry": {
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Z][A-Za-z0-9]*$",
+          "type": "string"
+        },
+        "semantic": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TaskSemantic"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "description",
+        "id"
+      ],
+      "type": "object"
+    },
+    "WorkStep": {
+      "properties": {
+        "definition": {
+          "$ref": "#/definitions/WorkStepDefinition"
+        },
+        "depends_on": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "definition"
+      ],
+      "type": "object"
+    },
+    "WorkStepDefinition": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Task"
+        },
+        {
+          "$ref": "#/definitions/Relay"
+        },
+        {
+          "$ref": "#/definitions/WorkflowDef_for_Step"
+        }
+      ],
+      "description": "Embedded definition inside a WorkStep. Discriminated by required fields: - Task   → has `artifact` - Relay  → has `delegates_to` - Workflow → has `steps`"
+    },
+    "WorkflowDef_for_Step": {
+      "patternProperties": {
+        "^x-": true
+      },
+      "properties": {
+        "accountability": {
+          "$ref": "#/definitions/Raci"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "guidance": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hooks": {
+          "additionalProperties": {
+            "$ref": "#/definitions/HookInvocationValue"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "id": {
+          "$ref": "#/definitions/WorkflowId"
+        },
+        "name": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "states": {
+          "items": {
+            "$ref": "#/definitions/WorkflowStateEntry"
+          },
+          "minItems": 2,
+          "type": "array"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/definitions/Step"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "accountability",
+        "id",
+        "name",
+        "purpose",
+        "states",
+        "steps"
+      ],
+      "type": "object"
+    },
+    "WorkflowId": {
+      "pattern": "^[A-Z][A-Za-z0-9]*$",
+      "type": "string"
+    },
+    "WorkflowSemantic": {
+      "enum": [
+        "reviewing",
+        "complete",
+        "blocked",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "WorkflowStateEntry": {
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Z][A-Za-z0-9]*$",
+          "type": "string"
+        },
+        "semantic": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/WorkflowSemantic"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "description",
+        "id"
+      ],
+      "type": "object"
+    }
+  },
+  "patternProperties": {
+    "^x-": true
+  },
   "properties": {
     "accountability": {
       "$ref": "#/definitions/Raci"
@@ -27,17 +503,16 @@
       ]
     },
     "hooks": {
+      "additionalProperties": {
+        "$ref": "#/definitions/HookInvocationValue"
+      },
       "type": [
         "object",
         "null"
-      ],
-      "additionalProperties": {
-        "$ref": "#/definitions/HookInvocationValue"
-      }
+      ]
     },
     "id": {
-      "type": "string",
-      "pattern": "^[A-Z][A-Za-z0-9]*$"
+      "$ref": "#/definitions/WorkflowId"
     },
     "name": {
       "type": "string"
@@ -46,175 +521,28 @@
       "type": "string"
     },
     "states": {
-      "type": "array",
       "items": {
         "$ref": "#/definitions/WorkflowStateEntry"
       },
-      "minItems": 2
+      "minItems": 2,
+      "type": "array"
     },
     "steps": {
-      "type": "array",
       "items": {
         "$ref": "#/definitions/Step"
       },
-      "minItems": 1
+      "minItems": 1,
+      "type": "array"
     }
   },
-  "definitions": {
-    "HookInvocation": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "object",
-          "required": [
-            "hook"
-          ],
-          "properties": {
-            "hook": {
-              "type": "string"
-            },
-            "with": {
-              "type": [
-                "object",
-                "null"
-              ],
-              "additionalProperties": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      ]
-    },
-    "HookInvocationValue": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/HookInvocation"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/HookInvocation"
-          }
-        }
-      ]
-    },
-    "Raci": {
-      "type": "object",
-      "required": [
-        "accountable",
-        "consulted",
-        "informed",
-        "responsible"
-      ],
-      "properties": {
-        "accountable": {
-          "type": "string"
-        },
-        "consulted": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "informed": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "responsible": {
-          "type": "string"
-        }
-      }
-    },
-    "ReviewStep": {
-      "type": "object",
-      "required": [
-        "approver",
-        "id",
-        "on_reject"
-      ],
-      "properties": {
-        "approver": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string",
-          "pattern": "^[A-Z][A-Za-z0-9]*$"
-        },
-        "on_reject": {
-          "type": "string"
-        }
-      }
-    },
-    "Step": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/WorkStep"
-        },
-        {
-          "$ref": "#/definitions/ReviewStep"
-        }
-      ]
-    },
-    "WorkStep": {
-      "type": "object",
-      "required": [
-        "id"
-      ],
-      "properties": {
-        "depends_on": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "string"
-          }
-        },
-        "id": {
-          "type": "string",
-          "pattern": "^[A-Z][A-Za-z0-9]*$"
-        }
-      }
-    },
-    "WorkflowSemantic": {
-      "type": "string",
-      "enum": [
-        "reviewing",
-        "complete",
-        "blocked",
-        "failed"
-      ]
-    },
-    "WorkflowStateEntry": {
-      "type": "object",
-      "required": [
-        "description",
-        "id"
-      ],
-      "properties": {
-        "description": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string",
-          "pattern": "^[A-Z][A-Za-z0-9]*$"
-        },
-        "semantic": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/WorkflowSemantic"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    }
-  }
+  "required": [
+    "accountability",
+    "id",
+    "name",
+    "purpose",
+    "states",
+    "steps"
+  ],
+  "title": "WorkflowDef_for_Step",
+  "type": "object"
 }

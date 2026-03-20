@@ -1,16 +1,23 @@
+//! [`Relay`] entity — delegates a workflow step to a shared workflow with state mapping.
+
 use std::collections::HashMap;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::schema::context::RepoContext;
-use crate::schema::types::{HooksMap, Raci, RelayStateSemantic, StateMapEntry};
-use crate::schema::validation::{is_camel_case, validate_hooks_map, validate_raci, ValidationError};
+use crate::schema::{
+    ids::RelayId,
+    store::EntityStore,
+    types::{Extensions, HooksMap, Raci, RelayStateSemantic, StateMapEntry},
+    validation::{
+        is_camel_case, validate_extensions, validate_hooks_map, validate_raci, ValidationError,
+    },
+};
 
 #[derive(Serialize, Deserialize, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct Relay {
-    #[schemars(regex(pattern = r"^[A-Z][A-Za-z0-9]*$"))]
-    pub id: String,
+    pub id: RelayId,
     pub name: String,
     pub description: Option<String>,
     pub purpose: String,
@@ -21,9 +28,11 @@ pub struct Relay {
     pub state_map: HashMap<String, StateMapEntry>,
     pub hooks: Option<HooksMap>,
     pub guidance: Option<String>,
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
 
-pub fn validate(relay: &Relay, ctx: &RepoContext) -> Vec<ValidationError> {
+pub fn validate(relay: &Relay, ctx: &EntityStore) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     errors.extend(validate_structural(relay));
@@ -52,10 +61,12 @@ fn validate_structural(relay: &Relay) -> Vec<ValidationError> {
         });
     }
 
+    errors.extend(validate_extensions(&relay.extensions, "extensions"));
+
     errors
 }
 
-fn validate_delegates_to(relay: &Relay, ctx: &RepoContext) -> Vec<ValidationError> {
+fn validate_delegates_to(relay: &Relay, ctx: &EntityStore) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     if !ctx.has_shared_workflow(&relay.delegates_to) {
@@ -71,20 +82,19 @@ fn validate_delegates_to(relay: &Relay, ctx: &RepoContext) -> Vec<ValidationErro
     errors
 }
 
-fn validate_state_map_keys(relay: &Relay, ctx: &RepoContext) -> Vec<ValidationError> {
+fn validate_state_map_keys(relay: &Relay, ctx: &EntityStore) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     if let Some(states) = ctx.get_shared_workflow_states(&relay.delegates_to) {
         let valid_names: std::collections::HashSet<&str> =
-            states.iter().map(|s| s.as_str()).collect();
+            states.iter().map(String::as_str).collect();
 
         for key in relay.state_map.keys() {
             if !valid_names.contains(key.as_str()) {
                 errors.push(ValidationError {
-                    path: format!("state_map.{}", key),
+                    path: format!("state_map.{key}"),
                     message: format!(
-                        "state_map key '{}' does not match any state in the shared workflow",
-                        key
+                        "state_map key '{key}' does not match any state in the shared workflow"
                     ),
                 });
             }
@@ -126,7 +136,7 @@ fn validate_state_map_semantic(relay: &Relay) -> Vec<ValidationError> {
     errors
 }
 
-fn validate_referential_integrity(relay: &Relay, ctx: &RepoContext) -> Vec<ValidationError> {
+fn validate_referential_integrity(relay: &Relay, ctx: &EntityStore) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     if let Some(raci) = &relay.accountability {
@@ -143,26 +153,94 @@ fn validate_referential_integrity(relay: &Relay, ctx: &RepoContext) -> Vec<Valid
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::context::{RepoContext, SharedWorkflowInfo};
-    use crate::schema::types::{
-        HookInvocation, HookInvocationValue, Raci, RelayStateSemantic, StateMapEntry,
+    use crate::schema::{
+        entities::workflow::{ReviewStep, SharedStep, WorkflowDef},
+        store::EntityStore,
+        types::{
+            Extensions, HookInvocation, HookInvocationValue, Raci, RelayStateSemantic,
+            StateMapEntry, WorkflowSemantic, WorkflowStateEntry,
+        },
     };
 
-    fn make_ctx() -> RepoContext {
-        let mut ctx = RepoContext::new();
-        ctx.role_ids.insert("eng-lead".to_string());
-        ctx.role_ids.insert("pm".to_string());
-        ctx.hook_ids.insert("NotifySlack".to_string());
-        ctx.shared_workflows.insert(
-            "LegalReview".to_string(),
-            SharedWorkflowInfo {
-                state_ids: vec![
-                    "Active".to_string(),
-                    "Done".to_string(),
-                    "Failed".to_string(),
-                ],
+    fn make_shared_workflow(
+        id: &str,
+        state_ids: &[&str],
+    ) -> crate::schema::entities::workflow::SharedWorkflow {
+        let states = state_ids
+            .iter()
+            .enumerate()
+            .map(|(i, sid)| WorkflowStateEntry {
+                id: sid.to_string(),
+                description: "desc".to_string(),
+                semantic: if i == state_ids.len() - 1 {
+                    Some(WorkflowSemantic::Complete)
+                } else {
+                    None
+                },
+            })
+            .collect();
+        WorkflowDef {
+            id: id.into(),
+            name: id.to_string(),
+            description: None,
+            purpose: "test".to_string(),
+            accountability: Raci {
+                responsible: "r".to_string(),
+                accountable: "a".to_string(),
+                consulted: vec![],
+                informed: vec![],
+            },
+            steps: vec![SharedStep::Review(ReviewStep {
+                id: "Gate".to_string(),
+                approver: "r".to_string(),
+                on_reject: "Gate".to_string(),
+            })],
+            states,
+            hooks: None,
+            guidance: None,
+            extensions: Extensions::default(),
+        }
+    }
+
+    fn make_ctx() -> EntityStore {
+        use crate::schema::{
+            entities::{hook::Hook, role::Role},
+            types::Extensions,
+        };
+        let mut ctx = EntityStore::new();
+        ctx.roles.insert(
+            "eng-lead".to_string(),
+            Role {
+                id: "eng-lead".into(),
+                name: "Engineering Lead".to_string(),
+                purpose: "test".to_string(),
+                traits: None,
+                extensions: Extensions::default(),
             },
         );
+        ctx.roles.insert(
+            "pm".to_string(),
+            Role {
+                id: "pm".into(),
+                name: "Product Manager".to_string(),
+                purpose: "test".to_string(),
+                traits: None,
+                extensions: Extensions::default(),
+            },
+        );
+        ctx.hooks.insert(
+            "NotifySlack".to_string(),
+            Hook {
+                id: "NotifySlack".into(),
+                name: "Notify Slack".to_string(),
+                description: "test".to_string(),
+                instructions: vec!["send message".to_string()],
+                inputs: None,
+                extensions: Extensions::default(),
+            },
+        );
+        let sw = make_shared_workflow("LegalReview", &["Active", "Done", "Failed"]);
+        ctx.shared_workflows.insert(sw.id.to_string(), sw);
         ctx
     }
 
@@ -187,7 +265,7 @@ mod tests {
 
     fn valid_relay() -> Relay {
         Relay {
-            id: "LegalSignoff".to_string(),
+            id: "LegalSignoff".into(),
             name: "Legal Signoff".to_string(),
             description: None,
             purpose: "Ensure legal clearance".to_string(),
@@ -198,6 +276,7 @@ mod tests {
             state_map: valid_state_map(),
             hooks: None,
             guidance: None,
+            extensions: Extensions::default(),
         }
     }
 
@@ -212,7 +291,7 @@ mod tests {
     #[test]
     fn relay_kebab_id_fails() {
         let relay = Relay {
-            id: "legal-signoff".to_string(),
+            id: "legal-signoff".into(),
             ..valid_relay()
         };
         let errors = validate_structural(&relay);
@@ -420,5 +499,56 @@ mod tests {
         };
         let errors = validate_referential_integrity(&relay, &ctx);
         assert!(errors.is_empty());
+    }
+
+    // --- 9.3: Relay delegates_to typed vec lookup tests ---
+
+    #[test]
+    fn relay_delegates_to_found_via_typed_shared_workflow_vec() {
+        let mut ctx = EntityStore::new();
+        let sw = make_shared_workflow("ComplianceReview", &["Active", "Approved"]);
+        ctx.shared_workflows.insert(sw.id.to_string(), sw);
+        let relay = Relay {
+            delegates_to: "ComplianceReview".to_string(),
+            ..valid_relay()
+        };
+        let errors = validate_delegates_to(&relay, &ctx);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn relay_delegates_to_not_found_in_empty_typed_vec_fails() {
+        let ctx = EntityStore::new();
+        let errors = validate_delegates_to(&valid_relay(), &ctx);
+        assert!(!errors.is_empty());
+        assert!(errors[0].message.contains("unknown shared workflow"));
+    }
+
+    // --- 8.2: Relay extensions validation tests ---
+
+    #[test]
+    fn relay_x_prefixed_extension_passes() {
+        let mut map = std::collections::HashMap::new();
+        map.insert("x-sla".to_string(), serde_json::json!("48h"));
+        let relay = Relay {
+            extensions: Extensions(map),
+            ..valid_relay()
+        };
+        let errors = validate_structural(&relay);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn relay_non_x_extension_key_fails() {
+        let mut map = std::collections::HashMap::new();
+        map.insert("sla".to_string(), serde_json::json!("48h"));
+        let relay = Relay {
+            extensions: Extensions(map),
+            ..valid_relay()
+        };
+        let errors = validate_structural(&relay);
+        assert!(!errors.is_empty());
+        assert!(errors[0].path.contains("extensions"));
+        assert!(errors[0].message.contains("x-"));
     }
 }

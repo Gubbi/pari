@@ -1,8 +1,14 @@
+//! [`Hook`] entity — a reusable automation action invoked at lifecycle points.
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::schema::context::RepoContext;
-use crate::schema::validation::{is_camel_case, ValidationError};
+use crate::schema::{
+    ids::HookId,
+    store::EntityStore,
+    types::Extensions,
+    validation::{is_camel_case, validate_extensions, ValidationError},
+};
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct HookInput {
@@ -12,17 +18,19 @@ pub struct HookInput {
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct Hook {
-    #[schemars(regex(pattern = r"^[A-Z][A-Za-z0-9]*$"))]
-    pub id: String,
+    pub id: HookId,
     pub name: String,
     pub description: String,
     #[schemars(length(min = 1))]
     pub instructions: Vec<String>,
     pub inputs: Option<Vec<HookInput>>,
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
 
-pub fn validate(hook: &Hook, _ctx: &RepoContext) -> Vec<ValidationError> {
+pub fn validate(hook: &Hook, _ctx: &EntityStore) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     if !is_camel_case(&hook.id) {
@@ -39,24 +47,28 @@ pub fn validate(hook: &Hook, _ctx: &RepoContext) -> Vec<ValidationError> {
         });
     }
 
+    errors.extend(validate_extensions(&hook.extensions, "extensions"));
+
     errors
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::schema::types::Extensions;
 
-    fn ctx() -> RepoContext {
-        RepoContext::new()
+    fn ctx() -> EntityStore {
+        EntityStore::new()
     }
 
     fn valid_hook() -> Hook {
         Hook {
-            id: "UpdateJiraStatus".to_string(),
+            id: "UpdateJiraStatus".into(),
             name: "Update Jira Status".to_string(),
             description: "Updates the Jira issue status".to_string(),
             instructions: vec!["Call the Jira API".to_string()],
             inputs: None,
+            extensions: Extensions::default(),
         }
     }
 
@@ -91,7 +103,7 @@ mod tests {
     #[test]
     fn hook_kebab_id_fails() {
         let hook = Hook {
-            id: "update-jira".to_string(),
+            id: "update-jira".into(),
             ..valid_hook()
         };
         let errors = validate(&hook, &ctx());
@@ -102,7 +114,7 @@ mod tests {
     #[test]
     fn hook_lowercase_id_fails() {
         let hook = Hook {
-            id: "updateJira".to_string(),
+            id: "updateJira".into(),
             ..valid_hook()
         };
         let errors = validate(&hook, &ctx());
@@ -140,5 +152,33 @@ mod tests {
         };
         assert_eq!(input.name, "status");
         assert!(input.required);
+    }
+
+    // --- 8.2: Hook extensions validation tests ---
+
+    #[test]
+    fn hook_x_prefixed_extension_passes() {
+        let mut map = std::collections::HashMap::new();
+        map.insert("x-owner".to_string(), serde_json::json!("platform"));
+        let hook = Hook {
+            extensions: Extensions(map),
+            ..valid_hook()
+        };
+        let errors = validate(&hook, &ctx());
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn hook_non_x_extension_key_fails() {
+        let mut map = std::collections::HashMap::new();
+        map.insert("owner".to_string(), serde_json::json!("platform"));
+        let hook = Hook {
+            extensions: Extensions(map),
+            ..valid_hook()
+        };
+        let errors = validate(&hook, &ctx());
+        assert!(!errors.is_empty());
+        assert!(errors[0].path.contains("extensions"));
+        assert!(errors[0].message.contains("x-"));
     }
 }
