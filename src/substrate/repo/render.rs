@@ -226,7 +226,7 @@ mod tests {
         entities::{
             team::TeamMember,
             workflow::{
-                ReviewStep, SharedStep, SharedWorkStep, SharedWorkStepDefinition, Step, WorkStep,
+                ReviewStep, SharedWorkStepDefinition, Step, WorkStep,
                 WorkStepDefinition,
             },
         },
@@ -649,7 +649,7 @@ mod tests {
             description: None,
             purpose: "Shared setup.".to_string(),
             accountability: raci(),
-            steps: vec![SharedStep::Work(SharedWorkStep {
+            steps: vec![Step::<SharedWorkStepDefinition>::Work(WorkStep {
                 depends_on: None,
                 definition: SharedWorkStepDefinition::Task(base_task()),
             })],

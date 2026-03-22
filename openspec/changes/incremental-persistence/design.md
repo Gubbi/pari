@@ -1,3 +1,12 @@
+## Prerequisites
+
+This change depends on a prior **`restructure-step-types`** change that makes `Step` and `WorkStep` generic:
+- `Step<S>` and `WorkStep<S>` — generic over the step definition type
+- `WorkStepDefinition` and `SharedWorkStepDefinition` — concrete enums with `Box<Workflow>` / `Box<SharedWorkflow>` (not `Box<WorkflowDef<Step>>`)
+- `Workflow = WorkflowDef<WorkStepDefinition>`, `SharedWorkflow = WorkflowDef<SharedWorkStepDefinition>` — concrete type aliases
+
+This restructure is independently valuable and is a prerequisite for the `#[derive(Tracked)]` macro to handle the workflow type hierarchy without recursive generic type inference.
+
 ## Context
 
 The substrate layer currently takes a full `EntityStore` snapshot and writes every entity to disk on each `persist()` call. The `RepoSubstrate` implementation writes all files to a `.part/` staging directory, then atomically renames it to the root. This works but is O(total entities) regardless of how many actually changed.
@@ -32,13 +41,20 @@ Every field on every entity gets wrapped in `Tracked<T>` in the tracked variant.
 
 ### 2. `TrackedMap<K,V>` backed by IndexMap for collections
 
-`TrackedMap` wraps `IndexMap<K,V>` and tracks three sets: `dirty` (inserted or modified keys), `removed` (deleted keys), and per-value dirty flags via `Tracked<V>`. IndexMap preserves insertion order, which is critical for workflow steps where execution sequence matters.
+`TrackedMap` wraps `IndexMap<K,V>` and tracks three sets:
+- `inserted: IndexMap<K, ()>` — keys newly added via `insert()`
+- `modified: IndexMap<K, ()>` — keys that existed and were mutably accessed via `get_mut()`
+- `removed: IndexMap<K, V>` — keys deleted via `remove()`, **full value retained** until `reset_tracked()`
+
+`inserted` takes precedence over `modified` at `collect_changes()` time — a key that was inserted and then mutated before drain is `Added`, not `Modified`. Removed values are preserved (not dropped) so that `collect_changes()` has full entity data available for `Removed` entries.
+
+IndexMap preserves insertion order, which is critical for workflow steps where execution sequence matters.
 
 Used in two places:
 - **EntityStore**: `TrackedMap<String, TrackedRole>`, `TrackedMap<String, TrackedWorkflow>`, etc.
-- **Workflow steps** (internal): `TrackedMap<String, TrackedStep>` keyed by step id.
+- **Workflow steps** (internal): `TrackedMap<String, TrackedStep<...>>` keyed by step id.
 
-`Vec<Step>` remains in the plain structs. The `From<Workflow> for TrackedWorkflow` conversion extracts step ids and builds the IndexMap. Serde continues to target the plain `Vec<Step>` — no custom serialization needed.
+`Vec<Step<S>>` remains in the plain structs. The `From<WorkflowDef<S>> for TrackedWorkflowDef<TS>` conversion extracts step ids and builds the IndexMap. Serde continues to target the plain `Vec<Step<S>>` — no custom serialization needed.
 
 **Alternatives considered:**
 - *HashMap*: Loses insertion order. Step ordering is critical.
@@ -47,11 +63,7 @@ Used in two places:
 
 ### 3. Plain structs stay unchanged — tracked variants are derived
 
-Plain entity structs (`Role`, `Task`, `Workflow`, etc.) remain the public API, serde target, and JSON schema source. A `#[derive(Tracked)]` proc macro generates:
-- A tracked struct variant (e.g., `TrackedRole`) with each field wrapped in `Tracked<T>`
-- A `From<Plain> for Tracked` impl that wraps each field
-
-Callers construct plain structs and insert them into EntityStore. The store boundary converts to tracked variants internally. Reading through `Deref` returns plain field references. `Tracked` never appears in public API signatures.
+Plain entity structs (`Role`, `Task`, `Workflow`, etc.) remain the public API, serde target, and JSON schema source. A `#[derive(Tracked)]` proc macro generates tracked variants. Plain structs are used for write (insertion into EntityStore); tracked variants are the read interface (`get_*` methods return `&TrackedRole` etc., fields accessible via `Deref`).
 
 **Alternatives considered:**
 - *Single struct with Tracked fields + field-level `From` impls*: Rust's `From`/`Into` doesn't chain (`&str → RoleId → Tracked<RoleId>` fails), making construction inconsistent across field types. Tracked also leaks into serde, schema generation, and validation signatures.
@@ -59,22 +71,31 @@ Callers construct plain structs and insert them into EntityStore. The store boun
 
 ### 4. Flat `ChangeSet` with path-based entries
 
-`EntityStore::drain_changes()` walks the tracked tree and produces a flat list of `EntityChange` entries. Each entry carries:
+`EntityStore::collect_changes()` walks the tracked tree and produces a flat list of `EntityChange` entries. Each entry carries:
 - `path`: tree location (e.g., `"workflows/Initiative/WriteProposal"`)
 - `kind`: entity kind (Role, Task, Workflow, etc.)
 - `id`: entity id
 - `op`: `Added(entity)`, `Modified { entity, dirty_fields }`, or `Removed`
 
-`Modified` carries the full plain entity (for re-rendering) plus a `Vec<String>` of dirty field names (for substrates that can do targeted updates). The `drain_changes()` call resets all dirty flags.
+`Modified` carries the full tracked entity (for re-rendering) plus a `Vec<String>` of dirty field names (for substrates that can do targeted updates). `EntityData` carries tracked types directly — no conversion back to plain.
+
+`collect_changes()` is `&self` — it does **not** reset dirty state. Dirty state is reset separately via `EntityStore::reset_tracked()`, which must only be called after the substrate confirms successful persistence. This preserves correctness if `atomic_persist()` fails — dirty state remains intact and the next call to `collect_changes()` will re-emit the same changes.
 
 **Alternatives considered:**
 - *Nested changeset mirroring entity tree*: Dense, harder for substrates to consume. Each substrate would need to traverse the nested structure to find what it cares about.
-- *ChangeSet carries Tracked entities instead of plain*: Leaks `Tracked` past the drain boundary. Substrates should not depend on the tracking mechanism.
+- *`collect_changes()` resets dirty state immediately*: If `atomic_persist()` fails after collection, dirty state is lost and the changes are silently dropped. Separation of collection and reset eliminates this risk.
 - *Single top-level entity changes with deep dirty paths*: Paths like `"steps[WriteProposal].instructions"` require parsing. Flat entries with a path prefix are simpler and directly mappable to filesystem locations or DB table paths.
 
-### 5. `persist()` signature changes to accept `&ChangeSet`
+### 5. `atomic_persist()` signature changes to accept `&ChangeSet`
 
-The `Substrate::persist()` method changes from `persist(&self, store: &EntityStore)` to `persist(&self, changeset: &ChangeSet)`. The substrate receives a pre-built changeset and does not interact with EntityStore directly. This cleanly separates change detection (EntityStore's responsibility) from persistence (Substrate's responsibility).
+The `Substrate` method changes from `persist(&self, store: &EntityStore)` to `atomic_persist(&self, changeset: &ChangeSet)`. The rename makes the atomicity guarantee explicit. The substrate receives a pre-built changeset and does not interact with EntityStore directly. This cleanly separates change detection (EntityStore's responsibility) from persistence (Substrate's responsibility).
+
+The call sequence is:
+```
+let cs = store.collect_changes();   // &self — no state mutation
+substrate.atomic_persist(&cs)?;     // atomic — all-or-nothing
+store.reset_tracked();              // &mut self — only on success
+```
 
 ### 6. LCA-based atomic persistence for RepoSubstrate
 
@@ -92,12 +113,26 @@ For the initial persist (no existing root), the LCA is root — identical to the
 
 ### 7. Proc-macro crate `pari-macros`
 
-The `#[derive(Tracked)]` macro lives in a separate `pari-macros` crate (Rust requires proc macros in their own crate). The macro:
-- Reads the plain struct's fields and types
-- Generates a `Tracked<StructName>` struct with each field wrapped in `Tracked<T>`
-- Generates `From<Plain> for Tracked` conversion
-- Handles nested tracked types: if a field's type is itself a tracked entity, the conversion recurses
-- Handles `Vec<Step>` → `TrackedMap<String, TrackedStep>` conversion for step fields (annotated with `#[tracked(map_key = "id")]`)
+The `#[derive(Tracked)]` macro lives in a separate `pari-macros` crate (Rust requires proc macros in their own crate). The macro handles structs, enums, and generic types:
+
+**Structs** (e.g. `Role`, `ReviewStep`):
+- Generates `TrackedRole` with each field wrapped in `Tracked<T>`
+- Generates `From<Role> for TrackedRole`
+- Generates `dirty_fields() -> Vec<&'static str>` — walks each `Tracked<T>` field and returns names of dirty ones
+
+**Enums** (e.g. `Step<S>`, `WorkStepDefinition`):
+- Generates `TrackedStep<TS>` with `Tracked` prefix applied to each variant's inner type name
+- Generates `From<Step<S>> for TrackedStep<TS> where TS: From<S>`
+- Generates `dirty_fields()` delegating to the active variant's inner tracked type
+
+**Generic types** (e.g. `WorkflowDef<S>`):
+- Preserves generic parameters: generates `TrackedWorkflowDef<TS>`
+- Introduces `TS: From<S>` bound on the `From` impl
+- Concrete type aliases (`TrackedWorkflow = TrackedWorkflowDef<TrackedStep<TrackedWorkStepDefinition>>`) are declared manually alongside the plain aliases
+
+**`#[tracked(map_key = "id")]` annotation** on `Vec<Step<S>>` fields:
+- Generates `TrackedMap<String, TS>` instead of `Tracked<Vec<Step<S>>>`
+- `From` impl uses `TrackedMap::from_vec(plain.steps, TS::from)` with `Step<S>: HasId` bound for key extraction
 
 ## Risks / Trade-offs
 

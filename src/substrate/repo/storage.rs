@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    schema::entities::workflow::{Step, WorkStepDefinition},
+    schema::entities::workflow::{Step, SharedWorkStepDefinition, WorkStepDefinition},
     substrate::{
         repo::render::{
             render_hook, render_relay_readme, render_role, render_task_readme, render_team,
@@ -150,7 +150,7 @@ fn sibling_part_dir(root: &Path) -> PathBuf {
 /// Recursively collect (`relative_path`, content) pairs for a `Workflow`'s steps.
 fn collect_step_files(
     parent_dir: &str,
-    steps: &[crate::schema::entities::workflow::Step],
+    steps: &[Step<WorkStepDefinition>],
     files: &mut Vec<(PathBuf, String)>,
 ) {
     for step in steps {
@@ -195,14 +195,13 @@ fn collect_step_files(
 /// Recursively collect (`relative_path`, content) pairs for a `SharedWorkflow`'s steps.
 fn collect_shared_step_files(
     parent_dir: &str,
-    steps: &[crate::schema::entities::workflow::SharedStep],
+    steps: &[Step<SharedWorkStepDefinition>],
     files: &mut Vec<(PathBuf, String)>,
 ) {
-    use crate::schema::entities::workflow::{SharedStep, SharedWorkStepDefinition};
     for step in steps {
         match step {
-            SharedStep::Review(_) => {}
-            SharedStep::Work(ws) => match &ws.definition {
+            Step::Review(_) => {}
+            Step::Work(ws) => match &ws.definition {
                 SharedWorkStepDefinition::Task(task) => {
                     let dir = format!("{parent_dir}/{}", task.id);
                     files.push((

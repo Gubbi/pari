@@ -55,9 +55,9 @@ fn main() {
     write_schema::<HookInvocation>(&schemas_dir, "hook_invocation.json");
     write_schema::<HookInvocationValue>(&schemas_dir, "hooks_map_value.json");
     write_schema::<WorkStepDefinition>(&schemas_dir, "work_step_definition.json");
-    write_schema::<WorkStep>(&schemas_dir, "work_step.json");
+    write_schema::<WorkStep<WorkStepDefinition>>(&schemas_dir, "work_step.json");
     write_schema::<ReviewStep>(&schemas_dir, "review_step.json");
-    write_schema::<Step>(&schemas_dir, "step.json");
+    write_schema::<Step<WorkStepDefinition>>(&schemas_dir, "step.json");
     write_schema::<WorkflowSemantic>(&schemas_dir, "workflow_semantic.json");
     write_schema::<TaskSemantic>(&schemas_dir, "task_semantic.json");
     write_schema::<RelayStateSemantic>(&schemas_dir, "relay_state_semantic.json");

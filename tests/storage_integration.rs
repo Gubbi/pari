@@ -11,7 +11,7 @@ use pari::{
             task::Task,
             team::Team,
             workflow::{
-                ReviewStep, SharedStep, SharedWorkStep, SharedWorkStepDefinition, SharedWorkflow,
+                ReviewStep, SharedWorkStepDefinition, SharedWorkflow,
                 Step, WorkStep, WorkStepDefinition, Workflow,
             },
         },
@@ -191,7 +191,7 @@ fn full_store() -> EntityStore {
     // SharedWorkflow with Task (no template) and inline SharedWorkflow
     let inner_shared = WorkflowDef_shared(
         "SharedInner",
-        vec![SharedStep::Work(SharedWorkStep {
+        vec![Step::<SharedWorkStepDefinition>::Work(WorkStep {
             depends_on: None,
             definition: SharedWorkStepDefinition::Task(minimal_task("SharedInnerTask", None)),
         })],
@@ -204,11 +204,11 @@ fn full_store() -> EntityStore {
         purpose: "Shared setup.".to_string(),
         accountability: raci(),
         steps: vec![
-            SharedStep::Work(SharedWorkStep {
+            Step::<SharedWorkStepDefinition>::Work(WorkStep {
                 depends_on: None,
                 definition: SharedWorkStepDefinition::Task(minimal_task("SharedTask", None)),
             }),
-            SharedStep::Work(SharedWorkStep {
+            Step::<SharedWorkStepDefinition>::Work(WorkStep {
                 depends_on: None,
                 definition: SharedWorkStepDefinition::SharedWorkflow(Box::new(inner_shared)),
             }),
@@ -230,9 +230,9 @@ fn full_store() -> EntityStore {
     store
 }
 
-/// Helper to build a Workflow (WorkflowDef<Step>) inline.
+/// Helper to build a Workflow (WorkflowDef<WorkStepDefinition>) inline.
 #[allow(non_snake_case)]
-fn WorkflowDef(id: &str, steps: Vec<Step>) -> Workflow {
+fn WorkflowDef(id: &str, steps: Vec<Step<WorkStepDefinition>>) -> Workflow {
     Workflow {
         id: id.into(),
         name: format!("{id} Workflow"),
@@ -247,9 +247,9 @@ fn WorkflowDef(id: &str, steps: Vec<Step>) -> Workflow {
     }
 }
 
-/// Helper to build a SharedWorkflow (WorkflowDef<SharedStep>) inline.
+/// Helper to build a SharedWorkflow (WorkflowDef<SharedWorkStepDefinition>) inline.
 #[allow(non_snake_case)]
-fn WorkflowDef_shared(id: &str, steps: Vec<SharedStep>) -> SharedWorkflow {
+fn WorkflowDef_shared(id: &str, steps: Vec<Step<SharedWorkStepDefinition>>) -> SharedWorkflow {
     SharedWorkflow {
         id: id.into(),
         name: format!("{id} Workflow"),

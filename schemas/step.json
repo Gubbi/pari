@@ -1,9 +1,9 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Step",
+  "title": "Step_for_WorkStepDefinition",
   "anyOf": [
     {
-      "$ref": "#/definitions/WorkStep"
+      "$ref": "#/definitions/WorkStep_for_WorkStepDefinition"
     },
     {
       "$ref": "#/definitions/ReviewStep"
@@ -225,10 +225,10 @@
         }
       }
     },
-    "Step": {
+    "Step_for_WorkStepDefinition": {
       "anyOf": [
         {
-          "$ref": "#/definitions/WorkStep"
+          "$ref": "#/definitions/WorkStep_for_WorkStepDefinition"
         },
         {
           "$ref": "#/definitions/ReviewStep"
@@ -354,7 +354,21 @@
         }
       }
     },
-    "WorkStep": {
+    "WorkStepDefinition": {
+      "description": "Embedded definition inside a `WorkStep`. Discriminated by required fields: - Task   → has `artifact` - Relay  → has `delegates_to` - Workflow → has `steps`",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Task"
+        },
+        {
+          "$ref": "#/definitions/Relay"
+        },
+        {
+          "$ref": "#/definitions/WorkflowDef_for_WorkStepDefinition"
+        }
+      ]
+    },
+    "WorkStep_for_WorkStepDefinition": {
       "type": "object",
       "required": [
         "definition"
@@ -374,21 +388,7 @@
         }
       }
     },
-    "WorkStepDefinition": {
-      "description": "Embedded definition inside a WorkStep. Discriminated by required fields: - Task   → has `artifact` - Relay  → has `delegates_to` - Workflow → has `steps`",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/Task"
-        },
-        {
-          "$ref": "#/definitions/Relay"
-        },
-        {
-          "$ref": "#/definitions/WorkflowDef_for_Step"
-        }
-      ]
-    },
-    "WorkflowDef_for_Step": {
+    "WorkflowDef_for_WorkStepDefinition": {
       "type": "object",
       "required": [
         "accountability",
@@ -442,7 +442,7 @@
         "steps": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/Step"
+            "$ref": "#/definitions/Step_for_WorkStepDefinition"
           },
           "minItems": 1
         }

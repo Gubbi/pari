@@ -12,7 +12,7 @@ EntityStore SHALL provide typed insertion methods:
 
 Each insertion method SHALL convert the plain entity to its tracked variant and insert into the corresponding TrackedMap.
 
-`EntityStore` serves dual purpose: validation context (passed to all `validate()` calls) and persistence input (produces `ChangeSet` via `drain_changes()`). The incoming entity being validated SHALL NOT be present in the store — callers are responsible for this invariant.
+`EntityStore` serves dual purpose: validation context (passed to all `validate()` calls) and persistence input (produces `ChangeSet` via `collect_changes()`). The incoming entity being validated SHALL NOT be present in the store — callers are responsible for this invariant.
 
 #### Scenario: EntityStore holds entities by id key
 - **WHEN** a `Role` with id `eng-lead` is inserted via `store.insert_role(role)`
@@ -81,8 +81,8 @@ The system SHALL provide mutable access methods that return tracked references, 
 
 #### Scenario: Mutable access auto-tracks field changes
 - **WHEN** `store.get_role_mut("eng-lead")` is used to modify the `name` field
-- **THEN** the `name` field is marked dirty and appears in the next `drain_changes()` result
+- **THEN** the `name` field is marked dirty and appears in the next `collect_changes()` result
 
 #### Scenario: Remove records deletion in tracked map
 - **WHEN** `store.remove_role("eng-lead")` is called
-- **THEN** the role is removed and `"eng-lead"` appears in the removed set of the next `drain_changes()`
+- **THEN** the role is removed and `"eng-lead"` appears in the removed set of the next `collect_changes()`

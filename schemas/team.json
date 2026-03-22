@@ -37,7 +37,7 @@
       "$ref": "#/definitions/TeamId"
     },
     "import": {
-      "description": "List of team_ids whose members carry their own roles from the source team.",
+      "description": "List of `team_ids` whose members carry their own roles from the source team.",
       "items": {
         "type": "string"
       },
@@ -50,7 +50,7 @@
       "additionalProperties": {
         "type": "string"
       },
-      "description": "Map of team_id → role_id: all members of the referenced team are assigned this role.",
+      "description": "Map of `team_id` → `role_id`: all members of the referenced team are assigned this role.",
       "type": [
         "object",
         "null"

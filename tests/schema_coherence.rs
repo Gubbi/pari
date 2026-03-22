@@ -7,7 +7,7 @@ use pari::schema::{
         role::Role,
         task::Task,
         team::Team,
-        workflow::{Step, Workflow},
+        workflow::{Step, Workflow, WorkStepDefinition},
     },
     types::{
         Artifact, HookInvocation, HookInvocationValue, Raci, RelayStateSemantic, StateMapEntry,
@@ -126,13 +126,13 @@ fn hook_invocation_value_is_any_of() {
 
 #[test]
 fn step_is_any_of() {
-    let schema = schema_json::<Step>();
+    let schema = schema_json::<Step<WorkStepDefinition>>();
     assert!(schema["anyOf"].is_array(), "Step should generate anyOf");
 }
 
 #[test]
 fn step_has_two_variants() {
-    let schema = schema_json::<Step>();
+    let schema = schema_json::<Step<WorkStepDefinition>>();
     let variants = schema["anyOf"].as_array().unwrap();
     assert_eq!(variants.len(), 2, "Step should have exactly two variants");
 }

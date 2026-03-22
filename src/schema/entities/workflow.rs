@@ -18,6 +18,12 @@ use crate::schema::{
     },
 };
 
+// --- HasId ---
+
+pub trait HasId {
+    fn id(&self) -> &str;
+}
+
 // --- ReviewStep (moved here from types.rs; step types live with workflow to avoid circular deps) ---
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -26,6 +32,33 @@ pub struct ReviewStep {
     pub id: String,
     pub approver: String,
     pub on_reject: String,
+}
+
+// --- WorkStep<S> ---
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct WorkStep<S> {
+    pub depends_on: Option<Vec<String>>,
+    pub definition: S,
+}
+
+// --- Step<S> ---
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum Step<S> {
+    Work(WorkStep<S>),
+    Review(ReviewStep),
+}
+
+impl<S: HasId> Step<S> {
+    pub fn id(&self) -> &str {
+        match self {
+            Self::Work(ws) => ws.definition.id(),
+            Self::Review(rs) => &rs.id,
+        }
+    }
 }
 
 // --- WorkStepDefinition ---
@@ -39,42 +72,15 @@ pub struct ReviewStep {
 pub enum WorkStepDefinition {
     Task(Task),
     Relay(Relay),
-    Workflow(Box<WorkflowDef<Step>>),
+    Workflow(Box<Workflow>),
 }
 
-impl WorkStepDefinition {
-    pub fn id(&self) -> &str {
+impl HasId for WorkStepDefinition {
+    fn id(&self) -> &str {
         match self {
             Self::Task(t) => t.id.as_ref(),
             Self::Relay(r) => r.id.as_ref(),
             Self::Workflow(wf) => wf.id.as_ref(),
-        }
-    }
-}
-
-// --- WorkStep ---
-
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct WorkStep {
-    pub depends_on: Option<Vec<String>>,
-    pub definition: WorkStepDefinition,
-}
-
-// --- Step ---
-
-#[allow(clippy::large_enum_variant)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(untagged)]
-pub enum Step {
-    Work(WorkStep),
-    Review(ReviewStep),
-}
-
-impl Step {
-    pub fn id(&self) -> &str {
-        match self {
-            Self::Work(ws) => ws.definition.id(),
-            Self::Review(rs) => &rs.id,
         }
     }
 }
@@ -87,11 +93,11 @@ impl Step {
 #[serde(untagged)]
 pub enum SharedWorkStepDefinition {
     Task(Task),
-    SharedWorkflow(Box<WorkflowDef<SharedStep>>),
+    SharedWorkflow(Box<SharedWorkflow>),
 }
 
-impl SharedWorkStepDefinition {
-    pub fn id(&self) -> &str {
+impl HasId for SharedWorkStepDefinition {
+    fn id(&self) -> &str {
         match self {
             Self::Task(t) => t.id.as_ref(),
             Self::SharedWorkflow(wf) => wf.id.as_ref(),
@@ -99,32 +105,10 @@ impl SharedWorkStepDefinition {
     }
 }
 
-// --- SharedWorkStep ---
+// --- Type aliases for shared step types ---
 
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct SharedWorkStep {
-    pub depends_on: Option<Vec<String>>,
-    pub definition: SharedWorkStepDefinition,
-}
-
-// --- SharedStep ---
-
-#[allow(clippy::large_enum_variant)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(untagged)]
-pub enum SharedStep {
-    Work(SharedWorkStep),
-    Review(ReviewStep),
-}
-
-impl SharedStep {
-    pub fn id(&self) -> &str {
-        match self {
-            Self::Work(ws) => ws.definition.id(),
-            Self::Review(rs) => &rs.id,
-        }
-    }
-}
+pub type SharedWorkStep = WorkStep<SharedWorkStepDefinition>;
+pub type SharedStep = Step<SharedWorkStepDefinition>;
 
 // --- WorkflowDef<S> ---
 
@@ -140,7 +124,7 @@ where
     pub purpose: String,
     pub accountability: Raci,
     #[schemars(length(min = 1))]
-    pub steps: Vec<S>,
+    pub steps: Vec<Step<S>>,
     #[schemars(length(min = 2))]
     pub states: Vec<WorkflowStateEntry>,
     pub hooks: Option<HooksMap>,
@@ -150,10 +134,10 @@ where
 }
 
 /// Workflow with embedded step definitions (Task, Relay, inline Workflow).
-pub type Workflow = WorkflowDef<Step>;
+pub type Workflow = WorkflowDef<WorkStepDefinition>;
 
 /// `SharedWorkflow`: like Workflow but steps cannot embed Relay.
-pub type SharedWorkflow = WorkflowDef<SharedStep>;
+pub type SharedWorkflow = WorkflowDef<SharedWorkStepDefinition>;
 
 // --- Validators ---
 
@@ -225,7 +209,7 @@ fn validate_shared_structure_tree(
     errors.extend(validate_extensions(&workflow.extensions, "extensions"));
 
     for (i, step) in workflow.steps.iter().enumerate() {
-        if let SharedStep::Work(ws) = step {
+        if let Step::Work(ws) = step {
             let prefix = format!("steps[{i}].definition");
             let child_errors = match &ws.definition {
                 SharedWorkStepDefinition::Task(t) => task::validate(t, ctx),
@@ -238,7 +222,7 @@ fn validate_shared_structure_tree(
     errors
 }
 
-fn validate_structural_fields<S: StepLike>(
+fn validate_structural_fields<S>(
     id: &str,
     steps: &[S],
     states: &[WorkflowStateEntry],
@@ -278,21 +262,6 @@ fn validate_structural_fields<S: StepLike>(
     errors
 }
 
-// Trait to allow validate_structural_fields to work over both Step and SharedStep.
-trait StepLike {
-    #[allow(dead_code)]
-    fn step_id(&self) -> &str;
-}
-impl StepLike for Step {
-    fn step_id(&self) -> &str {
-        self.id()
-    }
-}
-impl StepLike for SharedStep {
-    fn step_id(&self) -> &str {
-        self.id()
-    }
-}
 
 fn validate_semantic_tree(workflow: &Workflow, ctx: &EntityStore) -> Vec<ValidationError> {
     let mut errors = Vec::new();
@@ -355,7 +324,7 @@ fn validate_states_semantic_shared(workflow: &SharedWorkflow) -> Vec<ValidationE
     let has_review_step = workflow
         .steps
         .iter()
-        .any(|s| matches!(s, SharedStep::Review(_)));
+        .any(|s| matches!(s, Step::Review(_)));
     if has_review_step {
         let has_reviewing = workflow
             .states
@@ -405,7 +374,7 @@ fn validate_step_id_uniqueness_workflow(workflow: &Workflow) -> Vec<ValidationEr
 }
 
 fn validate_step_id_uniqueness_shared(workflow: &SharedWorkflow) -> Vec<ValidationError> {
-    validate_step_id_uniqueness_core(workflow.steps.iter().map(SharedStep::id))
+    validate_step_id_uniqueness_core(workflow.steps.iter().map(Step::id))
 }
 
 fn validate_step_id_uniqueness_core<'a>(
@@ -462,9 +431,9 @@ fn validate_review_step_on_reject(workflow: &Workflow) -> Vec<ValidationError> {
 fn validate_review_step_on_reject_shared(workflow: &SharedWorkflow) -> Vec<ValidationError> {
     validate_review_step_on_reject_core(
         &workflow.steps,
-        |s| matches!(s, SharedStep::Review(_)),
+        |s| matches!(s, Step::Review(_)),
         |s| {
-            if let SharedStep::Review(rs) = s {
+            if let Step::Review(rs) = s {
                 Some((&rs.id, &rs.on_reject))
             } else {
                 None
@@ -517,9 +486,9 @@ fn validate_work_step_depends_on(workflow: &Workflow) -> Vec<ValidationError> {
 }
 
 fn validate_work_step_depends_on_shared(workflow: &SharedWorkflow) -> Vec<ValidationError> {
-    let all_ids: HashSet<&str> = workflow.steps.iter().map(SharedStep::id).collect();
+    let all_ids: HashSet<&str> = workflow.steps.iter().map(Step::id).collect();
     validate_depends_on_core(&workflow.steps, &all_ids, |s| {
-        if let SharedStep::Work(ws) = s {
+        if let Step::Work(ws) = s {
             ws.depends_on.as_deref()
         } else {
             None
@@ -711,21 +680,21 @@ mod tests {
         }
     }
 
-    fn task_step(id: &str) -> Step {
+    fn task_step(id: &str) -> Step<WorkStepDefinition> {
         Step::Work(WorkStep {
             depends_on: None,
             definition: WorkStepDefinition::Task(valid_task_entity(id)),
         })
     }
 
-    fn task_step_with_deps(id: &str, deps: Vec<String>) -> Step {
+    fn task_step_with_deps(id: &str, deps: Vec<String>) -> Step<WorkStepDefinition> {
         Step::Work(WorkStep {
             depends_on: Some(deps),
             definition: WorkStepDefinition::Task(valid_task_entity(id)),
         })
     }
 
-    fn review_step_item(id: &str, approver: &str, on_reject: &str) -> Step {
+    fn review_step_item(id: &str, approver: &str, on_reject: &str) -> Step<WorkStepDefinition> {
         Step::Review(ReviewStep {
             id: id.to_string(),
             approver: approver.to_string(),
@@ -899,15 +868,15 @@ mod tests {
 
     // --- Task 4.3: SharedWorkStepDefinition, SharedWorkStep, SharedStep tests ---
 
-    fn shared_task_step(id: &str) -> SharedStep {
-        SharedStep::Work(SharedWorkStep {
+    fn shared_task_step(id: &str) -> Step<SharedWorkStepDefinition> {
+        Step::Work(WorkStep {
             depends_on: None,
             definition: SharedWorkStepDefinition::Task(valid_task_entity(id)),
         })
     }
 
-    fn shared_review_step_item(id: &str, approver: &str, on_reject: &str) -> SharedStep {
-        SharedStep::Review(ReviewStep {
+    fn shared_review_step_item(id: &str, approver: &str, on_reject: &str) -> Step<SharedWorkStepDefinition> {
+        Step::Review(ReviewStep {
             id: id.to_string(),
             approver: approver.to_string(),
             on_reject: on_reject.to_string(),
@@ -1392,5 +1361,54 @@ mod tests {
             "Got paths: {:?}",
             errors.iter().map(|e| &e.path).collect::<Vec<_>>()
         );
+    }
+
+    // --- Task 1.1: Generic Step<S> and type alias construction ---
+
+    #[test]
+    fn workflow_step_is_generic_over_work_step_definition() {
+        // Explicitly verifies the type is WorkflowDef<WorkStepDefinition> with Step<WorkStepDefinition>
+        let step: Step<WorkStepDefinition> = Step::Work(WorkStep {
+            depends_on: None,
+            definition: WorkStepDefinition::Task(valid_task_entity("Proposal")),
+        });
+        assert_eq!(step.id(), "Proposal");
+        let wf: Workflow = WorkflowDef {
+            id: "GenericTest".into(),
+            name: "Generic Test".to_string(),
+            description: None,
+            purpose: "Verify generic type".to_string(),
+            accountability: base_raci(),
+            steps: vec![step],
+            states: two_states_with_complete(),
+            hooks: None,
+            guidance: None,
+            extensions: Extensions::default(),
+        };
+        assert_eq!(wf.steps[0].id(), "Proposal");
+    }
+
+    #[test]
+    fn shared_workflow_uses_step_type_aliases() {
+        // Verifies SharedStep and SharedWorkStep aliases resolve correctly
+        let ws: SharedWorkStep = WorkStep {
+            depends_on: None,
+            definition: SharedWorkStepDefinition::Task(valid_task_entity("Scope")),
+        };
+        let step: SharedStep = SharedStep::Work(ws);
+        assert_eq!(step.id(), "Scope");
+        let swf: SharedWorkflow = WorkflowDef {
+            id: "AliasTest".into(),
+            name: "Alias Test".to_string(),
+            description: None,
+            purpose: "Verify aliases".to_string(),
+            accountability: base_raci(),
+            steps: vec![step],
+            states: two_states_with_complete(),
+            hooks: None,
+            guidance: None,
+            extensions: Extensions::default(),
+        };
+        assert_eq!(swf.steps[0].id(), "Scope");
     }
 }

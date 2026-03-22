@@ -81,7 +81,7 @@ mod tests {
     use crate::schema::{
         entities::{
             hook::HookInput,
-            workflow::{ReviewStep, SharedStep, WorkflowDef},
+            workflow::{ReviewStep, SharedWorkStepDefinition, Step, WorkflowDef},
         },
         types::{Extensions, Raci, WorkflowSemantic, WorkflowStateEntry},
     };
@@ -155,7 +155,7 @@ mod tests {
                 consulted: vec![],
                 informed: vec![],
             },
-            steps: vec![SharedStep::Review(ReviewStep {
+            steps: vec![Step::<SharedWorkStepDefinition>::Review(ReviewStep {
                 id: "Approve".to_string(),
                 approver: "eng-lead".to_string(),
                 on_reject: "Approve".to_string(),

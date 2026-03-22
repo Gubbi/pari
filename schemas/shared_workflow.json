@@ -108,46 +108,26 @@
       ],
       "type": "object"
     },
-    "SharedStep": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/SharedWorkStep"
-        },
-        {
-          "$ref": "#/definitions/ReviewStep"
-        }
-      ]
-    },
-    "SharedWorkStep": {
-      "properties": {
-        "definition": {
-          "$ref": "#/definitions/SharedWorkStepDefinition"
-        },
-        "depends_on": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "definition"
-      ],
-      "type": "object"
-    },
     "SharedWorkStepDefinition": {
       "anyOf": [
         {
           "$ref": "#/definitions/Task"
         },
         {
-          "$ref": "#/definitions/WorkflowDef_for_SharedStep"
+          "$ref": "#/definitions/WorkflowDef_for_SharedWorkStepDefinition"
         }
       ],
-      "description": "Embedded definition inside a SharedWorkStep. No Relay variant (shared workflows cannot relay)."
+      "description": "Embedded definition inside a `SharedWorkStep`. No Relay variant (shared workflows cannot relay)."
+    },
+    "Step_for_SharedWorkStepDefinition": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/WorkStep_for_SharedWorkStepDefinition"
+        },
+        {
+          "$ref": "#/definitions/ReviewStep"
+        }
+      ]
     },
     "Task": {
       "patternProperties": {
@@ -268,7 +248,27 @@
       ],
       "type": "object"
     },
-    "WorkflowDef_for_SharedStep": {
+    "WorkStep_for_SharedWorkStepDefinition": {
+      "properties": {
+        "definition": {
+          "$ref": "#/definitions/SharedWorkStepDefinition"
+        },
+        "depends_on": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "definition"
+      ],
+      "type": "object"
+    },
+    "WorkflowDef_for_SharedWorkStepDefinition": {
       "patternProperties": {
         "^x-": true
       },
@@ -315,7 +315,7 @@
         },
         "steps": {
           "items": {
-            "$ref": "#/definitions/SharedStep"
+            "$ref": "#/definitions/Step_for_SharedWorkStepDefinition"
           },
           "minItems": 1,
           "type": "array"
@@ -417,7 +417,7 @@
     },
     "steps": {
       "items": {
-        "$ref": "#/definitions/SharedStep"
+        "$ref": "#/definitions/Step_for_SharedWorkStepDefinition"
       },
       "minItems": 1,
       "type": "array"
@@ -431,6 +431,6 @@
     "states",
     "steps"
   ],
-  "title": "WorkflowDef_for_SharedStep",
+  "title": "WorkflowDef_for_SharedWorkStepDefinition",
   "type": "object"
 }

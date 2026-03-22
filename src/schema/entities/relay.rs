@@ -154,7 +154,7 @@ fn validate_referential_integrity(relay: &Relay, ctx: &EntityStore) -> Vec<Valid
 mod tests {
     use super::*;
     use crate::schema::{
-        entities::workflow::{ReviewStep, SharedStep, WorkflowDef},
+        entities::workflow::{ReviewStep, SharedWorkStepDefinition, Step, WorkflowDef},
         store::EntityStore,
         types::{
             Extensions, HookInvocation, HookInvocationValue, Raci, RelayStateSemantic,
@@ -190,7 +190,7 @@ mod tests {
                 consulted: vec![],
                 informed: vec![],
             },
-            steps: vec![SharedStep::Review(ReviewStep {
+            steps: vec![Step::<SharedWorkStepDefinition>::Review(ReviewStep {
                 id: "Gate".to_string(),
                 approver: "r".to_string(),
                 on_reject: "Gate".to_string(),
