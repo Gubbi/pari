@@ -10,14 +10,14 @@ use crate::schema::{
     validation::{is_camel_case, validate_extensions, ValidationError},
 };
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 pub struct HookInput {
     pub name: String,
     pub description: String,
     pub required: bool,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, pari_macros::Tracked)]
 #[schemars(deny_unknown_fields)]
 pub struct Hook {
     pub id: HookId,

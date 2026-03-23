@@ -10,7 +10,7 @@ use crate::schema::{
     validation::{is_kebab_case, validate_extensions, ValidationError},
 };
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, pari_macros::Tracked)]
 #[schemars(deny_unknown_fields)]
 pub struct Role {
     pub id: RoleId,

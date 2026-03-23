@@ -14,7 +14,7 @@ use crate::schema::{
     },
 };
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, pari_macros::Tracked)]
 #[schemars(deny_unknown_fields)]
 pub struct Relay {
     pub id: RelayId,
@@ -208,39 +208,30 @@ mod tests {
             types::Extensions,
         };
         let mut ctx = EntityStore::new();
-        ctx.roles.insert(
-            "eng-lead".to_string(),
-            Role {
-                id: "eng-lead".into(),
-                name: "Engineering Lead".to_string(),
-                purpose: "test".to_string(),
-                traits: None,
-                extensions: Extensions::default(),
-            },
-        );
-        ctx.roles.insert(
-            "pm".to_string(),
-            Role {
-                id: "pm".into(),
-                name: "Product Manager".to_string(),
-                purpose: "test".to_string(),
-                traits: None,
-                extensions: Extensions::default(),
-            },
-        );
-        ctx.hooks.insert(
-            "NotifySlack".to_string(),
-            Hook {
-                id: "NotifySlack".into(),
-                name: "Notify Slack".to_string(),
-                description: "test".to_string(),
-                instructions: vec!["send message".to_string()],
-                inputs: None,
-                extensions: Extensions::default(),
-            },
-        );
+        ctx.insert_role(Role {
+            id: "eng-lead".into(),
+            name: "Engineering Lead".to_string(),
+            purpose: "test".to_string(),
+            traits: None,
+            extensions: Extensions::default(),
+        });
+        ctx.insert_role(Role {
+            id: "pm".into(),
+            name: "Product Manager".to_string(),
+            purpose: "test".to_string(),
+            traits: None,
+            extensions: Extensions::default(),
+        });
+        ctx.insert_hook(Hook {
+            id: "NotifySlack".into(),
+            name: "Notify Slack".to_string(),
+            description: "test".to_string(),
+            instructions: vec!["send message".to_string()],
+            inputs: None,
+            extensions: Extensions::default(),
+        });
         let sw = make_shared_workflow("LegalReview", &["Active", "Done", "Failed"]);
-        ctx.shared_workflows.insert(sw.id.to_string(), sw);
+        ctx.insert_shared_workflow(sw);
         ctx
     }
 
@@ -507,7 +498,7 @@ mod tests {
     fn relay_delegates_to_found_via_typed_shared_workflow_vec() {
         let mut ctx = EntityStore::new();
         let sw = make_shared_workflow("ComplianceReview", &["Active", "Approved"]);
-        ctx.shared_workflows.insert(sw.id.to_string(), sw);
+        ctx.insert_shared_workflow(sw);
         let relay = Relay {
             delegates_to: "ComplianceReview".to_string(),
             ..valid_relay()

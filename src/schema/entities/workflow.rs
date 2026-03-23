@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::schema::{
     entities::{
-        relay::{self, Relay},
-        task::{self, Task},
+        relay::{self, Relay, TrackedRelay},
+        task::{self, Task, TrackedTask},
     },
     ids::WorkflowId,
     store::EntityStore,
@@ -17,16 +17,12 @@ use crate::schema::{
         is_camel_case, validate_extensions, validate_hooks_map, validate_raci, ValidationError,
     },
 };
-
-// --- HasId ---
-
-pub trait HasId {
-    fn id(&self) -> &str;
-}
+// --- HasId (re-exported from tracked) ---
+pub use crate::tracked::HasId;
 
 // --- ReviewStep (moved here from types.rs; step types live with workflow to avoid circular deps) ---
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, pari_macros::Tracked)]
 pub struct ReviewStep {
     #[schemars(regex(pattern = r"^[A-Z][A-Za-z0-9]*$"))]
     pub id: String,
@@ -36,7 +32,7 @@ pub struct ReviewStep {
 
 // --- WorkStep<S> ---
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, pari_macros::Tracked)]
 pub struct WorkStep<S> {
     pub depends_on: Option<Vec<String>>,
     pub definition: S,
@@ -45,15 +41,15 @@ pub struct WorkStep<S> {
 // --- Step<S> ---
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, pari_macros::Tracked)]
 #[serde(untagged)]
 pub enum Step<S> {
     Work(WorkStep<S>),
     Review(ReviewStep),
 }
 
-impl<S: HasId> Step<S> {
-    pub fn id(&self) -> &str {
+impl<S: HasId> HasId for Step<S> {
+    fn id(&self) -> &str {
         match self {
             Self::Work(ws) => ws.definition.id(),
             Self::Review(rs) => &rs.id,
@@ -112,7 +108,7 @@ pub type SharedStep = Step<SharedWorkStepDefinition>;
 
 // --- WorkflowDef<S> ---
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, pari_macros::Tracked)]
 #[schemars(deny_unknown_fields)]
 pub struct WorkflowDef<S>
 where
@@ -124,6 +120,7 @@ where
     pub purpose: String,
     pub accountability: Raci,
     #[schemars(length(min = 1))]
+    #[tracked(map_key = "id")]
     pub steps: Vec<Step<S>>,
     #[schemars(length(min = 2))]
     pub states: Vec<WorkflowStateEntry>,
@@ -138,6 +135,95 @@ pub type Workflow = WorkflowDef<WorkStepDefinition>;
 
 /// `SharedWorkflow`: like Workflow but steps cannot embed Relay.
 pub type SharedWorkflow = WorkflowDef<SharedWorkStepDefinition>;
+
+// --- Manually-defined tracked enums for recursive step definition types ---
+// (Cannot use #[derive(Tracked)] here due to recursive Workflow→WorkStepDefinition→Box<Workflow>
+// type structure which creates circular trait bounds.)
+
+#[allow(clippy::large_enum_variant)]
+pub enum TrackedWorkStepDefinition {
+    Task(TrackedTask),
+    Relay(TrackedRelay),
+    Workflow(Box<TrackedWorkflow>),
+}
+
+// Manual From impl without where-clause bounds (breaks the compile-time cycle).
+impl From<WorkStepDefinition> for TrackedWorkStepDefinition {
+    fn from(plain: WorkStepDefinition) -> Self {
+        match plain {
+            WorkStepDefinition::Task(t) => TrackedWorkStepDefinition::Task(TrackedTask::from(t)),
+            WorkStepDefinition::Relay(r) => TrackedWorkStepDefinition::Relay(TrackedRelay::from(r)),
+            WorkStepDefinition::Workflow(wf) => {
+                TrackedWorkStepDefinition::Workflow(Box::new(TrackedWorkflow::from(*wf)))
+            }
+        }
+    }
+}
+
+impl TrackedWorkStepDefinition {
+    pub fn dirty_fields(&self) -> Vec<&'static str> {
+        match self {
+            Self::Task(t) => t.dirty_fields(),
+            Self::Relay(r) => r.dirty_fields(),
+            Self::Workflow(wf) => wf.dirty_fields(),
+        }
+    }
+}
+
+impl HasId for TrackedWorkStepDefinition {
+    fn id(&self) -> &str {
+        match self {
+            Self::Task(t) => t.id.as_ref(),
+            Self::Relay(r) => r.id.as_ref(),
+            Self::Workflow(wf) => wf.id.as_ref(),
+        }
+    }
+}
+
+#[allow(clippy::large_enum_variant)]
+pub enum TrackedSharedWorkStepDefinition {
+    Task(TrackedTask),
+    SharedWorkflow(Box<TrackedSharedWorkflow>),
+}
+
+impl From<SharedWorkStepDefinition> for TrackedSharedWorkStepDefinition {
+    fn from(plain: SharedWorkStepDefinition) -> Self {
+        match plain {
+            SharedWorkStepDefinition::Task(t) => {
+                TrackedSharedWorkStepDefinition::Task(TrackedTask::from(t))
+            }
+            SharedWorkStepDefinition::SharedWorkflow(wf) => {
+                TrackedSharedWorkStepDefinition::SharedWorkflow(Box::new(
+                    TrackedSharedWorkflow::from(*wf),
+                ))
+            }
+        }
+    }
+}
+
+impl TrackedSharedWorkStepDefinition {
+    pub fn dirty_fields(&self) -> Vec<&'static str> {
+        match self {
+            Self::Task(t) => t.dirty_fields(),
+            Self::SharedWorkflow(wf) => wf.dirty_fields(),
+        }
+    }
+}
+
+impl HasId for TrackedSharedWorkStepDefinition {
+    fn id(&self) -> &str {
+        match self {
+            Self::Task(t) => t.id.as_ref(),
+            Self::SharedWorkflow(wf) => wf.id.as_ref(),
+        }
+    }
+}
+
+// --- Tracked type aliases ---
+
+pub type TrackedWorkflow = TrackedWorkflowDef<TrackedStep<TrackedWorkStepDefinition>>;
+
+pub type TrackedSharedWorkflow = TrackedWorkflowDef<TrackedStep<TrackedSharedWorkStepDefinition>>;
 
 // --- Validators ---
 
@@ -262,7 +348,6 @@ fn validate_structural_fields<S>(
     errors
 }
 
-
 fn validate_semantic_tree(workflow: &Workflow, ctx: &EntityStore) -> Vec<ValidationError> {
     let mut errors = Vec::new();
     errors.extend(validate_states_semantic_workflow(workflow));
@@ -321,10 +406,7 @@ fn validate_states_semantic_workflow(workflow: &Workflow) -> Vec<ValidationError
 fn validate_states_semantic_shared(workflow: &SharedWorkflow) -> Vec<ValidationError> {
     let mut errors = validate_states_semantic_core(&workflow.states);
 
-    let has_review_step = workflow
-        .steps
-        .iter()
-        .any(|s| matches!(s, Step::Review(_)));
+    let has_review_step = workflow.steps.iter().any(|s| matches!(s, Step::Review(_)));
     if has_review_step {
         let has_reviewing = workflow
             .states
@@ -553,37 +635,28 @@ mod tests {
             types::Extensions,
         };
         let mut ctx = EntityStore::new();
-        ctx.roles.insert(
-            "eng-lead".to_string(),
-            Role {
-                id: "eng-lead".into(),
-                name: "Engineering Lead".to_string(),
-                purpose: "test".to_string(),
-                traits: None,
-                extensions: Extensions::default(),
-            },
-        );
-        ctx.roles.insert(
-            "pm".to_string(),
-            Role {
-                id: "pm".into(),
-                name: "Product Manager".to_string(),
-                purpose: "test".to_string(),
-                traits: None,
-                extensions: Extensions::default(),
-            },
-        );
-        ctx.hooks.insert(
-            "NotifySlack".to_string(),
-            Hook {
-                id: "NotifySlack".into(),
-                name: "Notify Slack".to_string(),
-                description: "test".to_string(),
-                instructions: vec!["send message".to_string()],
-                inputs: None,
-                extensions: Extensions::default(),
-            },
-        );
+        ctx.insert_role(Role {
+            id: "eng-lead".into(),
+            name: "Engineering Lead".to_string(),
+            purpose: "test".to_string(),
+            traits: None,
+            extensions: Extensions::default(),
+        });
+        ctx.insert_role(Role {
+            id: "pm".into(),
+            name: "Product Manager".to_string(),
+            purpose: "test".to_string(),
+            traits: None,
+            extensions: Extensions::default(),
+        });
+        ctx.insert_hook(Hook {
+            id: "NotifySlack".into(),
+            name: "Notify Slack".to_string(),
+            description: "test".to_string(),
+            instructions: vec!["send message".to_string()],
+            inputs: None,
+            extensions: Extensions::default(),
+        });
         ctx
     }
 
@@ -875,7 +948,11 @@ mod tests {
         })
     }
 
-    fn shared_review_step_item(id: &str, approver: &str, on_reject: &str) -> Step<SharedWorkStepDefinition> {
+    fn shared_review_step_item(
+        id: &str,
+        approver: &str,
+        on_reject: &str,
+    ) -> Step<SharedWorkStepDefinition> {
         Step::Review(ReviewStep {
             id: id.to_string(),
             approver: approver.to_string(),
@@ -1215,7 +1292,8 @@ mod tests {
     #[test]
     fn workflow_unknown_role_in_raci_fails() {
         let mut ctx = make_ctx();
-        ctx.roles.clear();
+        ctx.remove_role("eng-lead");
+        ctx.remove_role("pm");
         let errors = validate_referential_integrity(&valid_workflow(), &ctx);
         assert!(!errors.is_empty());
         assert!(errors[0].path.contains("accountability"));

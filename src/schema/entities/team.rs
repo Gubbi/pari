@@ -12,14 +12,14 @@ use crate::schema::{
     validation::{is_kebab_case, is_valid_handle, validate_extensions, ValidationError},
 };
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TeamMember {
     #[schemars(regex(pattern = r"^@[a-z0-9._-]+$"))]
     pub handle: String,
     pub role: String,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, pari_macros::Tracked)]
 #[schemars(deny_unknown_fields)]
 pub struct Team {
     pub id: TeamId,
@@ -37,6 +37,20 @@ pub struct Team {
 impl Team {
     /// Returns an iterator over all team ids directly referenced by this team
     /// via `include` (map keys) and `import` (list entries).
+    pub fn get_refs(&self) -> impl Iterator<Item = &str> {
+        self.include
+            .iter()
+            .flat_map(|m| m.keys().map(String::as_str))
+            .chain(
+                self.import
+                    .iter()
+                    .flat_map(|v| v.iter().map(String::as_str)),
+            )
+    }
+}
+
+impl TrackedTeam {
+    /// Delegates to the underlying `include`/`import` fields via Deref.
     pub fn get_refs(&self) -> impl Iterator<Item = &str> {
         self.include
             .iter()
@@ -187,50 +201,38 @@ mod tests {
 
     fn base_ctx() -> EntityStore {
         let mut ctx = EntityStore::new();
-        ctx.roles.insert(
-            "eng-lead".to_string(),
-            crate::schema::entities::role::Role {
-                id: "eng-lead".into(),
-                name: "Engineering Lead".to_string(),
-                purpose: "test".to_string(),
-                traits: None,
-                extensions: Extensions::default(),
-            },
-        );
-        ctx.roles.insert(
-            "pm".to_string(),
-            crate::schema::entities::role::Role {
-                id: "pm".into(),
-                name: "Product Manager".to_string(),
-                purpose: "test".to_string(),
-                traits: None,
-                extensions: Extensions::default(),
-            },
-        );
-        ctx.teams.insert(
-            "backend-team".to_string(),
-            Team {
-                id: "backend-team".into(),
-                name: "Backend Team".to_string(),
-                description: None,
-                members: None,
-                include: None,
-                import: None,
-                extensions: Extensions::default(),
-            },
-        );
-        ctx.teams.insert(
-            "qa-team".to_string(),
-            Team {
-                id: "qa-team".into(),
-                name: "QA Team".to_string(),
-                description: None,
-                members: None,
-                include: None,
-                import: None,
-                extensions: Extensions::default(),
-            },
-        );
+        ctx.insert_role(crate::schema::entities::role::Role {
+            id: "eng-lead".into(),
+            name: "Engineering Lead".to_string(),
+            purpose: "test".to_string(),
+            traits: None,
+            extensions: Extensions::default(),
+        });
+        ctx.insert_role(crate::schema::entities::role::Role {
+            id: "pm".into(),
+            name: "Product Manager".to_string(),
+            purpose: "test".to_string(),
+            traits: None,
+            extensions: Extensions::default(),
+        });
+        ctx.insert_team(Team {
+            id: "backend-team".into(),
+            name: "Backend Team".to_string(),
+            description: None,
+            members: None,
+            include: None,
+            import: None,
+            extensions: Extensions::default(),
+        });
+        ctx.insert_team(Team {
+            id: "qa-team".into(),
+            name: "QA Team".to_string(),
+            description: None,
+            members: None,
+            include: None,
+            import: None,
+            extensions: Extensions::default(),
+        });
         ctx
     }
 
@@ -504,18 +506,15 @@ mod tests {
         let mut ctx = base_ctx();
         // team-b's refs include the incoming team (team-x)
         // With EntityStore, we insert team-b as a full Team whose import contains "team-x"
-        ctx.teams.insert(
-            "team-b".to_string(),
-            Team {
-                id: "team-b".into(),
-                name: "Team B".to_string(),
-                description: None,
-                members: None,
-                include: None,
-                import: Some(vec!["team-x".to_string()]),
-                extensions: Extensions::default(),
-            },
-        );
+        ctx.insert_team(Team {
+            id: "team-b".into(),
+            name: "Team B".to_string(),
+            description: None,
+            members: None,
+            include: None,
+            import: Some(vec!["team-x".to_string()]),
+            extensions: Extensions::default(),
+        });
 
         // Incoming team "team-x" imports "team-b"
         let team = Team {

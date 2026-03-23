@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// Validated at runtime by `validate_extensions`; enforced in JSON Schema via
 /// `patternProperties: { "^x-": {} }` contributed when this type is flattened
 /// into an entity struct.
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Extensions(pub HashMap<String, serde_json::Value>);
 
@@ -34,7 +34,7 @@ impl JsonSchema for Extensions {
 
 // --- RACI ---
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Raci {
     pub responsible: String,
     pub accountable: String,
@@ -44,7 +44,7 @@ pub struct Raci {
 
 // --- HookInvocation and HooksMap ---
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum HookInvocation {
     Bare(String),
@@ -63,7 +63,7 @@ impl HookInvocation {
     }
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum HookInvocationValue {
     Single(HookInvocation),
@@ -86,7 +86,7 @@ pub type HooksMap = HashMap<String, HookInvocationValue>;
 
 // --- State entry types ---
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum WorkflowSemantic {
     Reviewing,
@@ -95,7 +95,7 @@ pub enum WorkflowSemantic {
     Failed,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 pub struct WorkflowStateEntry {
     #[schemars(regex(pattern = r"^[A-Z][A-Za-z0-9]*$"))]
     pub id: String,
@@ -103,7 +103,7 @@ pub struct WorkflowStateEntry {
     pub semantic: Option<WorkflowSemantic>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskSemantic {
     Complete,
@@ -111,7 +111,7 @@ pub enum TaskSemantic {
     Failed,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TaskStateEntry {
     #[schemars(regex(pattern = r"^[A-Z][A-Za-z0-9]*$"))]
     pub id: String,
@@ -119,7 +119,7 @@ pub struct TaskStateEntry {
     pub semantic: Option<TaskSemantic>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RelayStateSemantic {
     Complete,
@@ -127,7 +127,7 @@ pub enum RelayStateSemantic {
     Failed,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 pub struct StateMapEntry {
     pub maps_to: String,
     pub semantic: Option<RelayStateSemantic>,
@@ -135,7 +135,7 @@ pub struct StateMapEntry {
 
 // --- Artifact ---
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Artifact {
     pub name: String,
     pub template: Option<String>,

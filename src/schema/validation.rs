@@ -134,7 +134,7 @@ pub fn validate_hooks_map(hooks: &HooksMap, path: &str, ctx: &EntityStore) -> Ve
             // Input validation (only for Object invocations with `with`)
             if let HookInvocation::Object { hook, with } = inv {
                 if let Some(hook_entity) = ctx.get_hook(hook) {
-                    if let Some(inputs) = &hook_entity.inputs {
+                    if let Some(inputs) = &*hook_entity.inputs {
                         errors.extend(validate_hook_invocation_inputs(with, inputs, &inv_path));
                     }
                 }
@@ -238,16 +238,13 @@ mod tests {
     fn ctx_with_roles(role_ids: &[&str]) -> EntityStore {
         let mut ctx = EntityStore::new();
         for id in role_ids {
-            ctx.roles.insert(
-                id.to_string(),
-                Role {
-                    id: (*id).into(),
-                    name: id.to_string(),
-                    purpose: "test".to_string(),
-                    traits: None,
-                    extensions: Extensions::default(),
-                },
-            );
+            ctx.insert_role(Role {
+                id: (*id).into(),
+                name: id.to_string(),
+                purpose: "test".to_string(),
+                traits: None,
+                extensions: Extensions::default(),
+            });
         }
         ctx
     }
@@ -255,43 +252,37 @@ mod tests {
     fn ctx_with_hooks(hook_ids: &[&str]) -> EntityStore {
         let mut ctx = EntityStore::new();
         for id in hook_ids {
-            ctx.hooks.insert(
-                id.to_string(),
-                Hook {
-                    id: (*id).into(),
-                    name: id.to_string(),
-                    description: "test".to_string(),
-                    instructions: vec!["do it".to_string()],
-                    inputs: None,
-                    extensions: Extensions::default(),
-                },
-            );
+            ctx.insert_hook(Hook {
+                id: (*id).into(),
+                name: id.to_string(),
+                description: "test".to_string(),
+                instructions: vec!["do it".to_string()],
+                inputs: None,
+                extensions: Extensions::default(),
+            });
         }
         ctx
     }
 
     fn ctx_with_hook_def(hook_id: &str, inputs: Vec<(&str, bool)>) -> EntityStore {
         let mut ctx = EntityStore::new();
-        ctx.hooks.insert(
-            hook_id.to_string(),
-            Hook {
-                id: hook_id.into(),
-                name: hook_id.to_string(),
-                description: "test".to_string(),
-                instructions: vec!["do it".to_string()],
-                inputs: Some(
-                    inputs
-                        .into_iter()
-                        .map(|(name, required)| HookInput {
-                            name: name.to_string(),
-                            description: "desc".to_string(),
-                            required,
-                        })
-                        .collect(),
-                ),
-                extensions: Extensions::default(),
-            },
-        );
+        ctx.insert_hook(Hook {
+            id: hook_id.into(),
+            name: hook_id.to_string(),
+            description: "test".to_string(),
+            instructions: vec!["do it".to_string()],
+            inputs: Some(
+                inputs
+                    .into_iter()
+                    .map(|(name, required)| HookInput {
+                        name: name.to_string(),
+                        description: "desc".to_string(),
+                        required,
+                    })
+                    .collect(),
+            ),
+            extensions: Extensions::default(),
+        });
         ctx
     }
 

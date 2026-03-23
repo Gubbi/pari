@@ -1,5 +1,6 @@
 //! Substrate layer — persistence backend trait and implementations.
 
+pub mod changeset;
 pub mod repo;
 
 pub use crate::schema::store::EntityStore;
@@ -12,16 +13,15 @@ pub struct SubstrateError {
     pub message: String,
 }
 
-/// Persistence backend interface. All implementations must support `persist`.
-/// `load` will be added in a subsequent proposal.
+/// Persistence backend interface.
 pub trait Substrate {
-    /// Write all entities in `store` to the backend.
+    /// Atomically apply all changes in `changeset` to the backend.
     ///
     /// # Errors
     ///
-    /// Returns a non-empty `Vec<SubstrateError>` if any entity could not be written.
-    /// All entities are attempted; errors are collected rather than short-circuited.
-    fn persist(&self, store: &EntityStore) -> Result<(), Vec<SubstrateError>>;
+    /// Returns a non-empty `Vec<SubstrateError>` if any change could not be written.
+    /// All changes are attempted; errors are collected rather than short-circuited.
+    fn atomic_persist(&self, changeset: &changeset::ChangeSet<'_>) -> Result<(), Vec<SubstrateError>>;
 }
 
 #[cfg(test)]

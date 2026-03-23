@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "xtask"]
+members = [".", "xtask", "pari-macros"]
 
 [package]
 name = "pari"
@@ -17,6 +17,8 @@ schemars = "0.8"
 serde_json = "1"
 serde_yaml = "0.9"
 thiserror = "1"
+indexmap = "2"
+pari-macros = { path = "pari-macros" }
 
 [dev-dependencies]
 jsonschema = "0.45"

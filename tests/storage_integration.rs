@@ -1,5 +1,6 @@
-// 14.1: Integration tests for RepoSubstrate::persist
-// Verifies: full directory tree, valid YAML frontmatter, template files.
+// Integration tests for RepoSubstrate::atomic_persist
+// Verifies: full directory tree, valid YAML frontmatter, template files,
+// incremental update behaviour, and ChangeSet integrity after failure.
 
 use std::{collections::HashMap, fs};
 
@@ -19,6 +20,10 @@ use pari::{
     },
     substrate::{repo::storage::RepoSubstrate, EntityStore, Substrate},
 };
+
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
 
 fn raci() -> Raci {
     Raci {
@@ -43,6 +48,28 @@ fn tempdir() -> std::path::PathBuf {
 
 fn cleanup(path: std::path::PathBuf) {
     let _ = fs::remove_dir_all(path);
+}
+
+fn minimal_role(id: &str) -> Role {
+    Role {
+        id: id.into(),
+        name: format!("{id} Name"),
+        purpose: "Test purpose.".to_string(),
+        traits: None,
+        extensions: Extensions::default(),
+    }
+}
+
+fn minimal_team(id: &str) -> Team {
+    Team {
+        id: id.into(),
+        name: format!("{id} Name"),
+        description: None,
+        members: None,
+        include: None,
+        import: None,
+        extensions: Extensions::default(),
+    }
 }
 
 fn minimal_task(id: &str, template: Option<&str>) -> Task {
@@ -220,13 +247,11 @@ fn full_store() -> EntityStore {
     };
 
     let mut store = EntityStore::new();
-    store.roles.insert(role.id.to_string(), role);
-    store.hooks.insert(hook.id.to_string(), hook);
-    store.teams.insert(team.id.to_string(), team);
-    store.workflows.insert(workflow.id.to_string(), workflow);
-    store
-        .shared_workflows
-        .insert(shared_workflow.id.to_string(), shared_workflow);
+    store.insert_role(role);
+    store.insert_hook(hook);
+    store.insert_team(team);
+    store.insert_workflow(workflow);
+    store.insert_shared_workflow(shared_workflow);
     store
 }
 
@@ -277,12 +302,23 @@ fn assert_valid_yaml(path: &std::path::Path) {
         .unwrap_or_else(|e| panic!("{path:?} frontmatter is not valid YAML: {e}\n{fm}"));
 }
 
+fn inode(path: &std::path::Path) -> u64 {
+    use std::os::unix::fs::MetadataExt;
+    fs::metadata(path).unwrap().ino()
+}
+
+// ---------------------------------------------------------------------------
+// 9.1: Updated persist tests — now use atomic_persist(&ChangeSet)
+// ---------------------------------------------------------------------------
+
 #[test]
 fn persist_full_store_creates_all_entity_files() {
     let tmp = tempdir();
     let root = tmp.join("repo");
     let substrate = RepoSubstrate::new(&root);
-    substrate.persist(&full_store()).unwrap();
+    let store = full_store();
+    let cs = store.collect_changes();
+    substrate.atomic_persist(&cs).unwrap();
 
     // Flat files
     assert!(root.join("roles/eng-lead.md").exists(), "roles/eng-lead.md");
@@ -336,7 +372,9 @@ fn persist_all_frontmatter_is_valid_yaml() {
     let tmp = tempdir();
     let root = tmp.join("repo");
     let substrate = RepoSubstrate::new(&root);
-    substrate.persist(&full_store()).unwrap();
+    let store = full_store();
+    let cs = store.collect_changes();
+    substrate.atomic_persist(&cs).unwrap();
 
     let files = [
         "roles/eng-lead.md",
@@ -362,7 +400,9 @@ fn persist_template_file_created_when_artifact_template_set() {
     let tmp = tempdir();
     let root = tmp.join("repo");
     let substrate = RepoSubstrate::new(&root);
-    substrate.persist(&full_store()).unwrap();
+    let store = full_store();
+    let cs = store.collect_changes();
+    substrate.atomic_persist(&cs).unwrap();
 
     let template_path = root.join("workflows/Initiative/WriteProposal/output.template.md");
     assert!(template_path.exists(), "output.template.md should exist");
@@ -397,9 +437,9 @@ fn persist_no_template_file_when_artifact_template_absent() {
         extensions: Extensions::default(),
     };
     let mut store = EntityStore::new();
-    store.workflows.insert(wf.id.to_string(), wf);
-
-    substrate.persist(&store).unwrap();
+    store.insert_workflow(wf);
+    let cs = store.collect_changes();
+    substrate.atomic_persist(&cs).unwrap();
 
     let task_dir = root.join("workflows/Simple/Task1");
     assert!(task_dir.join("README.md").exists());
@@ -411,4 +451,142 @@ fn persist_no_template_file_when_artifact_template_absent() {
     );
 
     cleanup(tmp);
+}
+
+// ---------------------------------------------------------------------------
+// 9.2: End-to-end lifecycle: insert → collect → persist → reset → verify
+// ---------------------------------------------------------------------------
+
+#[test]
+fn end_to_end_insert_persist_reset_verify_files_on_disk() {
+    let tmp = tempdir();
+    let root = tmp.join("repo");
+    let substrate = RepoSubstrate::new(&root);
+
+    let mut store = full_store();
+    let cs = store.collect_changes();
+    assert!(!cs.is_empty(), "store should have changes after insertions");
+
+    substrate.atomic_persist(&cs).unwrap();
+    drop(cs); // release borrow before reset_tracked
+
+    store.reset_tracked();
+
+    // After reset, collect_changes returns empty.
+    let cs_after = store.collect_changes();
+    assert!(
+        cs_after.is_empty(),
+        "collect_changes must return empty after reset_tracked"
+    );
+
+    // Files are on disk.
+    assert!(root.join("roles/eng-lead.md").exists());
+    assert!(root.join("teams/platform-team.md").exists());
+    assert!(root.join("shared/hooks/UpdateJira.md").exists());
+    assert!(root.join("workflows/Initiative/README.md").exists());
+    assert!(root.join("shared/workflows/SharedInit/README.md").exists());
+
+    cleanup(tmp);
+}
+
+// ---------------------------------------------------------------------------
+// 9.3: Incremental update — only affected subtree changes (inode check)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn incremental_update_only_affected_subtree_changes() {
+    let tmp = tempdir();
+    let root = tmp.join("repo");
+    let substrate = RepoSubstrate::new(&root);
+
+    // First persist: role + team in separate directories.
+    let mut store = EntityStore::new();
+    store.insert_role(minimal_role("eng-lead"));
+    store.insert_team(minimal_team("platform-team"));
+    let cs = store.collect_changes();
+    substrate.atomic_persist(&cs).unwrap();
+    drop(cs);
+    store.reset_tracked();
+
+    let role_path = root.join("roles/eng-lead.md");
+    let team_path = root.join("teams/platform-team.md");
+    let role_inode_before = inode(&role_path);
+    let team_inode_before = inode(&team_path);
+
+    // Second persist: modify only the role — team is untouched.
+    {
+        let role = store.get_role_mut("eng-lead").unwrap();
+        *role.name = "Engineering Lead".to_string();
+    }
+    let cs2 = store.collect_changes();
+    substrate.atomic_persist(&cs2).unwrap();
+
+    // Role file was rewritten — inode must differ.
+    let role_inode_after = inode(&role_path);
+    assert_ne!(
+        role_inode_before, role_inode_after,
+        "modified role file must have a new inode"
+    );
+
+    // Team file was hard-linked from the original — inode must be unchanged.
+    let team_inode_after = inode(&team_path);
+    assert_eq!(
+        team_inode_before, team_inode_after,
+        "unmodified team file must share inode (hard-linked, not re-written)"
+    );
+
+    // Content is correct.
+    let content = fs::read_to_string(&role_path).unwrap();
+    assert!(content.contains("Engineering Lead"));
+
+    cleanup(tmp);
+}
+
+// ---------------------------------------------------------------------------
+// 9.4: Failed persist — reset_tracked NOT called, ChangeSet remains intact
+// ---------------------------------------------------------------------------
+
+#[test]
+fn failed_persist_leaves_changeset_intact_when_reset_not_called() {
+    let tmp = tempdir();
+    let root = tmp.join("repo");
+    // Create root so we can make it read-only.
+    fs::create_dir_all(&root).unwrap();
+    let substrate = RepoSubstrate::new(&root);
+
+    let mut store = EntityStore::new();
+    store.insert_role(minimal_role("eng-lead"));
+    let cs = store.collect_changes();
+    assert_eq!(cs.len(), 1, "one change before persist");
+
+    // Make root read-only so that creating roles.part/ inside it fails.
+    make_readonly(&root);
+    let result = substrate.atomic_persist(&cs);
+    make_writable(&root); // restore before any assertions that might panic
+    drop(cs);
+
+    assert!(result.is_err(), "atomic_persist must fail with read-only root");
+
+    // reset_tracked was NOT called — store still tracks the insertion.
+    let cs2 = store.collect_changes();
+    assert_eq!(
+        cs2.len(),
+        1,
+        "ChangeSet must still contain 1 change after failed persist"
+    );
+    assert_eq!(cs2.changes[0].id, "eng-lead");
+
+    cleanup(tmp);
+}
+
+#[cfg(unix)]
+fn make_readonly(path: &std::path::Path) {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o555)).unwrap();
+}
+
+#[cfg(unix)]
+fn make_writable(path: &std::path::Path) {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
 }
