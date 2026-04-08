@@ -18,7 +18,7 @@ use pari::{
         },
         types::{Artifact, Extensions, Raci, StateMapEntry, TaskStateEntry, WorkflowStateEntry},
     },
-    substrate::{repo::storage::RepoSubstrate, EntityStore, Substrate},
+    substrate::{repo::storage::RepoSubstrate, EntityStore},
 };
 
 // ---------------------------------------------------------------------------

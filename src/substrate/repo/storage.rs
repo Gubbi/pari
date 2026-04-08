@@ -25,7 +25,7 @@ use crate::{
     },
     substrate::{
         changeset::{ChangeOp, ChangeSet, EntityData},
-        Substrate, SubstrateError,
+        SubstrateError,
     },
 };
 
@@ -41,8 +41,8 @@ impl RepoSubstrate {
     }
 }
 
-impl Substrate for RepoSubstrate {
-    fn atomic_persist(&self, changeset: &ChangeSet<'_>) -> Result<(), Vec<SubstrateError>> {
+impl RepoSubstrate {
+    pub fn atomic_persist(&self, changeset: &ChangeSet<'_>) -> Result<(), Vec<SubstrateError>> {
         if changeset.is_empty() {
             return Ok(());
         }
@@ -459,7 +459,6 @@ mod tests {
     use crate::{
         fixtures::{role::minimal_role, team::minimal_team, workflow::minimal_workflow},
         schema::store::EntityStore,
-        substrate::Substrate,
     };
     use std::fs;
 
