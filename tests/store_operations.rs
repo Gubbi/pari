@@ -85,7 +85,7 @@ async fn double_checkout_returns_error() {
 
         let _checkout1 = EntityClient::checkout(role_any_ref("eng-lead")).await.unwrap();
         let checkout2 = EntityClient::checkout(role_any_ref("eng-lead")).await;
-        assert!(matches!(checkout2, Err(CheckoutError::AlreadyCheckedOut)));
+        assert!(matches!(checkout2, Err(CheckoutError::AlreadyCheckedOut { entity_ref: _ })));
     }).await;
 }
 
@@ -121,7 +121,7 @@ async fn persist_fails_with_pending_checkouts() {
 
         let _checkout = EntityClient::checkout(role_any_ref("eng-lead")).await.unwrap();
         let result = EntityClient::persist().await;
-        assert!(matches!(result, Err(PersistError::PendingCheckouts)));
+        assert!(matches!(result, Err(PersistError::PendingCheckouts { checked_out_count: _ })));
     }).await;
 }
 

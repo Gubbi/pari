@@ -12,59 +12,44 @@
 
 ## Accessor
 
-Each field gets a single async method. The method performs the OnceLock check and issues a substrate load if the field is not yet initialized:
+Each field gets a single async method. The method checks the `OnceLock` and sends `StoreRequest::Load` if the field is not yet initialized:
 
 ```rust
 pub async fn name(&self) -> Result<&str, LoadError> {
-    self.name.get_or_load().await
+    if self.name.value.get().is_none() {
+        // EntityServer will call OnceLock::set() on the shared Arc directly.
+        // No value travels back — Arc sharing makes the write immediately visible.
+        EntityClient::load(self.entity_ref.to_any(), "name").await?;
+    }
+    Ok(self.name.value.get().expect("field not loaded"))
 }
 ```
 
-`get_or_load()` returns the cached value immediately if the field is already initialized. If not, it issues a substrate read, stores the result in the `OnceLock`, and returns a reference to it. The `OnceLock` write-once guarantee means concurrent callers racing on first load will each attempt the load, but only the first writer wins — subsequent loads are no-ops.
+`EntityClient::load` sends `StoreRequest::Load { any_ref, field }` to `EntityServer`. The server fetches the field from the substrate and calls `OnceLock::set()` on the store entity's existing `Arc<TrackedField<T>>`. Since the accessor's Arc is the same allocation, the value is immediately visible after the request returns.
+
+The `OnceLock` write-once guarantee means concurrent callers racing on first load will each trigger the load, but only the first `OnceLock::set()` wins — subsequent sets are no-ops.
 
 ---
 
 ## Setter
 
-Each field gets a single async setter. Setters validate before committing:
+Each field gets a single async setter. Setters send `StoreRequest::EnsureMutable` before mutating:
 
 ```rust
 pub async fn set_name(
     &mut self,
     value: String,
-) -> Result<(), SetError> {
-    let violations = validate_name(self).await;
-    if !violations.is_empty() {
-        return Err(SetError::ValidationFailed(violations));
-    }
-    self.name.set(value);
-    self.mark_dirty_name();
+) -> Result<(), SetterError> {
+    EntityClient::ensure_mutable(self.entity_ref.to_any(), "name").await?;
+    self.name = Arc::new(TrackedField::mutated(value));
     Ok(())
 }
 ```
 
 Steps:
-1. Run field-level validators against `self` — validator functions take `&TrackedRole` directly.
-2. If violations: return `Err` without modifying the field.
-3. Write to the `OnceLock` (replacing any previously initialized value — setters are the only permitted second write).
-4. Mark the field dirty for change tracking.
-
----
-
-## Validators
-
-Validator functions are `TrackedRole`-specific async functions. There are no plain-entity validator counterparts — plain entities are valid by construction.
-
-```rust
-async fn validate_name(e: &TrackedRole) -> Vec<RuleViolation> {
-    let name = e.name().await.unwrap();
-    if name.is_empty() {
-        vec![RuleViolation::new("name", "must not be empty")]
-    } else {
-        vec![]
-    }
-}
-```
+1. Send `StoreRequest::EnsureMutable { any_ref, field }` — `EntityServer` loads prerequisites and (if required) the field itself before mutation is allowed. See [ensure-mutable](../../workspace_layer/load/ensure-mutable.md).
+2. If `ensure_mutable` returns `Err`: return the error without modifying the field.
+3. Replace the Arc with a new `TrackedField::mutated(value)` — `OnceLock` pre-initialized, `dirty = true`.
 
 ---
 
@@ -75,4 +60,4 @@ For each field `name: String` on `Role`:
 | Method | On | Signature |
 |---|---|---|
 | `name` | `TrackedRole` | `async fn name(&self) -> Result<&str, LoadError>` |
-| `set_name` | `TrackedRole` | `async fn set_name(&mut self, v: String) -> Result<(), SetError>` |
+| `set_name` | `TrackedRole` | `async fn set_name(&mut self, v: String) -> Result<(), SetterError>` |

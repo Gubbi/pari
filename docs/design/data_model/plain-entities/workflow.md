@@ -6,7 +6,7 @@
 
 ## Purpose
 
-`Workflow` is the top-level process entity. It owns an ordered steps sequence and is the root of a workflow execution tree. Work units (`Task`, `Relay`, `EmbeddedWorkflow`) are standalone entities checked in alongside the workflow — not embedded in it.
+`Workflow` is the top-level process entity. It owns an ordered steps sequence and is the root of a workflow execution tree. Related work units (`Task`, `Relay`, `EmbeddedWorkflow`) are separate entities whose relationship to this workflow is expressed through their `EntityRef<_, WorkflowParent>` values, not by nesting their definitions inside the workflow struct.
 
 ---
 
@@ -37,7 +37,7 @@ pub struct Workflow {
 - `purpose` — describes the operational goal of this workflow
 - `raci` — required; accountability for the workflow as a whole
 - `states` — lifecycle states; must include at least one `Done` semantic state; `Reviewing` required when any `Review` step is present (see [17 · state-entries](../value-types/state-entries.md))
-- `steps` — ordered execution sequence; work steps carry `EntityRef` to standalone work entities; review steps are inline barriers (see [22 · workflow-restructuring](workflow-restructuring.md))
+- `steps` — ordered execution sequence; work steps carry `EntityRef` to related work entities; review steps are inline barriers (see [22 · workflow-restructuring](workflow-restructuring.md))
 - `intercepts` — optional lifecycle hooks keyed by `WorkflowTrigger` (see [18 · intercepts](../value-types/intercepts.md))
 - `guidance` — optional freeform guidance for tooling or agents
 - `extensions` — open-ended metadata; only `x-` prefixed keys are permitted (see [13 · extensions](../value-types/extensions.md))

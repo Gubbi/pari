@@ -2,158 +2,137 @@
 
 ## What This Is
 
-Rust library (`pari`) — a workflow runtime for hybrid human-agent teams. Two top-level modules:
+Rust library (`pari`) — a workflow runtime for hybrid human-agent teams. It manages domain entities (roles, teams, workflows, tasks, etc.) through an actor-based in-memory store with pluggable persistence backends.
 
-- `src/schema/` — entity types, validation, entity store
-- `src/substrate/` — persistence backend trait + repo (filesystem) implementation
+Toolchain: `nightly` (required for `#![feature(error_generic_member_access)]` in `thiserror` v2).
 
 ---
 
-## Module Map
+## Top-Level Modules
 
 ```
 src/
-  schema/
-    entities/    Role, Hook, Team, Workflow, SharedWorkflow
-                 Task, Relay — embedded-only (no standalone entity, no top-level schema)
-    store.rs     EntityStore — TrackedMap collections keyed by id; dual-purpose: validation context + persist input
-    types.rs     Shared types (Raci, Artifact, HookInvocation, state types, Extensions, ...)
-    validation.rs  validate() implementations per entity
-  substrate/
-    mod.rs       Substrate trait (atomic_persist only; load deferred to future proposal), SubstrateError
-    changeset.rs ChangeSet, EntityChange, ChangeOp, EntityKind, EntityData
-    repo/
-      storage.rs   RepoSubstrate — LCA-based atomic swap via .part//.old/ dirs
-      lca.rs       LCA computation over file paths
-      render.rs    Markdown+YAML-frontmatter renderers per entity type
-  tracked.rs     Tracked<T>, TrackedMap<K,V>, HasId, #[derive(Tracked)] macro (pari-macros crate)
-  lib.rs         Module declarations only — no re-exports
+  entities/     Entity type definitions (Role, Team, Hook, etc.)  → see src/entities/CLAUDE.md
+  entity.rs     Entity trait, EntityRef, EntityKind, AnyEntityRef, StoreEntity (registry-generated)
+  tracked.rs    Change tracking: Tracked<T>, TrackedField<T>, TrackedMap<K,V>
+  types.rs      Shared value types: Raci, Artifact, HookCall, Extensions, state entries
+  store/        Actor-based EntityStore: EntityServer, EntityClient  → see src/store/CLAUDE.md
+  substrate/    Persistence backends                                 → see src/substrate/CLAUDE.md
+  validation/   Validation framework: rules, schema, primitives      → see src/validation/CLAUDE.md
+  error/        Error classification traits and PariError             → see src/error/CLAUDE.md
+  schema/       Legacy schema types (EntityStore, IDs, schemars)
+  fixtures/     Test fixtures (cfg(test) only)
+  lib.rs        Feature flags, module declarations, extern crate self
 ```
 
 ---
 
-## Entity Type Reference
+## Entity Registry (`src/entity.rs`)
 
-### Standalone entities (top-level, have their own file on disk)
+All 9 entity types are registered in `entity_registry!`, which generates:
 
 ```rust
-Role       { id: RoleId (kebab), name, purpose, traits?: Vec<String>, ..extensions }
-Hook       { id: HookId (kebab), name, description, inputs?: Vec<HookInput>, ..extensions }
-           HookInput { name, description }
-Team       { id: TeamId (kebab), name, description?, members?: Vec<TeamMember>,
-             include?: HashMap<String,String>, import?: Vec<String>, ..extensions }
-           TeamMember { handle, role }
-Workflow   = WorkflowDef<WorkStepDefinition>
-SharedWorkflow = WorkflowDef<SharedWorkStepDefinition>
-WorkflowDef<S> { id: WorkflowId (CamelCase), name, description?, purpose,
-                 accountability: Raci, steps: Vec<Step<S>>,
-                 states: Vec<WorkflowStateEntry>, hooks?: HooksMap,
-                 guidance?, ..extensions }
+EntityKind   // enum: Role | Hook | Team | Workflow | ReusableWorkflow | ArtifactKind
+             //        | Task | Relay | EmbeddedWorkflow
+AnyEntityRef // type-erased enum with .kind(), .id() methods
+StoreEntity  // enum wrapping Tracked* variants; methods: any_ref(), is_stub(), make_stub(),
+             //   has_dirty_fields(), dirty_fields(), reset_dirty(), merge_dirty_into(),
+             //   initialize_into(), all_refs()
+load_strategy(EntityKind) -> LoadStrategy
 ```
 
-### Embedded-only (live inside workflow steps, no top-level files)
+**`EntityRef<T, P>`** — typed ref; `P = NoParent` for top-level, concrete parent kinds such as `WorkflowParent` for embedded entities.
+- `EntityRef::new(...)` — should accept the arguments implied by the concrete `EntityRef<T, P>` type, including the parent entity ref when `P` is not `NoParent`
+- Parent relationships should stay generic rather than being modeled through hierarchy-specific constructor helpers
+- `.id() -> &str`, `.parent() -> &P`
+- Hash/Eq incorporate `T::KIND` — refs of different kinds with the same id don't collide
 
+**`Entity` trait** — implemented by each plain struct via `#[derive(pari_macros::Entity)]`:
 ```rust
-Task   { id: TaskId (CamelCase), name, description?, purpose, instructions: Vec<String>,
-         criteria: Vec<String>, accountability?: Raci, artifact: Artifact,
-         states: Vec<TaskStateEntry>, hooks?: HooksMap, guidance?, ..extensions }
-Relay  { id: RelayId (CamelCase), name, description?, purpose, accountability?: Raci,
-         delegates_to: String, briefing?, debriefing?,
-         state_map: HashMap<String,StateMapEntry>, hooks?: HooksMap, guidance?, ..extensions }
-```
-
-### Step type hierarchy
-
-```rust
-Step<S>          = Work(WorkStep<S>) | Review(ReviewStep)   // serde untagged
-WorkStep<S>      { depends_on?: Vec<String>, definition: S }
-ReviewStep       { id: String (CamelCase), approver: String, on_reject: String }
-WorkStepDefinition       = Task(Task) | Relay(Relay) | Workflow(Box<Workflow>)
-SharedWorkStepDefinition = Task(Task) | SharedWorkflow(Box<SharedWorkflow>)  // no Relay
-```
-
-### EntityStore
-
-```rust
-EntityStore {
-    roles:            TrackedMap<String, TrackedRole>,
-    hooks:            TrackedMap<String, TrackedHook>,
-    teams:            TrackedMap<String, TrackedTeam>,
-    workflows:        TrackedMap<String, TrackedWorkflow>,
-    shared_workflows: TrackedMap<String, TrackedSharedWorkflow>,
-}
-// API: insert_role/hook/team/workflow/shared_workflow (plain → tracked)
-//      has_*/get_*/get_*_mut/remove_*
-//      collect_changes(&self) -> ChangeSet  — does NOT reset state
-//      reset_tracked(&mut self)
-```
-
-### Change tracking primitives
-
-```rust
-Tracked<T>          // newtype; Deref/DerefMut; is_dirty(), reset_dirty()
-TrackedMap<K,V>     // IndexMap-backed; tracks inserted/modified/removed sets
-                    // insert/remove/get/get_mut/iter_mut/keys/values/len/is_empty
-                    // has_changes(), reset_tracked(), from_vec()
-#[derive(Tracked)]  // generates Tracked* struct, From impl, dirty_fields() method
-                    // #[tracked(map_key = "id")] on Vec<S> field → TrackedMap
-```
-
-### ChangeSet types
-
-```rust
-ChangeSet<'a>   { changes: Vec<EntityChange<'a>> }
-EntityChange<'a>{ path: String, kind: EntityKind, id: String, op: ChangeOp<'a> }
-EntityKind      = Role | Hook | Team | Workflow | SharedWorkflow
-ChangeOp<'a>    = Added(&'a TrackedEntity) | Modified { entity, dirty_fields: Vec<String> }
-                | Removed(String)  // id
-```
-
-### Substrate trait
-
-```rust
-trait Substrate {
-    fn atomic_persist(&self, changeset: &ChangeSet<'_>) -> Result<(), Vec<SubstrateError>>;
-}
-SubstrateError { path: String, message: String }
-// RepoSubstrate: LCA of changed paths → stage in .part/, swap via fs::rename
-// Startup: cleans up stale .part/ and .old/ dirs
+const KIND: EntityKind;
+type Parent: ParentKind;
+type Tracked: TrackedFor<Entity = Self>;
+fn validation_schema() -> &'static ValidationSchema<Self>;
+fn to_any_ref(entity_ref: &EntityRef<Self, Self::Parent>) -> AnyEntityRef;
+fn extract(entity: &StoreEntity) -> Option<&Self::Tracked>;
 ```
 
 ---
 
-## Key Decisions
+## Change Tracking (`src/tracked.rs`)
 
-**EntityStore invariant**: the entity being validated must NOT already be in the store. Callers enforce this.
+**`Tracked<T>`** — newtype; `Deref` is clean, `DerefMut` marks dirty; starts clean.
+- `.is_dirty()`, `.reset_dirty()`, `Tracked::new(value)`
 
-**Task and Relay are embedded-only**: they live inside workflow steps, not as top-level entities. No standalone schema is generated for them.
+**`TrackedField<T>`** — `OnceLock<T>` + atomic dirty flag; fields in derived `Tracked*` structs are `Arc<TrackedField<T>>`.
+- `.get() -> Option<&T>`, `.get_or_load() -> &T` (panics with "field not loaded" if uninitialized)
+- `.is_dirty()`, `.reset_dirty()`, `TrackedField::with_value(v)`, `TrackedField::new()`
+- COW mutation: replace the whole `Arc<TrackedField<T>>` to update a field (e.g. `Arc::new(TrackedField::with_value(...))`)
+- Async accessor methods generated by `#[derive(Entity)]` call `get_or_load().await` and wrap in `Ok(...)`:
+  ```rust
+  role.name().await.unwrap()   // -> &str
+  role.set_name("x".into()).await.unwrap()
+  ```
 
-**Atomic persistence**: RepoSubstrate computes LCA of all changed file paths, stages changes in `<lca>.part/`, hard-links unchanged siblings, then swaps via `fs::rename`. Errors collected, not short-circuited. Stale `.part/` and `.old/` dirs cleaned on startup.
+**`TrackedMap<K, V>`** — IndexMap with `.inserted`, `.modified`, `.removed` sets.
+- `insert`, `remove`, `get`, `get_mut`, `iter_mut`, `keys`, `values`, `len`, `is_empty`
+- `.has_changes()`, `.reset_tracked()`, `TrackedMap::from_vec(vec, key_fn)`
 
-**Extensions pattern**: every entity has an `extensions: Extensions` field (`HashMap<String, serde_json::Value>`) via `#[serde(flatten)]`. Only `x-` prefixed keys are allowed by schema.
+---
 
-**Schema generation**: `cargo xtask` drives `schemars` codegen into `schemas/`. Post-processing step adds `additionalProperties: false` to schemas with `patternProperties` (schemars 0.8 limitation with `#[serde(flatten)]`).
+## Shared Types (`src/types.rs`)
 
-**Substrate::load is not yet defined**: the trait currently has `atomic_persist()` only. Loading from a substrate is a future proposal.
-
-**collect_changes does not reset state**: callers must explicitly call `reset_tracked()` after a successful persist. This preserves the changeset for retry on failure.
+```rust
+Raci           { responsible: Vec<EntityRef<Role>>, accountable: EntityRef<Role>,
+                 consulted: Vec<EntityRef<Role>>, informed: Vec<EntityRef<Role>> }
+Artifact       { kind: EntityRef<ArtifactKind>, template: Option<String> }
+HookCall       { hook: EntityRef<Hook>, with: Option<HashMap<String,String>> }
+Extensions     = HashMap<String, serde_json::Value>   // only x-prefixed keys allowed
+WorkflowStateEntry  { id, description, semantic: Option<WorkflowSemantic> }
+TaskStateEntry      { id, description, semantic: Option<TaskSemantic> }
+WorkflowTrigger     = OnStart | OnDone | OnBlocked | OnFailed | OnReviewing | OnReject
+```
 
 ---
 
 ## Running Things
 
 ```sh
-cargo test               # all tests (inline unit + schema coherence + storage integration)
+cargo test               # all tests
 cargo xtask              # regenerate schemas/ from Rust types
 ```
 
-Tests: ~269 total across unit (inline), `tests/schema_coherence.rs`, `tests/storage_integration.rs`.
+---
+
+## Key Conventions
+
+- **IDs**: kebab-case for Role/Team/Hook/ArtifactKind (`eng-lead`); CamelCase for Workflow/Task/Relay (`InitiativeWorkflow`)
+- **No pub-use re-exports at crate root** — callers use full paths: `pari::entities::role::Role`
+- **Inline unit tests** in `#[cfg(test)]` blocks within each source file
+- **Integration tests** in `tests/` — see `tests/CLAUDE.md`
+- **Extensions**: every entity has `extensions: Extensions`; schema allows only `x-` prefixed keys
+- **`extern crate self as pari`** in `lib.rs` — required so proc-macro generated `::pari::...` paths resolve inside the crate itself
+
+## Working Preferences
+
+- Queue pending topics and open questions as they surface; work through them one by one.
+- Keep the active queue in a repo-root `TODO.md` so it survives the session and does not become ephemeral.
+- Commit at the end of each task so diffs stay reviewable on a per-task basis.
+- Treat "file changed" and "change accepted" as separate states; modified files still require review and explicit acceptance.
 
 ---
 
-## Conventions
+## Key Architecture Decisions
 
-- IDs: kebab-case for Role/Team/Hook (e.g. `eng-lead`), CamelCase for Workflow/Task/Relay (e.g. `InitiativeWorkflow`)
-- Inline unit tests in `#[cfg(test)]` blocks within each source file
-- Integration tests in `tests/`
-- No `pub use` re-exports at crate root — callers use full paths (`pari::schema::entities::role::Role`)
+**Two `Substrate` traits coexist:**
+- `substrate::Substrate` — pipeline-based (resolver/codec/executor associated types), used for schema codegen/direct persistence
+- `store::Substrate` — async actor trait (`exists/load/atomic_persist` with owned args), used by `EntityServer`
+- `RepoSubstrate` implements both
+
+**`get_or_load()` panics, not `Result`:** `TrackedField::get_or_load()` panics with "field not loaded" on uninitialized fields. This is intentional — callers should never encounter uninitialized fields post-load; a panic surfaces the invariant violation early.
+
+**`StoreResponse` carries application errors:** Channel-level failure is `Err(StoreError::Unavailable)`. Application-level errors travel inside `StoreResponse` as operation-specific variants so the client can map channel failure into `StoreUnavailable(...)` without losing the underlying error type.
+
+**`collect_changes()` does not reset state:** Callers call `reset_tracked()` explicitly after a successful persist, enabling changeset retry on failure.
+
+**Hierarchy lives in `EntityRef`, storage stays flat:** `Task`, `Relay`, and `EmbeddedWorkflow` carry `WorkflowParent` and participate in workflow trees through their refs, while the Store still indexes every entity as a standalone entry by full `AnyEntityRef`.

@@ -222,7 +222,7 @@ impl<V> TrackedMap<String, V> {
 /// Two write paths:
 /// - `initialize()` — write-once, used by the load path and deserializer.
 ///   Silently ignores if the field is already initialized.
-/// - COW replacement — setters create a new `TrackedField::with_value(v)`
+/// - COW replacement — setters create a new `TrackedField::mutated(v)`
 ///   and swap the Arc pointer on the tracked entity. The old Arc is untouched.
 pub struct TrackedField<T> {
     value: OnceLock<T>,
@@ -237,7 +237,7 @@ impl<T> TrackedField<T> {
 
     /// Create a field pre-seeded with `value` and marked dirty.
     /// Used by setters to build the replacement Arc before swapping.
-    pub fn with_value(value: T) -> Self {
+    pub fn mutated(value: T) -> Self {
         let lock = OnceLock::new();
         let _ = lock.set(value);
         Self { value: lock, dirty: AtomicBool::new(true) }
@@ -255,17 +255,11 @@ impl<T> TrackedField<T> {
     }
 
     /// Create a field pre-seeded with `value` and marked clean (dirty = false).
-    /// Used by `From<PlainEntity>` — the entity is "loaded" from the plain type.
-    pub fn new_initialized(value: T) -> Self {
+    /// Used by `From<PlainEntity>` — the entity is loaded from the plain type.
+    pub fn loaded(value: T) -> Self {
         let f = Self::new();
         f.initialize(value);
         f // dirty remains false because initialize() does not set dirty
-    }
-
-    /// Returns the value if initialized, or a LoadError if not yet loaded.
-    /// Task 09 replaces this body with an EntityServer channel call.
-    pub async fn get_or_load(&self) -> Result<&T, crate::entity::LoadError> {
-        self.get().ok_or(crate::entity::LoadError::NotLoaded)
     }
 
     pub fn is_dirty(&self) -> bool {
@@ -301,8 +295,8 @@ mod tracked_field_tests {
     }
 
     #[test]
-    fn with_value_is_initialized_and_dirty() {
-        let f = TrackedField::with_value("hello".to_string());
+    fn mutated_is_initialized_and_dirty() {
+        let f = TrackedField::mutated("hello".to_string());
         assert_eq!(f.get(), Some(&"hello".to_string()));
         assert!(f.is_dirty());
     }
@@ -331,7 +325,7 @@ mod tracked_field_tests {
 
     #[test]
     fn reset_dirty_clears_flag() {
-        let f = TrackedField::with_value(42u32);
+        let f = TrackedField::mutated(42u32);
         assert!(f.is_dirty());
         f.reset_dirty();
         assert!(!f.is_dirty());
@@ -340,7 +334,7 @@ mod tracked_field_tests {
 
     #[test]
     fn arc_reset_dirty_works_through_shared_ref() {
-        let f = Arc::new(TrackedField::with_value("shared".to_string()));
+        let f = Arc::new(TrackedField::mutated("shared".to_string()));
         let f2 = Arc::clone(&f);
         assert!(f.is_dirty());
         f2.reset_dirty(); // reset via the clone
@@ -349,10 +343,10 @@ mod tracked_field_tests {
 
     #[test]
     fn cow_pattern_original_unaffected_by_replacement() {
-        let original = Arc::new(TrackedField::with_value("old".to_string()));
+        let original = Arc::new(TrackedField::mutated("old".to_string()));
         let _checkout_copy = Arc::clone(&original);
 
-        let new_field = Arc::new(TrackedField::with_value("new".to_string()));
+        let new_field = Arc::new(TrackedField::mutated("new".to_string()));
         assert_eq!(original.get(), Some(&"old".to_string()));
         assert_eq!(new_field.get(), Some(&"new".to_string()));
         assert!(new_field.is_dirty());

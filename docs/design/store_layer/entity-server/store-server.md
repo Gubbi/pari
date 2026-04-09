@@ -58,7 +58,8 @@ enum StoreRequest {
     Commit     { entity: TrackedEntity, any_ref: AnyEntityRef },
     Remove     { any_ref: AnyEntityRef },        // returns TrackedEntity so caller can undo
     Persist,
-    Load       { any_ref: AnyEntityRef, fields: Vec<String> },
+    Load       { any_ref: AnyEntityRef, field: String },
+    EnsureMutable { any_ref: AnyEntityRef, field: String },
     UndoCommit { any_ref: AnyEntityRef },
     Unload     { any_ref: AnyEntityRef },
 }
@@ -71,6 +72,12 @@ enum StoreCommand {
 enum StoreResponse {
     Entity(TrackedEntity),
     Unit,
+    ResolveError(ResolveError),
+    CheckoutError(CheckoutError),
+    CommitError(CommitError),
+    LoadError(LoadError),
+    PersistError(PersistError),
+    UndoError(UndoError),
 }
 
 enum StoreMessage {
@@ -80,6 +87,8 @@ enum StoreMessage {
 ```
 
 `StoreRequest` variants require a response (round-trip). `StoreCommand` variants are fire-and-forget — no response channel.
+
+Channel-level failure remains outside `StoreResponse` as `Err(StoreError::Unavailable)`. Application-level failure travels inside `StoreResponse` so the caller receives the operation-specific error type unchanged.
 
 ---
 
@@ -108,4 +117,6 @@ impl<S: Substrate> Store<S> {
 
 ## Failure Model
 
-If the actor task panics, `rx` is dropped. `EntityServer::sender().send()` returns `SendError` → surfaced as `StoreError::Unavailable`. No cascading panics.
+If the actor task panics or the channel is otherwise closed, `rx` is dropped. `EntityServer::sender().send()` or the reply wait fails and surfaces as `StoreError::Unavailable`.
+
+The client boundary then maps that channel-level failure into the operation-specific `StoreUnavailable(StoreError)` variant. No channel failure is handled with `unwrap()` at the public API boundary.

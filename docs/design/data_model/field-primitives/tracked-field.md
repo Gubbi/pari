@@ -14,10 +14,26 @@
 
 ```rust
 struct TrackedField<T> {
-    value: OnceLock<T>,  // uninitialized = not loaded; initialized = loaded
-    dirty: bool,         // true = mutated since last persist
+    value: OnceLock<T>,   // uninitialized = not loaded; initialized = loaded
+    dirty: AtomicBool,    // true = mutated since last persist
 }
 ```
+
+## Why `AtomicBool` for `dirty`
+
+`dirty` is set only at construction time by setters via `TrackedField::mutated(v)`. It is never set during loading — loading only initializes the `OnceLock`. However, `reset_dirty()` must clear `dirty` after a successful persist on fields inside `Arc<TrackedField<T>>` without replacing the Arc (store and client share the same Arc allocations). `AtomicBool` allows this in-place reset without requiring `&mut TrackedField`.
+
+---
+
+## Constructors
+
+```rust
+TrackedField::new()         // uninitialized, dirty = false  (stub fields)
+TrackedField::loaded(v: T)  // OnceLock initialized, dirty = false  (substrate-loaded fields)
+TrackedField::mutated(v: T) // OnceLock initialized, dirty = true   (setter-assigned fields)
+```
+
+---
 
 `M: Optionality` is dropped. Optional domain fields encode optionality in T:
 
@@ -43,6 +59,6 @@ Each field on a tracked entity is `Arc<TrackedField<T>>`. Cloning a tracked enti
 
 ---
 
-## Loading and Mutation
+## Loading
 
-Loading and mutation are handled externally — by the tracked entity's accessors and `ensure_mutable()`. See tracked entity topics (30–35).
+Loading is handled by `EntityServer`. When an accessor finds its `OnceLock` uninitialized, it sends `StoreRequest::Load` via `EntityClient`. `EntityServer` calls `OnceLock::set()` on its stored Arcs directly — since the accessor's `Arc<TrackedField<T>>` is the same allocation, the initialized value is immediately visible to the accessor after the request returns. No value travels back through the channel.

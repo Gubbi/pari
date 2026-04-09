@@ -129,13 +129,14 @@ async fn accessor_returns_value_when_initialized() {
 }
 
 #[tokio::test]
+#[should_panic(expected = "field not loaded")]
 async fn accessor_returns_error_when_uninitialized() {
     let tracked = TrackedTestRole {
         entity_ref: EntityRef::new("r"),
         name: Arc::new(TrackedField::new()),
         count: Arc::new(TrackedField::new()),
     };
-    assert!(tracked.name().await.is_err());
+    let _ = tracked.name().await;
 }
 
 // --- Async setter ---

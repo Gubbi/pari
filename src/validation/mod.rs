@@ -9,6 +9,7 @@ use std::hash::Hash;
 use crate::entity::Entity;
 
 pub mod cross_entity;
+pub mod error;
 pub mod role;
 pub mod hook;
 pub mod team;
@@ -16,6 +17,10 @@ pub mod artifact_kind;
 pub mod task;
 pub mod relay;
 pub mod workflow;
+
+pub use error::{
+    FieldValidationError, SetterError, ValidationErrors, ValidationKind,
+};
 
 // ---------------------------------------------------------------------------
 // RuleViolation — single violation from one rule
@@ -39,86 +44,6 @@ impl RuleViolation {
     }
 }
 
-// ---------------------------------------------------------------------------
-// ValidationKind
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ValidationKind {
-    Structural,
-    Semantic,
-    CrossEntity,
-}
-
-// ---------------------------------------------------------------------------
-// Error types
-// ---------------------------------------------------------------------------
-
-#[derive(Debug)]
-pub struct FieldValidationError {
-    /// Dot-notation path: `"name"`, `"steps.WriteProposal.depends_on[0]"`
-    pub path: String,
-    pub message: String,
-    pub kind: ValidationKind,
-}
-
-pub struct ValidationErrors {
-    pub errors: Vec<FieldValidationError>,
-}
-
-impl ValidationErrors {
-    pub fn new() -> Self {
-        Self { errors: Vec::new() }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.errors.is_empty()
-    }
-
-    pub fn extend(&mut self, other: ValidationErrors) {
-        self.errors.extend(other.errors);
-    }
-}
-
-impl Default for ValidationErrors {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-// ---------------------------------------------------------------------------
-// SetterError (replaces Task 03 stub)
-// ---------------------------------------------------------------------------
-
-#[derive(Debug)]
-pub enum SetterError {
-    Substrate(SubstrateError),
-    Validation(ValidationErrors),
-}
-
-/// Substrate-level I/O error. Full type in Task 11.
-#[derive(Debug)]
-pub struct SubstrateError {
-    pub path: String,
-    pub message: String,
-}
-
-impl std::fmt::Debug for ValidationErrors {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ValidationErrors({} errors)", self.errors.len())
-    }
-}
-
-// ---------------------------------------------------------------------------
-// LoadError (replaces Task 03 stub)
-// ---------------------------------------------------------------------------
-
-#[derive(Debug)]
-pub enum LoadError {
-    NotLoaded,
-    Substrate(SubstrateError),
-    ValidationFailed(ValidationErrors),
-}
 
 // ---------------------------------------------------------------------------
 // Rule function type aliases

@@ -39,6 +39,8 @@ pub enum Step {
 
 `Task`, `Relay`, and `EmbeddedWorkflow` variants carry an `EntityRef` to the entity they execute. The step id (the key in `steps: IndexMap<String, Step>`) identifies the step position; the `entity_ref` identifies the entity that executes at that step.
 
+The referenced entity is a separate store entry keyed by that full ref. The parent portion of the ref is what makes the step target part of this workflow tree.
+
 `depends_on` lists the ids of other steps that must complete before this step can begin. Controls parallelism within a segment. Absent when the step has no dependencies.
 
 ---

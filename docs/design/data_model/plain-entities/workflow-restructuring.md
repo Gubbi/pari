@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Workflow structure is a single ordered `steps` sequence. Work units — `Task`, `Relay`, `EmbeddedWorkflow` — are standalone entities that carry their own `EntityRef<T, WorkflowParent>`. They are constructed independently and checked in alongside the workflow. The steps sequence references them by `EntityRef`; it does not embed their definitions.
+Workflow structure is a single ordered `steps` sequence. Work units — `Task`, `Relay`, `EmbeddedWorkflow` — carry their own `EntityRef<T, WorkflowParent>`, which is what ties them into the workflow tree. The steps sequence references them by `EntityRef`; it does not embed their definitions or maintain a separate `definitions` map.
 
 ---
 
@@ -31,9 +31,9 @@ pub struct Workflow {
 
 ---
 
-## Standalone Work Entities
+## Related Work Entities
 
-`Task`, `Relay`, and `EmbeddedWorkflow` are not embedded in the workflow struct. Each carries `entity_ref: EntityRef<T, WorkflowParent>` that identifies which workflow it belongs to. Clients construct them independently and submit them together with the workflow at check-in. `EntityServer`'s commit handler validates the cross-entity links at that point.
+`Task`, `Relay`, and `EmbeddedWorkflow` are not embedded in the workflow struct. Each carries `entity_ref: EntityRef<T, WorkflowParent>` that identifies where it sits in the workflow tree. In the Store they are still standalone entries indexed by full `AnyEntityRef`, so hierarchy lives in identity rather than in nested storage.
 
 ---
 

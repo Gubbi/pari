@@ -40,16 +40,13 @@ After checkout, store and clone share all field Arcs. The store copy is unaffect
 
 ## Setter
 
-A setter replaces the `Arc` entirely with a new `TrackedField` whose `OnceLock` is pre-seeded with the new value:
+A setter is async. It first sends `StoreRequest::EnsureMutable` to `EntityServer` (which loads any prerequisites and the field itself if required), then replaces the `Arc` entirely using `TrackedField::mutated(v)`:
 
 ```rust
-fn set_name(&mut self, value: String) {
-    let lock = OnceLock::new();
-    let _ = lock.set(value);
-    self.name = Arc::new(TrackedField {
-        value: lock,
-        dirty: true,
-    });
+pub async fn set_name(&mut self, value: String) -> Result<(), SetterError> {
+    EntityClient::ensure_mutable(self.entity_ref.to_any(), "name").await?;
+    self.name = Arc::new(TrackedField::mutated(value));
+    Ok(())
 }
 ```
 
@@ -63,10 +60,10 @@ At commit, dirty fields on the clone are merged back into the store entity by ov
 
 ```rust
 fn merge_dirty_into(&self, store_entity: &mut TrackedRole) {
-    if self.name.dirty {
+    if self.name.is_dirty() {
         store_entity.name = Arc::clone(&self.name);
     }
-    if self.raci.dirty {
+    if self.raci.is_dirty() {
         store_entity.raci = Arc::clone(&self.raci);
     }
     // ...

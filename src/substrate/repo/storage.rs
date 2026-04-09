@@ -25,6 +25,7 @@ use crate::{
     },
     substrate::{
         changeset::{ChangeOp, ChangeSet, EntityData},
+        pipeline::ExecutorError,
         SubstrateError,
     },
 };
@@ -443,10 +444,7 @@ fn suffixed_sibling(root: &Path, lca_rel: &str, suffix: &str) -> PathBuf {
 }
 
 fn err(path: &Path, e: &impl std::fmt::Display) -> SubstrateError {
-    SubstrateError {
-        path: path.to_string_lossy().into_owned(),
-        message: e.to_string(),
-    }
+    SubstrateError::Executor(ExecutorError::new(path.to_string_lossy(), e.to_string()))
 }
 
 // ---------------------------------------------------------------------------

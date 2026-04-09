@@ -36,15 +36,21 @@ load(any_ref, fields):
        // Errors here are non-fatal; validation's has_ref() will surface
        // unresolved refs as cross-entity validation failures at check-in.
 
-  4. Validate the result (before merging):
-       validate loaded fields in result — unloaded fields skipped
-       run structural, entity-local semantic, and cross-entity semantic validations
-       Err(ValidationFailed) if any rule fails
+  4. Enrich and validate:
+       a. Merge store's already-initialized fields INTO the loaded result (for validation context)
+          — fields already loaded in the store are copied into the result before validation
+          — this gives validators a complete picture even when only a subset of fields was fetched
+       b. Run validations on the enriched result
+          — structural, entity-local semantic, and cross-entity semantic rules
+          — unloaded fields are skipped
+          Err(ValidationFailed) if any rule fails
 
-  5. Merge result into cached entity:
-       For each field in returned TrackedEntity:
-         if cached OnceLock is uninitialized → initialize from result
-         (write-once: already-initialized fields are not overwritten)
+  5. Initialize store's existing Arcs in-place:
+       For each field newly loaded in the result:
+         call OnceLock::set() on the store entity's existing Arc<TrackedField<T>>
+         (write-once: already-initialized OnceLocks are not overwritten)
+       The store's TrackedEntity is NEVER replaced — only its OnceLocks are initialized.
+       Arc sharing propagates these writes to all holders (client clones) immediately.
 ```
 
 ---
@@ -82,12 +88,12 @@ Errors from individual `exists()` checks are non-fatal and do not abort the load
 ```rust
 // Transparently loads on first access via OnceLock
 pub async fn name(&self) -> Result<&str, LoadError> {
-    if let Some(val) = self.name.value.get() {
-        return Ok(val);
+    if self.name.value.get().is_none() {
+        // EntityServer will call OnceLock::set() on the shared Arc directly.
+        // No value travels back — Arc sharing makes the write immediately visible.
+        EntityClient::load(self.entity_ref.to_any(), "name").await?;
     }
-    let val = EntityServer::sender().load(self.entity_ref.to_any(), &["name"]).await?;
-    let _ = self.name.value.set(val);
-    Ok(self.name.value.get().unwrap())
+    Ok(self.name.value.get().expect("field not loaded"))
 }
 ```
 

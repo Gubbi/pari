@@ -6,7 +6,7 @@
 
 ## Purpose
 
-`Relay` is an embedded-only entity that delegates a segment of work to a `ReusableWorkflow`. It defines its own states and maps each to a state in the delegated workflow, bridging the parent workflow's execution context with the reusable subprocess.
+`Relay` is an embedded entity that delegates a segment of work to a `ReusableWorkflow`. It defines its own states and maps each to a state in the delegated workflow, bridging the parent workflow's execution context with the reusable subprocess.
 
 ---
 
@@ -45,7 +45,7 @@ pub enum StateMapSemantic {
 
 ## Fields
 
-- `entity_ref` — carries the relay's id and kind; parent is `WorkflowParent`; Relay may not appear in a `ReusableWorkflow` or any `EmbeddedWorkflow` within one (enforced by validation)
+- `entity_ref` — carries the relay's id and kind; parent is `WorkflowParent`, which establishes where the relay sits in the workflow tree; `Relay` may not appear in a `ReusableWorkflow` or any `EmbeddedWorkflow` within one (enforced by validation)
 - `delegates_to` — the `ReusableWorkflow` this relay hands off to
 - `briefing` — optional instructions for setting up the delegated workflow invocation
 - `debriefing` — optional instructions for interpreting results when the delegated workflow completes

@@ -16,10 +16,14 @@ serde = { version = "1", features = ["derive"] }
 schemars = "0.8"
 serde_json = "1"
 serde_yaml = "0.9"
-thiserror = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-error = "0.2"
+opentelemetry-semantic-conventions = "0.29"
 indexmap = { version = "2", features = ["serde"] }
 pari-macros = { path = "pari-macros" }
 tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies]
 jsonschema = "0.45"
+tempfile = "3"

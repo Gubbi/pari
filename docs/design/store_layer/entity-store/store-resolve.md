@@ -23,11 +23,12 @@ Internal to `EntityServer`. Called from the actor loop when handling `StoreReque
 ## Steps
 
 1. If `entities` contains `any_ref` → return clone of the stored entity
-2. Call `substrate.exists(any_ref)` — async substrate check
-3. If not found → return `Err(ResolveError::NotFound)`
-4. Construct a stub: tracked entity with `entity_ref` populated, all fields' OnceLock uninitialized, `dirty = false`
-5. Insert stub into `entities`
-6. Return clone of stub
+2. Call `substrate.exists(&[any_ref])` — async batch existence check; returns `Result<Vec<bool>, SubstrateError>`
+3. If substrate error → return `Err(ResolveError::Substrate(e))`
+4. If result[0] is false → return `Err(ResolveError::NotFound { entity_ref: any_ref.id(), hint: None })`
+5. Construct a stub: tracked entity with `entity_ref` populated, all fields' OnceLock uninitialized, `dirty = false`
+6. Insert stub into `entities`
+7. Return clone of stub
 
 ---
 
@@ -35,8 +36,12 @@ Internal to `EntityServer`. Called from the actor loop when handling `StoreReque
 
 ```rust
 enum ResolveError {
-    NotFound,
-    SubstrateError(SubstrateError),
+    NotFound {
+        entity_ref: String,
+        hint: Option<String>,
+    },
+    Substrate(SubstrateError),
+    StoreUnavailable(StoreError),
 }
 ```
 

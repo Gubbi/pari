@@ -50,6 +50,9 @@ Captured at the Primitive layer — the earliest point where a concrete failure 
 **8. Correlation IDs are not embedded in errors**
 Correlation flows through the active tracing span context, not through error structs. OTel subscribers inject `trace_id` and `span_id` into emitted records automatically.
 
+**9. Channel failure is explicit, never unwrapped**
+When a public API operation depends on the `EntityServer` channel, channel failure is surfaced as `StoreError::Unavailable` and then mapped into the operation-specific `StoreUnavailable(...)` variant. Message transport failure is never handled with panic or `unwrap()` at the public boundary.
+
 ---
 
 ## The Error Layer Model

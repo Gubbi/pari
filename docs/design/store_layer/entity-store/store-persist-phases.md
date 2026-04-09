@@ -47,7 +47,11 @@ See [64 · persist-dirty-reset](../change-tracking/persist-dirty-reset.md) for r
 
 ```rust
 enum PersistError {
-    PendingCheckouts,
-    SubstrateError(Vec<SubstrateError>),
+    PendingCheckouts {
+        checked_out_count: usize,
+        hint: Option<String>,
+    },
+    SubstrateErrors(BatchError<SubstrateError>),
+    StoreUnavailable(StoreError),
 }
 ```

@@ -1,24 +1,15 @@
 //! Substrate layer — persistence backend trait and implementations.
 
 pub mod changeset;
+pub mod error;
 pub mod pipeline;
 pub mod repo;
 
 pub use crate::schema::store::EntityStore;
+pub use error::SubstrateError;
+use pipeline::ExecutorError;
 
 use crate::entity::{AnyEntityRef, EntityKind, StoreEntity};
-
-// ---------------------------------------------------------------------------
-// SubstrateError
-// ---------------------------------------------------------------------------
-
-/// A filesystem path + human-readable description of what went wrong.
-#[derive(Debug, thiserror::Error)]
-#[error("{message} at {path}")]
-pub struct SubstrateError {
-    pub path: String,
-    pub message: String,
-}
 
 // ---------------------------------------------------------------------------
 // EntityChange
@@ -51,26 +42,33 @@ pub trait Substrate: Sized + Send + Sync + 'static {
     /// Derive `LoadStrategy` for a (entity_kind, field) pair.
     fn load_strategy(entity_kind: EntityKind, field: &str) -> pipeline::LoadStrategy;
 
-    /// Check existence of a single entity.
-    async fn exists(&self, _any_ref: &AnyEntityRef) -> Result<bool, SubstrateError> {
-        todo!("default impl: resolver + executor Head")
+    /// Check existence of a batch of entities. Returns one bool per ref, in order.
+    fn exists<'a>(
+        &'a self,
+        refs: &'a [AnyEntityRef],
+    ) -> impl std::future::Future<Output = Result<Vec<bool>, SubstrateError>> + Send + 'a {
+        let _ = refs;
+        async { todo!("default impl: resolver + executor Head per ref") }
     }
 
     /// Load the specified fields of an entity. `fields: &[]` = all fields.
-    async fn load(
-        &self,
-        _any_ref: &AnyEntityRef,
-        _fields: &[&str],
-    ) -> Result<StoreEntity, SubstrateError> {
-        todo!("default impl: resolver + executor Get + codec decode")
+    /// The passed entity may already have some fields initialized — used for validation context.
+    fn load<'a>(
+        &'a self,
+        entity: &'a StoreEntity,
+        fields: &'a [&'a str],
+    ) -> impl std::future::Future<Output = Result<StoreEntity, SubstrateError>> + Send + 'a {
+        let _ = (entity, fields);
+        async { todo!("default impl: resolver + executor Get + codec decode") }
     }
 
-    /// Persist a set of entity changes atomically.
-    async fn atomic_persist(
-        &self,
-        _changes: &[EntityChange<'_>],
-    ) -> Result<(), Vec<SubstrateError>> {
-        todo!("default impl: AssetMapper + resolver + codec + executor")
+    /// Persist a set of entity changes. Changes are consumed lazily via iterator.
+    fn persist<'a>(
+        &'a self,
+        changes: impl Iterator<Item = EntityChange<'a>> + Send + 'a,
+    ) -> impl std::future::Future<Output = Result<(), Vec<SubstrateError>>> + Send + 'a {
+        let _ = changes;
+        async { todo!("default impl: AssetMapper + resolver + codec + executor") }
     }
 }
 
@@ -141,22 +139,25 @@ impl Substrate for VoidSubstrate {
         pipeline::LoadStrategy { prerequisites: vec![], mutable_without_load: true }
     }
 
-    async fn exists(&self, _: &AnyEntityRef) -> Result<bool, SubstrateError> {
-        Ok(false)
+    async fn exists(&self, refs: &[AnyEntityRef]) -> Result<Vec<bool>, SubstrateError> {
+        Ok(vec![false; refs.len()])
     }
 
     async fn load(
         &self,
-        any_ref: &AnyEntityRef,
+        entity: &StoreEntity,
         _: &[&str],
     ) -> Result<StoreEntity, SubstrateError> {
-        Err(SubstrateError {
-            path: any_ref.id().to_string(),
-            message: "VoidSubstrate: no load".to_string(),
-        })
+        Err(SubstrateError::Executor(ExecutorError::new(
+            entity.any_ref().id().to_string(),
+            "VoidSubstrate: no load",
+        )))
     }
 
-    async fn atomic_persist(&self, _: &[EntityChange<'_>]) -> Result<(), Vec<SubstrateError>> {
+    async fn persist(
+        &self,
+        _: impl Iterator<Item = EntityChange<'_>> + Send,
+    ) -> Result<(), Vec<SubstrateError>> {
         Ok(())
     }
 }
@@ -173,30 +174,16 @@ mod tests {
 
     #[test]
     fn substrate_error_display_format() {
-        let e = SubstrateError {
-            path: "roles/eng-lead.md".to_string(),
-            message: "permission denied".to_string(),
-        };
-        assert_eq!(format!("{}", e), "permission denied at roles/eng-lead.md");
+        let e = SubstrateError::Executor(ExecutorError::new("roles/eng-lead.md", "permission denied"));
+        let msg = format!("{}", e);
+        assert!(msg.contains("permission denied"), "display: {msg}");
+        assert!(msg.contains("roles/eng-lead.md"), "display: {msg}");
     }
 
     #[test]
     fn substrate_error_implements_std_error() {
-        let e = SubstrateError {
-            path: "roles/eng-lead.md".to_string(),
-            message: "permission denied".to_string(),
-        };
+        let e = SubstrateError::Executor(ExecutorError::new("roles/eng-lead.md", "permission denied"));
         let _: &dyn std::error::Error = &e;
-    }
-
-    #[test]
-    fn substrate_error_has_path_and_message() {
-        let e = SubstrateError {
-            path: "roles/eng-lead.md".to_string(),
-            message: "permission denied".to_string(),
-        };
-        assert_eq!(e.path, "roles/eng-lead.md");
-        assert_eq!(e.message, "permission denied");
     }
 
     #[test]

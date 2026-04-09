@@ -12,17 +12,19 @@
 
 ## Invocation
 
+Each entry declares the entity type and its parent kind explicitly:
+
 ```rust
 entity_registry! {
-    Role,
-    Hook,
-    Team,
-    Workflow,
-    ReusableWorkflow,
-    ArtifactKind,
-    Task,
-    Relay,
-    EmbeddedWorkflow,
+    Role             => NoParent,
+    Hook             => NoParent,
+    Team             => NoParent,
+    Workflow         => NoParent,
+    ReusableWorkflow => NoParent,
+    ArtifactKind     => NoParent,
+    Task             => WorkflowParent,
+    Relay            => WorkflowParent,
+    EmbeddedWorkflow => WorkflowParent,
 }
 ```
 
@@ -68,7 +70,7 @@ pub enum AnyEntityRef {
 }
 ```
 
-`Parent` is taken from `T::Parent` — the macro reads the associated type rather than requiring it to be re-declared in the invocation.
+`Parent` is taken from the `=> ParentType` declaration in the registry invocation.
 
 ---
 

@@ -20,8 +20,10 @@ EntityClient::checkout(any_ref: AnyEntityRef) -> Result<TrackedEntity, CheckoutE
 
 ## Steps (inside EntityServer)
 
-1. Check `checked_out` — if `any_ref` is present, return `Err(AlreadyCheckedOut)`
-2. Resolve the entity (must already be in the store — checkout does not trigger a load)
+1. Check `checked_out` — if `any_ref` is present, return `Err(AlreadyCheckedOut { entity_ref, hint: None })`
+2. Look up `entities` — if `any_ref` is absent, return `Err(EntityNotFound { entity_ref, hint: None })`
+   Checkout does NOT hit the substrate — it requires the entity to already be in the store.
+   Use `resolve` first if the entity may not be in the store.
 3. Clone the entity into an owned `TrackedEntity`
 4. Insert `any_ref` into `checked_out`
 5. Return the cloned entity
@@ -32,8 +34,15 @@ EntityClient::checkout(any_ref: AnyEntityRef) -> Result<TrackedEntity, CheckoutE
 
 ```rust
 enum CheckoutError {
-    AlreadyCheckedOut,
-    EntityNotFound,
+    AlreadyCheckedOut {
+        entity_ref: String,
+        hint: Option<String>,
+    },
+    EntityNotFound {
+        entity_ref: String,
+        hint: Option<String>,
+    },
+    StoreUnavailable(StoreError),
 }
 ```
 

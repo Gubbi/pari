@@ -10,6 +10,8 @@
 
 `EntityRef<T, P>` remains the typed form used in field declarations. `AnyEntityRef` is the erasure form used at boundaries.
 
+Because the wrapped ref includes its `ParentKind`, `AnyEntityRef` preserves hierarchical identity even after type erasure. This is what lets the Store keep a flat map without losing parent-child distinctions.
+
 ---
 
 ## Enum Definition
@@ -58,4 +60,4 @@ fn all_refs(&self) -> Vec<AnyEntityRef> {
 }
 ```
 
-**Change tracking sets** — `HashSet<AnyEntityRef>` on the store for `added`, `modified`, `removed`, `checked_out`.
+**Store index and change tracking sets** — `HashMap<AnyEntityRef, TrackedEntity>` and `HashSet<AnyEntityRef>` in the store for `added`, `modified`, `removed`, `checked_out`. Parent-qualified refs ensure embedded entities remain distinct while still being stored flat.

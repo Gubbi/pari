@@ -26,7 +26,7 @@ pub trait Entity {
 
 - `KIND` — runtime discriminant; used in `EntityRef` hash/eq, `AnyEntityRef` dispatch, substrate `load_strategy`
 - `VALIDATION_SCHEMA` — static schema generated from `#[validations]` field attributes; see [codegen/validatable](../../codegen/validatable.md)
-- `Parent` — `NoParent` for top-level entities; `WorkflowParent` for embedded entities
+- `Parent` — `NoParent` for top-level entities; `WorkflowParent` for embedded entities whose identity includes a workflow parent chain
 - `Tracked` — the store's mutable load-aware representation; `Role::Tracked = TrackedRole`
 
 ---
@@ -101,7 +101,7 @@ pub struct EntityRef<T: Entity, P: ParentKind = NoParent> { ... }
 `EntityRef<Raci>` or `EntityRef<String>` is a compile error.
 
 `P = NoParent` default covers top-level entities — the parent is written
-explicitly only for embedded entities: `EntityRef<Task, WorkflowParent>`.
+explicitly only for hierarchy-bearing entities: `EntityRef<Task, WorkflowParent>`.
 
 ---
 
@@ -118,3 +118,6 @@ tracked entities only, where field access is async and load-aware.
 `entity_ref` is a concrete field on both plain and tracked entities — not a
 trait method. Type-erased access uses `AnyEntityRef`
 (see [any-entity-ref](any-entity-ref.md)).
+
+The `Parent` associated type defines relationship semantics, while the Store
+still treats every entity as a standalone record keyed by its full `EntityRef`.

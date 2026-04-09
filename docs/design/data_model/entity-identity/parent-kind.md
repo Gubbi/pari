@@ -6,7 +6,7 @@
 
 ## Purpose
 
-`EntityRef<T, P>` carries a parent type parameter `P`. `ParentKind` is the trait bounding `P`, constraining which types are valid parents at compile time.
+`EntityRef<T, P>` carries a parent type parameter `P`. `ParentKind` is the trait bounding `P`, constraining which types are valid parents at compile time. This is the authoritative mechanism for expressing entity hierarchy in the model.
 
 ---
 
@@ -19,7 +19,7 @@ pub trait ParentKind {}
 pub struct NoParent;
 impl ParentKind for NoParent {}
 
-/// Concrete parent type for embedded entities (Task, Relay, EmbeddedWorkflow).
+/// Concrete parent type for embedded entities in the workflow hierarchy.
 pub enum WorkflowParent {
     Workflow(EntityRef<Workflow>),
     ReusableWorkflow(EntityRef<ReusableWorkflow>),
@@ -28,9 +28,11 @@ pub enum WorkflowParent {
 impl ParentKind for WorkflowParent {}
 ```
 
-`WorkflowParent` is a closed enum — only Workflow, ReusableWorkflow, and EmbeddedWorkflow are valid immediate parents of embedded entities. The `EmbeddedWorkflow` variant is boxed to break the recursive size cycle.
+`WorkflowParent` is a closed enum — only `Workflow`, `ReusableWorkflow`, and `EmbeddedWorkflow` are valid immediate parents of embedded entities in this hierarchy. The `EmbeddedWorkflow` variant is boxed to break the recursive size cycle.
 
-Embedding depth is represented by nesting `WorkflowParent` values, not by growing the static type. An `EntityRef<Task, WorkflowParent>` covers a task at any embedding depth — the concrete chain is resolved at runtime.
+Hierarchy depth is represented by nesting `WorkflowParent` values, not by growing the static type. An `EntityRef<Task, WorkflowParent>` covers a task at any depth under a workflow tree — the concrete chain is resolved at runtime.
+
+This hierarchy is about identity and relationship, not about how the Store lays entities out internally. The Store keeps a flat map keyed by full `AnyEntityRef`; the parent chain is part of the key and part of the meaning of the entity.
 
 ---
 
@@ -41,7 +43,7 @@ Embedding depth is represented by nesting `WorkflowParent` values, not by growin
 | Role, Hook, Team, ArtifactKind, Workflow, ReusableWorkflow | `EntityRef<T, NoParent>` |
 | Task, Relay, EmbeddedWorkflow | `EntityRef<T, WorkflowParent>` |
 
-The constraint that Relay cannot appear in `ReusableWorkflow` definitions is a domain constraint — not enforced by `ParentKind` at the type level.
+The constraint that `Relay` cannot appear in a `ReusableWorkflow` tree is a domain constraint — not enforced by `ParentKind` at the type level.
 
 ---
 

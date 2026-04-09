@@ -33,7 +33,7 @@ Uses `request(StoreRequest::Commit { entity: self, any_ref })`. Inside EntitySer
 ## undo_checkout
 
 ```rust
-async fn undo_checkout(&mut self) -> Result<(), StoreError>
+async fn undo_checkout(&mut self) -> Result<(), UndoError>
 ```
 
 Uses `send(StoreCommand::UndoCheckout { any_ref })`. Inside EntityServer: remove `any_ref` from `checked_out`. No merge, no validation. Changes are dropped with the entity.
@@ -44,7 +44,12 @@ Uses `send(StoreCommand::UndoCheckout { any_ref })`. Inside EntityServer: remove
 
 ```rust
 enum CommitError {
-    ValidationFailed(Vec<ValidationError>),
-    StoreUnavailable,
+    ValidationFailed {
+        error_count: usize,
+        errors: ValidationErrors,
+        hint: Option<String>,
+    },
+    CrossReferenceCheckFailed(SubstrateError),
+    StoreUnavailable(StoreError),
 }
 ```

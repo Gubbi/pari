@@ -3,6 +3,7 @@
 //! Exposes two top-level modules: [`schema`] for entity types and validation,
 //! and [`substrate`] for persistence backends.
 
+#![feature(error_generic_member_access)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::must_use_candidate)]
 
@@ -11,7 +12,9 @@
 extern crate self as pari;
 
 pub mod entities;
+pub mod error;
 pub mod entity;
+pub use error::pari_error::PariError;
 pub mod schema;
 pub mod store;
 pub mod substrate;

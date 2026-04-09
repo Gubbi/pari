@@ -6,7 +6,7 @@
 
 ## Purpose
 
-`Task` is an embedded-only entity representing an atomic unit of work. It lives inside a workflow's `definitions` map and is never a top-level standalone entity.
+`Task` is an embedded entity representing an atomic unit of work. It is related to a `Workflow`, `ReusableWorkflow`, or `EmbeddedWorkflow` through its `EntityRef<Task, WorkflowParent>` and may be referenced from a workflow step, but it is not nested inside a workflow `definitions` map.
 
 ---
 
@@ -33,7 +33,7 @@ pub struct Task {
 
 ## Fields
 
-- `entity_ref` — carries the task's id and kind; parent is `WorkflowParent` (Workflow, ReusableWorkflow, or EmbeddedWorkflow)
+- `entity_ref` — carries the task's id and kind; parent is `WorkflowParent` (`Workflow`, `ReusableWorkflow`, or `EmbeddedWorkflow`), which establishes where the task sits in the workflow tree
 - `name` — human-readable display name
 - `description` — optional short summary
 - `purpose` — describes the operational goal of this task

@@ -124,7 +124,7 @@ Use `unload` to release memory for entities whose data is no longer needed, with
 
 ```rust
 enum UndoError {
-    WrongState,
-    StoreUnavailable,
+    WrongState { hint: Option<String> },
+    StoreUnavailable(StoreError),
 }
 ```

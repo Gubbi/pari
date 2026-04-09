@@ -4,6 +4,11 @@
 //! plus the `LocationResolver`, `Codec`, and `Executor` traits consumed by
 //! the `Substrate` trait's default implementations.
 
+pub mod codec;
+pub mod executor;
+pub use codec::CodecError;
+pub use executor::ExecutorError;
+
 use std::collections::HashMap;
 
 // ---------------------------------------------------------------------------
@@ -198,11 +203,6 @@ pub trait Codec {
     ) -> Result<HashMap<String, serde_json::Value>, CodecError>;
 }
 
-pub struct CodecError {
-    pub field: String,
-    pub message: String,
-}
-
 // ---------------------------------------------------------------------------
 // Executor
 // ---------------------------------------------------------------------------
@@ -215,9 +215,4 @@ pub trait Executor {
         &self,
         ops: Vec<AssetRequest<Self::Location, Self::Encoded>>,
     ) -> Result<Vec<AssetResponse<Self::Encoded>>, Vec<ExecutorError>>;
-}
-
-pub struct ExecutorError {
-    pub location: String,
-    pub message: String,
 }

@@ -20,13 +20,13 @@ pub enum EntityKind {
     ArtifactKind,
     Workflow,
     ReusableWorkflow,
-    EmbeddedWorkflow,  // embedded-only; lives inside Workflow/ReusableWorkflow/EmbeddedWorkflow steps
-    Task,              // embedded-only; lives inside Workflow/ReusableWorkflow/EmbeddedWorkflow steps
-    Relay,             // embedded-only; lives inside Workflow/EmbeddedWorkflow steps (not ReusableWorkflow)
+    EmbeddedWorkflow,  // embedded entity; parent chain carried by EntityRef<_, WorkflowParent>
+    Task,              // embedded entity; parent chain carried by EntityRef<_, WorkflowParent>
+    Relay,             // embedded entity; parent chain carried by EntityRef<_, WorkflowParent>
 }
 ```
 
-All entity types with an `EntityRef` get a variant — including the embedded-only types, which are not independently loadable. "Independently loadable" is a separate property not encoded in `EntityKind`.
+All entity types with an `EntityRef` get a variant — including embedded entity types whose identity includes a parent chain. Store layout and load strategy are separate concerns not encoded in `EntityKind`.
 
 `WorkStepDefinition` is an enum wrapper, not itself an entity with an `EntityRef`. It has no `EntityKind` variant.
 
@@ -45,7 +45,7 @@ EntityRef<Role>("eng-lead")  ≠  EntityRef<Hook>("eng-lead")
 
 ### 2. Runtime dispatch via `AnyEntityRef`
 
-`AnyEntityRef` carries an `EntityKind` (via its enum variant) to route store lookups. The store's flat `HashMap<AnyEntityRef, TrackedEntity>` uses `AnyEntityRef` as the key — `kind()` on a key identifies which `TrackedEntity` variant to expect in the value. For embedded entities (EmbeddedWorkflow, Task, Relay), the `parent()` accessor on `AnyEntityRef` provides the parent chain needed to navigate context.
+`AnyEntityRef` carries an `EntityKind` (via its enum variant) to route store lookups. The store's flat `HashMap<AnyEntityRef, TrackedEntity>` uses `AnyEntityRef` as the key — `kind()` on a key identifies which `TrackedEntity` variant to expect in the value. For embedded entities (`EmbeddedWorkflow`, `Task`, `Relay`), the `parent()` accessor on `AnyEntityRef` provides the parent chain needed to navigate context.
 
 ---
 

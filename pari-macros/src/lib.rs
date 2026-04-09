@@ -775,7 +775,7 @@ fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
             let fname = &f.ident;
             quote! {
                 #fname: ::std::sync::Arc::new(
-                    ::pari::tracked::TrackedField::new_initialized(plain.#fname)
+                    ::pari::tracked::TrackedField::loaded(plain.#fname)
                 ),
             }
         })
@@ -805,9 +805,16 @@ fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
             let fname = &f.ident;
             let ty = &f.ty;
             let (ret_type, map_expr) = accessor_return_type(ty);
+            let fname_str = fname.as_ref().unwrap().to_string();
             quote! {
                 pub async fn #fname(&self) -> ::std::result::Result<#ret_type, ::pari::entity::LoadError> {
-                    self.#fname.get_or_load().await #map_expr
+                    if self.#fname.get().is_none() {
+                        ::pari::store::EntityClient::load(
+                            <#name as ::pari::entity::Entity>::to_any_ref(self.entity_ref()),
+                            #fname_str,
+                        ).await?;
+                    }
+                    Ok(self.#fname.get().expect("field not loaded") #map_expr)
                 }
             }
         })
@@ -820,10 +827,17 @@ fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
             let fname = &f.ident;
             let setter_name = Ident::new(&format!("set_{}", fname.as_ref().unwrap()), Span::call_site());
             let ty = &f.ty;
+            let fname_str = fname.as_ref().unwrap().to_string();
             quote! {
                 pub async fn #setter_name(&mut self, value: #ty) -> ::std::result::Result<(), ::pari::entity::SetterError> {
-                    self.ensure_mutable().await?;
-                    self.#fname = ::std::sync::Arc::new(::pari::tracked::TrackedField::with_value(value));
+                    ::pari::store::EntityClient::ensure_mutable(
+                        <#name as ::pari::entity::Entity>::to_any_ref(self.entity_ref()),
+                        #fname_str,
+                    ).await.map_err(|e| match e {
+                        ::pari::store::LoadError::Substrate(s) => ::pari::entity::SetterError::Substrate(s),
+                        other => panic!("ensure_mutable failed unexpectedly: {:?}", other),
+                    })?;
+                    self.#fname = ::std::sync::Arc::new(::pari::tracked::TrackedField::mutated(value));
                     Ok(())
                 }
             }
@@ -866,15 +880,8 @@ fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
         .iter()
         .map(|f| {
             let fname = &f.ident;
-            let ty = &f.ty;
             quote! {
-                if self.#fname.is_dirty() {
-                    if let Some(v) = self.#fname.get() {
-                        self.#fname = ::std::sync::Arc::new(
-                            ::pari::tracked::TrackedField::new_initialized(<#ty as ::std::clone::Clone>::clone(v))
-                        );
-                    }
-                }
+                self.#fname.reset_dirty();
             }
         })
         .collect();
@@ -883,6 +890,26 @@ fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
         quote! { false }
     } else {
         quote! { #(#has_dirty_checks)||* }
+    };
+
+    // --- Build is_stub: use first non-Option domain field as sentinel ---
+    let is_stub_impl = {
+        let first_required = domain_fields.iter().find(|f| {
+            !matches!(&f.ty, syn::Type::Path(tp)
+                if tp.path.segments.last().map(|s| s.ident == "Option").unwrap_or(false))
+        });
+        if let Some(f) = first_required {
+            let fname = &f.ident;
+            quote! {
+                pub fn is_stub(&self) -> bool {
+                    self.#fname.get().is_none()
+                }
+            }
+        } else {
+            quote! {
+                pub fn is_stub(&self) -> bool { false }
+            }
+        }
     };
 
     // --- Entity impl: to_any_ref and extract (real bodies unless no_dispatch) ---
@@ -1252,10 +1279,7 @@ fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
                 #(#reset_stmts)*
             }
 
-            async fn ensure_mutable(&mut self) -> ::std::result::Result<(), ::pari::entity::SetterError> {
-                // Stub: no-op. Task 09 replaces with EntityServer load-all-fields call.
-                Ok(())
-            }
+            #is_stub_impl
 
             #make_stub_body
 
@@ -1371,7 +1395,7 @@ fn accessor_return_type(ty: &Type) -> (TokenStream2, TokenStream2) {
             if segs.len() == 1 {
                 let seg = &segs[0];
                 if seg.ident == "String" {
-                    return (quote! { &str }, quote! { .map(|v| v.as_str()) });
+                    return (quote! { &str }, quote! { .as_str() });
                 }
                 if seg.ident == "Option" {
                     if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
@@ -1381,20 +1405,20 @@ fn accessor_return_type(ty: &Type) -> (TokenStream2, TokenStream2) {
                                 if is_type_ident(inner, "String") {
                                     return (
                                         quote! { ::std::option::Option<&str> },
-                                        quote! { .map(|o| o.as_deref()) },
+                                        quote! { .as_deref() },
                                     );
                                 }
                                 // Option<Vec<U>>
                                 if let Some(elem) = vec_inner_type(inner) {
                                     return (
                                         quote! { ::std::option::Option<&[#elem]> },
-                                        quote! { .map(|o| o.as_deref()) },
+                                        quote! { .as_deref() },
                                     );
                                 }
                                 // Option<T>
                                 return (
                                     quote! { ::std::option::Option<&#inner> },
-                                    quote! { .map(|o| o.as_ref()) },
+                                    quote! { .as_ref() },
                                 );
                             }
                         }
@@ -1404,7 +1428,7 @@ fn accessor_return_type(ty: &Type) -> (TokenStream2, TokenStream2) {
                     if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
                         if args.args.len() == 1 {
                             if let syn::GenericArgument::Type(elem) = &args.args[0] {
-                                return (quote! { &[#elem] }, quote! { .map(|v| v.as_slice()) });
+                                return (quote! { &[#elem] }, quote! { .as_slice() });
                             }
                         }
                     }
@@ -1689,6 +1713,17 @@ fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         })
         .collect();
 
+    let is_stub_arms: Vec<TokenStream2> = entries
+        .iter()
+        .zip(tracked_names.iter())
+        .map(|(e, _tname)| {
+            let vname = &e.name;
+            quote! {
+                StoreEntity::#vname(e) => e.is_stub(),
+            }
+        })
+        .collect();
+
     let store_entity = quote! {
         #[derive(Clone)]
         pub enum StoreEntity {
@@ -1747,6 +1782,12 @@ fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
                     #(#reset_dirty_arms)*
                 }
             }
+
+            pub fn is_stub(&self) -> bool {
+                match self {
+                    #(#is_stub_arms)*
+                }
+            }
         }
     };
 
@@ -1796,4 +1837,32 @@ fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         #substrate_schema
         #load_strategy
     }
+}
+
+// ---------------------------------------------------------------------------
+// ErrorCompose and OTelEmit derives
+// ---------------------------------------------------------------------------
+
+mod error_compose;
+mod otel_emit;
+
+/// Derives `ErrorCompose` for a struct or enum.
+///
+/// - Struct: requires `#[compose(fix = ..., recoverability = ...)]`.
+/// - Enum: all variants must carry `#[compose(delegate)]` with a single inner field.
+#[proc_macro_derive(ErrorCompose, attributes(compose))]
+pub fn derive_error_compose(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    error_compose::derive_error_compose(input).into()
+}
+
+/// Derives `OTelEmit` for a struct or enum.
+///
+/// - Struct: requires `#[otel(error_type = "...")]`; fields may carry `#[otel(field = "...")]`
+///   or `#[otel(delegate)]`.
+/// - Enum: all variants must carry `#[compose(delegate)]` with a single inner field.
+#[proc_macro_derive(OTelEmit, attributes(otel, compose))]
+pub fn derive_otel_emit(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    otel_emit::derive_otel_emit(input).into()
 }

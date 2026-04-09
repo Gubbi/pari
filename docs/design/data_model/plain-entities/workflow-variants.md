@@ -6,7 +6,7 @@
 
 ## Purpose
 
-`ReusableWorkflow` and `EmbeddedWorkflow` are the other two workflow variants. All three share the same structural shape — `steps` sequence only — but differ in entity identity, parent kind, and constraints. Work units are standalone entities checked in alongside the workflow.
+`ReusableWorkflow` and `EmbeddedWorkflow` are the other two workflow variants. All three share the same structural shape — `steps` sequence only — but differ in entity identity, parent kind, and constraints. Relationships to tasks, relays, and embedded workflows are expressed through `EntityRef` parent chains.
 
 ---
 
@@ -29,7 +29,7 @@ pub struct ReusableWorkflow {
 }
 ```
 
-`raci` required. `Relay` must not appear in any work entity checked in under a `ReusableWorkflow` — enforced by cross-entity validation at check-in.
+`raci` required. `Relay` must not appear in any embedded entity under a `ReusableWorkflow` root — enforced by cross-entity validation.
 
 ---
 
