@@ -61,7 +61,7 @@ All methods are `async`. Error types are in `store/error.rs`.
 | Method | Description | Returns |
 |--------|-------------|---------|
 | `insert(StoreEntity)` | Add new entity to store (fire-and-forget command) | `Result<(), StoreError>` |
-| `resolve(AnyEntityRef)` | Get entity; loads from substrate if absent or stub | `Result<StoreEntity, StoreError>` |
+| `resolve(AnyEntityRef)` | Get entity; loads from substrate if absent or stub | `Result<StoreEntity, ResolveError>` |
 | `checkout(AnyEntityRef)` | Get mutable copy + acquire lock | `Result<StoreEntity, CheckoutError>` |
 | `remove(AnyEntityRef)` | Remove entity from store | `Result<StoreEntity, StoreError>` |
 | `persist()` | Flush added/modified/removed to substrate | `Result<(), PersistError>` |
@@ -79,12 +79,13 @@ All methods are `async`. Error types are in `store/error.rs`.
 ```rust
 StoreRequest  // Resolve | Checkout | Commit | Remove | Persist | Load | UndoCommit | Unload
 StoreCommand  // Insert(StoreEntity) | UndoCheckout { any_ref }
-StoreResponse // Entity(StoreEntity) | Unit | CheckoutErr(CheckoutError) | PersistErr(PersistError)
+StoreResponse // Entity(StoreEntity) | Unit | ResolveErr(ResolveError) | CheckoutErr(CheckoutError)
+             //  | PersistErr(PersistError) | LoadErr(LoadError)
 StoreMessage  // Request { request, reply: oneshot::Sender<Result<StoreResponse, StoreError>> }
              //  | Command(StoreCommand)
 ```
 
-Application-level errors (`CheckoutError`, `PersistError`) ride in `Ok(StoreResponse::XxxErr(e))`.
+Application-level errors (`ResolveError`, `CheckoutError`, `PersistError`, `LoadError`) ride in `Ok(StoreResponse::XxxErr(e))`.
 Channel-level failure is `Err(StoreError::Unavailable)`.
 
 ---
@@ -99,7 +100,7 @@ CommitError    — ValidationFailed { error_count, errors } | CrossReferenceChec
 LoadError      — NotFound { entity_ref } | Substrate(SubstrateError) | ValidationFailed { error_count, errors }
 UndoError      — WrongState | StoreUnavailable(StoreError)
 PersistError   — PendingCheckouts { checked_out_count } | SubstrateErrors(BatchError<SubstrateError>)
-ResolveError   — NotFound { entity_ref } | Substrate(SubstrateError)
+ResolveError   — NotFound { entity_ref } | Substrate(SubstrateError) | StoreUnavailable(StoreError)
 ```
 
 ---

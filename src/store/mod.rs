@@ -128,6 +128,7 @@ pub(crate) enum StoreCommand {
 pub(crate) enum StoreResponse {
     Entity(StoreEntity),
     Unit,
+    ResolveErr(ResolveError),
     CheckoutErr(CheckoutError),
     PersistErr(PersistError),
     LoadErr(LoadError),
@@ -185,7 +186,7 @@ impl<S: substrate::Substrate> Store<S> {
             StoreRequest::Resolve { any_ref } => {
                 match self.resolve(&any_ref).await {
                     Ok(entity) => Ok(StoreResponse::Entity(entity)),
-                    Err(_) => Err(StoreError::Unavailable),
+                    Err(e) => Ok(StoreResponse::ResolveErr(e)),
                 }
             }
             StoreRequest::Checkout { any_ref } => {
@@ -487,9 +488,10 @@ impl EntityServer {
 pub struct EntityClient;
 
 impl EntityClient {
-    pub async fn resolve(any_ref: AnyEntityRef) -> Result<StoreEntity, StoreError> {
-        match request(StoreRequest::Resolve { any_ref }).await? {
+    pub async fn resolve(any_ref: AnyEntityRef) -> Result<StoreEntity, ResolveError> {
+        match request(StoreRequest::Resolve { any_ref }).await.map_err(ResolveError::StoreUnavailable)? {
             StoreResponse::Entity(e) => Ok(e),
+            StoreResponse::ResolveErr(e) => Err(e),
             _ => unreachable!(),
         }
     }

@@ -148,4 +148,8 @@ pub enum ResolveError {
     #[error(transparent)]
     #[compose(delegate)]
     Substrate(#[from] SubstrateError),
+
+    #[error(transparent)]
+    #[compose(delegate)]
+    StoreUnavailable(#[from] StoreError),
 }

@@ -72,12 +72,10 @@ enum StoreCommand {
 enum StoreResponse {
     Entity(TrackedEntity),
     Unit,
-    ResolveError(ResolveError),
-    CheckoutError(CheckoutError),
-    CommitError(CommitError),
-    LoadError(LoadError),
-    PersistError(PersistError),
-    UndoError(UndoError),
+    ResolveErr(ResolveError),
+    CheckoutErr(CheckoutError),
+    LoadErr(LoadError),
+    PersistErr(PersistError),
 }
 
 enum StoreMessage {

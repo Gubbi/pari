@@ -49,7 +49,7 @@ impl EntityClient {
             .map_err(ResolveError::StoreUnavailable)?
         {
             StoreResponse::Entity(e) => Ok(e),
-            StoreResponse::ResolveError(e) => Err(e),
+            StoreResponse::ResolveErr(e) => Err(e),
             _ => unreachable!(),
         }
     }
@@ -195,7 +195,7 @@ Application-level failures are carried inside `StoreResponse` so they survive th
 
 ```
 channel failure        => Err(<OperationError>::StoreUnavailable(StoreError::Unavailable))
-application failure    => Ok(StoreResponse::<Operation>Error(e)) => Err(e)
+application failure    => Ok(StoreResponse::<Operation>Err(e))   => Err(e)
 successful operation   => Ok(StoreResponse::Entity/Unit)         => Ok(...)
 ```
 

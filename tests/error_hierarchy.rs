@@ -112,6 +112,13 @@ fn undo_wrong_state_is_pari_not_recoverable() {
     assert_eq!(e.recoverability(), Recoverability::NotRecoverable);
 }
 
+#[test]
+fn resolve_store_unavailable_is_pari_not_recoverable() {
+    let e = ResolveError::StoreUnavailable(StoreError::Unavailable);
+    assert_eq!(e.fix_domain(),     FixDomain::Pari);
+    assert_eq!(e.recoverability(), Recoverability::NotRecoverable);
+}
+
 // --- as_error downcast through PariError chain ---
 
 #[test]

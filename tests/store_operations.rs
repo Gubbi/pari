@@ -1,5 +1,5 @@
 use pari::store::{EntityClient, EntityServer, InMemorySubstrate};
-use pari::store::{CheckoutError, PersistError};
+use pari::store::{CheckoutError, PersistError, ResolveError};
 use pari::entity::{AnyEntityRef, EntityRef, StoreEntity};
 use pari::entities::role::{Role, TrackedRole};
 use std::collections::HashMap;
@@ -45,7 +45,7 @@ async fn resolve_absent_entity_creates_stub_via_substrate() {
 async fn resolve_nonexistent_entity_returns_error() {
     EntityServer::with_test(InMemorySubstrate::new(), || async {
         let result = EntityClient::resolve(role_any_ref("ghost")).await;
-        assert!(result.is_err());
+        assert!(matches!(result, Err(ResolveError::NotFound { entity_ref }) if entity_ref == "ghost"));
     }).await;
 }
 
@@ -66,7 +66,7 @@ async fn checkout_then_commit_updates_entity() {
 
         let mut entity = EntityClient::checkout(role_any_ref("eng-lead")).await.unwrap();
         if let StoreEntity::Role(ref mut r) = entity {
-            r.name = std::sync::Arc::new(pari::tracked::TrackedField::with_value("New Name".to_string()));
+            r.name = std::sync::Arc::new(pari::tracked::TrackedField::mutated("New Name".to_string()));
         }
         entity.commit().await.unwrap();
 
@@ -109,7 +109,7 @@ async fn remove_then_resolve_returns_error() {
 
         EntityClient::remove(role_any_ref("eng-lead")).await.unwrap();
         let result = EntityClient::resolve(role_any_ref("eng-lead")).await;
-        assert!(result.is_err());
+        assert!(matches!(result, Err(ResolveError::NotFound { entity_ref }) if entity_ref == "eng-lead"));
     }).await;
 }
 
@@ -133,7 +133,7 @@ async fn undo_commit_on_added_entity_removes_it() {
 
         EntityClient::undo_commit(role_any_ref("eng-lead")).await.unwrap();
         let result = EntityClient::resolve(role_any_ref("eng-lead")).await;
-        assert!(result.is_err());
+        assert!(matches!(result, Err(ResolveError::NotFound { entity_ref }) if entity_ref == "eng-lead"));
     }).await;
 }
 
