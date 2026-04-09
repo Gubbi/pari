@@ -119,6 +119,7 @@ cargo xtask              # regenerate schemas/ from Rust types
 - Keep the active queue in a repo-root `TODO.md` so it survives the session and does not become ephemeral.
 - Commit at the end of each task so diffs stay reviewable on a per-task basis.
 - Treat "file changed" and "change accepted" as separate states; modified files still require review and explicit acceptance.
+- Follow DRY for design docs and context files: make one place authoritative for a concept, then link to it instead of repeating the same explanation in many places.
 
 ---
 

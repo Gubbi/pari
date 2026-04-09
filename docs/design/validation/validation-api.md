@@ -36,21 +36,16 @@ After `ensure_mutable` and before writing the value, the setter runs structural 
 
 A validation failure prevents the field from being set and is returned as `SetterError::Validation`.
 
-### 2 · Load path (authoritative for loaded data)
+### 2 · Load path
 
-The substrate returns a partial `TrackedEntity` with only the newly loaded fields. The substrate does not validate — `EntityServer`'s load handler validates before merge:
+The substrate returns a partial `TrackedEntity` with only the newly loaded fields. The substrate does not validate; `EntityServer` validates before merge.
 
-```
-substrate.load() → partial TrackedEntity
-  → all_refs() on result
-  → batch substrate.exists() for refs not already in store → stubs inserted
-  → validate #1 + #2 + #3 on loaded fields
-      (has_ref calls are store-hits: stubs pre-seeded by the batch above)
-  → Err(LoadError::ValidationFailed) if any fail
-  → merge into cached entity with dirty=false only on success
-```
+The authoritative description of the load algorithm lives in [store-load-internal](../workspace_layer/load/store-load-internal.md). Validation's role in that flow is simple:
 
-The `all_refs()` + batch pre-fetch avoids N serial substrate round-trips during #3 validation — by the time `has_ref` calls run, all refs are already in the store as stubs. See [34 · all-refs](../data_model/tracked-entity/all-refs.md) and [58 · store-load-internal](../workspace_layer/load/store-load-internal.md).
+- structural, entity-local semantic, and cross-entity validation run before merge
+- prefetch of refs via `all_refs()` + batched `exists()` is an optimization ahead of validation, not a substitute for it
+- if validation cannot validate the loaded fields, the load fails with `LoadError::ValidationFailed`
+- fetched data is merged only after validation succeeds
 
 ### 3 · Check-in (authoritative gate)
 

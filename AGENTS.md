@@ -121,6 +121,7 @@ cargo xtask              # regenerate schemas/ from Rust types
 - Record active queue items in a repo-root `TODO.md` so they persist across the session and do not become ephemeral.
 - Commit at the end of each task so the resulting diff is easy to review task-by-task.
 - A changed file is not the same as an accepted decision; review happens independently of whether a file is already modified.
+- Follow DRY for design docs and context files: keep each concept authoritative in one place, and link to that source instead of repeating the same explanation across many files.
 
 ---
 

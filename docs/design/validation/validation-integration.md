@@ -26,17 +26,14 @@ Setters run only `Structural` and `Semantic` — no store access. The `fields` s
 
 ## Load Path
 
-```
-EntityServer::load(entity_ref, fields):
-  1. substrate.load(entity_ref, fields) → partial TrackedEntity
-  2. all_refs(partial)                  → collect all EntityRefs in the loaded fields
-  3. batch substrate.exists(refs)       → insert stubs for any ref not in store
-  4. run_validations(partial, fields: loaded_fields, kinds: &[Structural, Semantic, CrossEntity])
-     → Err(LoadError::ValidationFailed) if non-empty
-  5. merge partial into cached entity with dirty = false
-```
+The authoritative load sequence lives in [store-load-internal](../workspace_layer/load/store-load-internal.md). From the validation layer's perspective, load integration is:
 
-The `all_refs` + batch pre-fetch ensures `has_ref` calls during `CrossEntity` validation are store-hits, avoiding N serial substrate round-trips. See [34 · all-refs](../data_model/tracked-entity/all-refs.md).
+- `EntityServer` fetches partial fields from the substrate
+- it may prefetch refs via `all_refs()` + batched `exists()` as an optimization
+- `run_validations(..., kinds: &[Structural, Semantic, CrossEntity])` runs before merge
+- `LoadError::ValidationFailed` aborts the merge for that fetch result
+
+This doc intentionally does not restate the detailed load algorithm; see [store-load-internal](../workspace_layer/load/store-load-internal.md) and [ensure-mutable](../workspace_layer/load/ensure-mutable.md) for the canonical flow.
 
 ---
 

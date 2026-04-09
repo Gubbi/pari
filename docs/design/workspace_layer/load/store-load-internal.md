@@ -30,11 +30,11 @@ load(any_ref, fields):
   3. Expand cross-entity refs in the result:
        call all_refs() on the returned TrackedEntity
        filter to refs not already in store
-       batch: substrate.exists(unresolved_refs)
+       batch: substrate.exists(refs_not_in_store)
        for each confirmed-existing ref: insert stub into store
        for each errored ref: skip — do not insert, do not fail the load
-       // Errors here are non-fatal; validation's has_ref() will surface
-       // unresolved refs as cross-entity validation failures at check-in.
+       // This prefetch step is only an optimization ahead of validation.
+       // Validation still decides whether the loaded data is acceptable.
 
   4. Enrich and validate:
        a. Merge store's already-initialized fields INTO the loaded result (for validation context)
@@ -77,7 +77,7 @@ After each load round, `all_refs()` surfaces cross-entity refs that were just po
 
 Only refs not already in the store are included in the batch. Stubs are inserted without being marked in `added` — they are not user-created entities.
 
-Errors from individual `exists()` checks are non-fatal and do not abort the load. Confirmed refs are inserted; errored refs are skipped. The store retains only validated facts — a stub in the store means existence was confirmed. Refs that could not be checked remain absent; cross-entity validation at check-in (`has_ref()`) will surface them as failures if the ref is required.
+Errors from individual `exists()` checks are non-fatal and do not abort the prefetch step. Confirmed refs are inserted; errored refs are skipped. The store retains only validated facts — a stub in the store means existence was confirmed. Prefetch is only a best-effort optimization before validation begins; if validation cannot validate a required ref, the load fails and the fetched data is not merged.
 
 ---
 
