@@ -39,7 +39,7 @@ Each round:
 
 Validation runs after ref expansion but before merge, in every round. This guarantees: data returned from the substrate is structurally valid before it is merged into the cached entity or used to resolve path variables in the next round.
 
-If validation fails at any round, the load errors with `LoadError::ValidationFailed`. The entity remains in the store with whatever fields were loaded before the failure.
+If validation fails at any round, the load errors with `LoadError::ValidationFailed`. The failing round is not merged into the store; only fields from earlier successful rounds remain loaded.
 
 ---
 
