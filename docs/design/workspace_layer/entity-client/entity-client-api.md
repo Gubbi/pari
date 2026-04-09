@@ -70,7 +70,7 @@ impl EntityClient {
             .map_err(CheckoutError::StoreUnavailable)?
         {
             StoreResponse::Entity(e) => Ok(e),
-            StoreResponse::CheckoutError(e) => Err(e),
+            StoreResponse::CheckoutErr(e) => Err(e),
             _ => unreachable!(),
         }
     }
@@ -80,7 +80,7 @@ impl EntityClient {
             .map_err(LoadError::StoreUnavailable)?
         {
             StoreResponse::Unit => Ok(()),
-            StoreResponse::LoadError(e) => Err(e),
+            StoreResponse::LoadErr(e) => Err(e),
             _ => unreachable!(),
         }
     }
@@ -90,7 +90,7 @@ impl EntityClient {
             .map_err(LoadError::StoreUnavailable)?
         {
             StoreResponse::Unit => Ok(()),
-            StoreResponse::LoadError(e) => Err(e),
+            StoreResponse::LoadErr(e) => Err(e),
             _ => unreachable!(),
         }
     }
@@ -100,7 +100,7 @@ impl EntityClient {
             .map_err(PersistError::StoreUnavailable)?
         {
             StoreResponse::Unit => Ok(()),
-            StoreResponse::PersistError(e) => Err(e),
+            StoreResponse::PersistErr(e) => Err(e),
             _ => unreachable!(),
         }
     }

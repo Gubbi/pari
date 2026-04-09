@@ -132,7 +132,7 @@ enum LoadError {
 }
 ```
 
-Load validates after each round (see [progressive-loading-loop](../../workspace_layer/load/progressive-loading-loop.md)). A validation failure during load surfaces as `LoadError::ValidationFailed`. Cross-entity prefetch errors during ref expansion are non-fatal at that step; refs that could not be confirmed there remain for authoritative re-check at check-in.
+Load validates after each round (see [progressive-loading-loop](../../workspace_layer/load/progressive-loading-loop.md)). A validation failure during load surfaces as `LoadError::ValidationFailed`. Ref prefetch during load is only an optimization ahead of validation; if validation cannot validate the fetched fields, the load fails and the fetched data is not merged.
 - `StoreUnavailable` — the EntityServer channel is closed before the load request completes; carries the underlying `StoreError`
 
 ### UndoError

@@ -4,7 +4,7 @@ Pending topics and open questions surfaced during the current design review:
 
 - [x] Normalize `resolve` into one documented API everywhere.
 - [x] Reconcile load-time cross-entity validation semantics.
-- [ ] Sweep remaining enum and API drift that falls out of the earlier fixes.
+- [x] Sweep remaining enum and API drift that falls out of the earlier fixes.
 
 Working agreement:
 
