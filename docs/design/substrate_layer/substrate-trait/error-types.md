@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Error types across the Store Layer and substrate boundary. Each error is assigned to its layer in the error chain model (see [error-handling](../../../error-handling.md)). No panics — all failure paths return `Result`.
+Error types across the Store Layer and substrate boundary. Each error is assigned to its layer in the error chain model (see [error-handling](../../../error-handling/error-handling.md)). No panics — all failure paths return `Result`.
 
 ---
 
@@ -165,7 +165,7 @@ enum PersistError {
 ```
 
 - `PendingCheckouts` — one or more entities are currently checked out; persist is blocked until all checkouts are resolved via `commit()` or `undo_checkout()` (see [store-persist-phases](../../store_layer/entity-store/store-persist-phases.md))
-- `SubstrateErrors` — one or more write operations failed; errors are collected into a `BatchError`, not short-circuited; change lists are preserved for retry; `BatchError` aggregates worst-case `fix_domain` and `recoverability` across all failures (see [error-handling — Batch Errors](../../../error-handling.md))
+- `SubstrateErrors` — one or more write operations failed; errors are collected into a `BatchError`, not short-circuited; change lists are preserved for retry; `BatchError` aggregates worst-case `fix_domain` and `recoverability` across all failures (see [error-handling — Batch Errors](../../../error-handling/error-handling.md))
 - `StoreUnavailable` — the EntityServer channel is closed before the persist request completes; carries the underlying `StoreError`
 
 ### ResolveError

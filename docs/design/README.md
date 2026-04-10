@@ -10,7 +10,7 @@
 | `substrate_layer/` | Substrate trait, asset pipeline, RepoSubstrate implementation |
 | `validation/` | Validation API and per-entity implementations |
 | `codegen/` | Derive macros, schema codegen |
-| `error-handling.md` | Error taxonomy, composition, observability, batch errors |
+| `error-handling/` | Error taxonomy, composition, observability, batch errors |
 
 ---
 
@@ -154,5 +154,5 @@
 ---
 
 ## cross-cutting
-- [error-handling](error-handling.md) — error taxonomy, `ErrorCompose`, `OTelEmit`, batch errors, client usage
+- [error-handling](error-handling/error-handling.md) — error taxonomy, `ErrorCompose`, `OTelEmit`, batch errors, client usage
 - [known-issues](known_issues.md) — explicitly deferred design gaps (KI-1 through KI-3)
