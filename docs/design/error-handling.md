@@ -32,11 +32,13 @@ Error type names describe what went wrong or what state was left behind — not 
 **2. Module path reflects ownership**
 The path to an error type reflects who defines and owns its semantics. `pari::substrate::repo::codec::error::MalformedFrontmatter` — the `codec` component within the `repo` substrate implementation owns this error. No extra annotation needed to understand who is responsible.
 
-**3. Three mandatory layers, variable middle**
-Every error chain has exactly three mandatory layers: Job → Activity → Primitive. Between Job and Activity there may be zero or more Intermediary Op layers, depending on how many internal operations were involved. The chain is never longer than it needs to be.
+**3. Strict layer order**
+Every error chain follows the strict order: Job → Intermediary Op(s) → Activity → Primitive.
+
+`Job`, `Activity`, and `Primitive` are mandatory in the framework. Between `Job` and `Activity` there may be zero or more `Intermediary Op` layers, depending on how many internal operations were involved. The chain is never longer than it needs to be.
 
 **4. Properties declared once, propagated automatically**
-Classification properties (`fix`, `recoverability`) are declared at the Activity layer — the layer that contextualises the failure. Intermediary and Job layers delegate automatically. Nothing is re-declared at upper layers.
+Classification properties (`fix`, `recoverability`) are declared at the Activity layer — the layer that contextualises the failure outcome. Intermediary and Job layers delegate automatically. Nothing is re-declared at upper layers.
 
 **5. Severity is derived, not declared**
 Severity follows deterministically from `FixDomain` and `Recoverability`. It is never an annotation. This prevents mismatches between declared severity and actual semantics.
@@ -64,9 +66,9 @@ Every error chain in Pari follows this structure:
 │  JOB LAYER                                            (mandatory)   │
 │                                                                      │
 │  What the client asked Pari to do.                                   │
-│  Single top-level enum: PariError.                                   │
+│  True job-layer errors are specific user-intent / JTBD-facing types. │
 │  Exposes: recoverability(), fix_domain(), severity(), emit()         │
-│  Module: pari::error                                                 │
+│  Module: pari::<job-module>::error                                   │
 └─────────────────────────────┬────────────────────────────────────────┘
                               │ #[source]
                               ▼
@@ -83,10 +85,10 @@ Every error chain in Pari follows this structure:
 ┌──────────────────────────────────────────────────────────────────────┐
 │  ACTIVITY LAYER                                       (mandatory)    │
 │                                                                      │
-│  What a system component was doing when failure was encountered.     │
+│  Communicates the outcome of a subsystem activity.                   │
 │  Outcome-based name: what went wrong / what state was left.          │
 │  Declares: fix domain, recoverability (via #[compose(...)]).         │
-│  Carries: hint — corrective guidance for the caller or operator.     │
+│  Carries: component + hint for recovery or corrective guidance.      │
 │  Module: <owning-module>::error::                                    │
 └─────────────────────────────┬────────────────────────────────────────┘
                               │ #[source]
@@ -95,12 +97,13 @@ Every error chain in Pari follows this structure:
 │  PRIMITIVE LAYER                                      (mandatory)    │
 │                                                                      │
 │  The most specific, atomic failure.                                  │
-│  Carries: component — which leaf component produced the failure.     │
 │  Carries: SpanTrace + Backtrace — captured at construction.          │
 │  Carries: error-specific structured fields (path, line, id, etc.)   │
 │  Module: <owning-module>::<component>::error::                       │
 └──────────────────────────────────────────────────────────────────────┘
 ```
+
+`PariError` is a unifying umbrella type over the project's public error surface. It is not itself the conceptual `Job` layer.
 
 ### Activity vs Intermediary Op — behavioral distinction
 
@@ -109,17 +112,18 @@ Both Activity and Intermediary Op errors live at `<owning-module>::error::`. The
 | | Activity Layer | Intermediary Op Layer |
 |---|---|---|
 | Declares `fix` + `recoverability` | Yes — `#[compose(fix=..., recoverability=...)]` | No |
-| Carries `hint` | Yes | No |
+| Communicates outcome | Yes | No |
+| Carries `component` + `hint` | Yes | No |
 | Wraps | A Primitive error | Another error (Activity or Intermediary Op) |
 | Compose annotation | Declares | `#[compose(delegate)]` |
 
 ### Chain depth varies
 
-The chain is only as deep as what actually ran. A simple input validation failure has no internal operations — its chain is the minimum three layers. A persist operation failing mid-swap may traverse five layers.
+The chain is only as deep as what actually ran. A simple input validation failure has no internal operations — its chain is the minimum three mandatory layers. A persist operation failing mid-swap may traverse five layers.
 
 ```
-Minimum (no internal ops):    Job → Activity → Primitive
-Deeper (internal ops involved): Job → [Op] → ... → [Op] → Activity → Primitive
+Minimum (no internal ops):       Job → Activity → Primitive
+Deeper (internal ops involved):  Job → [Op] → ... → [Op] → Activity → Primitive
 ```
 
 ---
@@ -130,7 +134,7 @@ Deeper (internal ops involved): Job → [Op] → ... → [Op] → Activity → P
 
 | Layer | Module path pattern | Naming style |
 |---|---|---|
-| Job | `pari::error::` | Outcome / client operation |
+| Job | `pari::<job-module>::error::` | Outcome / user intent |
 | Intermediary Op | `<owner>::error::` | Outcome / internal operation |
 | Activity | `<owner>::error::` | Outcome — what went wrong / what state |
 | Primitive | `<owner>::<component>::error::` | Specific failure, technical naming ok |
@@ -140,7 +144,7 @@ The `<component>` sub-module appears **only at the Primitive layer** — that is
 ### Concrete path examples
 
 ```
-pari::error::PariError                                    ← job layer
+pari::define_workflow::error::DefinitionRejected          ← job layer
 pari::store::error::ExpansionFailed                       ← intermediary op
 pari::substrate::error::LoadFailed                        ← intermediary op
 pari::substrate::repo::error::BadDefinitionError          ← activity
@@ -217,13 +221,14 @@ Computed by `#[derive(ErrorCompose)]` — no annotation required.
 
 | Dimension | Field |
 |---|---|
+| Outcome | Variant or type name |
+| Component identity | `component` |
 | Corrective guidance | `hint: Option<String>` |
 
 ### At the Primitive layer
 
 | Dimension | Field / Mechanism |
 |---|---|
-| Which component produced this failure | `component: <ComponentEnum>` (always present) |
 | Execution context at failure | `span_trace: SpanTrace` — captured at construction |
 | Code location at failure | `backtrace: Backtrace` — captured at construction |
 | Error-specific structured fields | Typed fields per error — defined during implementation |
@@ -233,7 +238,7 @@ Computed by `#[derive(ErrorCompose)]` — no annotation required.
 | Dimension | Where it lives instead |
 |---|---|
 | Correlation ID / trace ID | Active tracing span — injected by OTel subscriber into log records |
-| Error codes | Variant names are the stable identifiers (`PariError::NotFound`, etc.) |
+| Error codes | Variant names are the stable identifiers (`DefinitionRejected`, etc.) |
 
 ---
 
@@ -258,6 +263,7 @@ The Activity layer owns the classification. Declare `fix` and `recoverability` h
 #[compose(fix = Data, recoverability = OperatorAction)]
 #[otel(error_type = "bad_definition")]
 pub struct BadDefinitionError {
+    pub component: RepoComponent,
     pub hint: Option<String>,
     #[source]
     #[otel(delegate)]    // OTel cascade to primitive
@@ -268,6 +274,7 @@ pub struct BadDefinitionError {
 #[compose(fix = Infra, recoverability = OperatorAction)]
 #[otel(error_type = "corrupt_persistence_state")]
 pub struct CorruptPersistenceState {
+    pub component: RepoComponent,
     pub hint: Option<String>,
     #[source]
     #[otel(delegate)]
@@ -291,12 +298,12 @@ pub enum ExpansionFailed {
 
 // Job layer — mix of delegating and directly-declared variants
 #[derive(Error, Debug, ErrorCompose, OTelEmit)]
-pub enum PariError {
+pub enum DefineWorkflowError {
     // Delegates — properties come from the inner type
     #[error(transparent)]
     #[compose(delegate)]
     #[otel(delegate)]
-    DefinitionRejected(DefineError),
+    DefinitionRejected(BadDefinitionError),
 
     #[error(transparent)]
     #[compose(delegate)]
@@ -323,7 +330,7 @@ Job layer       →  #[compose(delegate)] or declares if true leaf
 
 ## `as_error<E>()` — Downcasting Through the Chain
 
-When a caller has a `PariError` and needs to inspect a concrete error type deep in the chain, `as_error<E>()` traverses the `source()` chain to find it.
+When a caller has a top-level error and needs to inspect a concrete error type deep in the chain, `as_error<E>()` traverses the `source()` chain to find it.
 
 ### How it works internally
 
@@ -384,14 +391,14 @@ pub trait OTelEmit {
 `emit()` called at the job layer cascades down the entire `source()` chain. Every layer emits its own structured fields. All fields from all layers land in one OTel event at the call site.
 
 ```
-PariError::emit()
+DefineWorkflowError::emit()
   → emits job-layer fields
   → source().emit()                          ← Intermediary Op (if any)
        → emits op-level fields
        → source().emit()                     ← Activity layer
             → emits hint
             → source().emit()                ← Primitive layer
-                 → emits component, path, line, span_trace, backtrace
+                 → emits path, line, span_trace, backtrace
 ```
 
 ### Annotation syntax
@@ -402,6 +409,8 @@ PariError::emit()
 #[compose(fix = Data, recoverability = OperatorAction)]
 #[otel(error_type = "bad_definition")]
 pub struct BadDefinitionError {
+    #[otel(field = "error.component")]
+    pub component: RepoComponent,
     #[otel(field = "error.hint")]
     pub hint: Option<String>,
     #[source]
@@ -409,13 +418,11 @@ pub struct BadDefinitionError {
     pub cause: MalformedFrontmatterError,
 }
 
-// Primitive layer — component, SpanTrace, Backtrace, specific fields
+// Primitive layer — SpanTrace, Backtrace, specific fields
 #[derive(Error, Debug, ErrorCompose, OTelEmit)]
 #[compose(fix = Data, recoverability = OperatorAction)]
 #[otel(error_type = "malformed_frontmatter")]
 pub struct MalformedFrontmatterError {
-    #[otel(field = "error.component")]
-    pub component: CodecComponent,
     #[otel(field = "file.path")]
     pub path: String,
     #[otel(field = "file.line")]
@@ -436,7 +443,6 @@ tracing::error!(
     { otel::EXCEPTION_MESSAGE }    = %self,
     { otel::EXCEPTION_STACKTRACE } = %self.backtrace,
     span_trace                     = %self.span_trace,
-    error.component                = %self.component,
     file.path                      = %self.path,
     file.line                      = self.line,
 );
@@ -483,9 +489,8 @@ Both are captured at the **Primitive layer only**, at construction time. Never r
 ```rust
 // Primitive layer constructor — always capture both
 impl MalformedFrontmatterError {
-    pub fn new(component: CodecComponent, path: String, line: usize) -> Self {
+    pub fn new(path: String, line: usize) -> Self {
         Self {
-            component,
             path,
             line,
             span_trace: SpanTrace::capture(),   // tracing_error
@@ -524,7 +529,7 @@ This is deliberate: defaulting `ExtractSpanTrace` to the first inner error would
 ### Structure
 
 ```
-PariError::SaveFailed                     (job)
+SaveWorkspaceError::SaveFailed            (job)
   └─ BatchError<PersistActivityError>     (intermediary op — wraps collection)
        │  recoverability: worst-case across batch
        │  SpanTrace: aggregated summary
@@ -547,12 +552,12 @@ These are illustrative. Actual type names and fields are determined during imple
 The minimum three-layer chain. No internal operations were triggered.
 
 ```
-PariError::DefinitionRejected                            (job)
+DefineWorkflowError::DefinitionRejected                  (job)
   └─ SchemaViolated                                      (activity)
+       │  component: IdentifierValidator
        │  hint: "workflow id must be CamelCase, got 'my-workflow'"
        │  fix: Client, recoverability: UserAction
        └─ pari::validator::id::error::InvalidIdentifierFormat  (primitive)
-            │  component: IdentifierValidator
             │  provided: "my-workflow"
             │  expected_pattern: "CamelCase"
             SpanTrace + Backtrace captured here
@@ -561,13 +566,13 @@ PariError::DefinitionRejected                            (job)
 ### Medium — internal op involved, entity absent
 
 ```
-PariError::DefinitionRejected                            (job)
+DefineWorkflowError::DefinitionRejected                  (job)
   └─ CrossReferenceCheckFailed                           (intermediary op)
        └─ ReferencedEntityAbsent                         (activity)
+            │  component: EntityResolver
             │  hint: "ensure 'eng-lead' role exists before referencing it"
             │  fix: Client, recoverability: UserAction
             └─ pari::resolver::entity::error::NotFound   (primitive)
-                 │  component: EntityResolver
                  │  entity_ref: "roles/eng-lead"
                  SpanTrace + Backtrace captured here
 ```
@@ -575,14 +580,14 @@ PariError::DefinitionRejected                            (job)
 ### Deep — internal ops, corrupt file encountered
 
 ```
-PariError::UpdateFailed                                           (job)
+UpdateWorkflowError::UpdateFailed                        (job)
   └─ pari::store::error::ExpansionFailed                         (intermediary op)
        └─ pari::substrate::error::LoadFailed                     (intermediary op)
             └─ pari::substrate::repo::error::BadDefinitionError  (activity)
+                 │  component: FrontmatterCodec
                  │  hint: "check YAML frontmatter at line 4"
                  │  fix: Data, recoverability: OperatorAction
                  └─ pari::substrate::repo::codec::error::MalformedFrontmatter  (primitive)
-                      │  component: FrontmatterCodec
                       │  path: "roles/eng-lead.md"
                       │  line: 4
                       SpanTrace + Backtrace captured here
@@ -591,14 +596,14 @@ PariError::UpdateFailed                                           (job)
 ### Deep — persist fails mid atomic swap
 
 ```
-PariError::SaveFailed                                                  (job)
+SaveWorkspaceError::SaveFailed                           (job)
   └─ pari::store::error::PersistFailed                                (intermediary op)
        └─ pari::substrate::error::PersistFailed                       (intermediary op)
             └─ pari::substrate::repo::error::CorruptPersistenceState  (activity)
+                 │  component: AtomicSwapExecutor
                  │  hint: "stale .part/ dir may exist — safe to remove"
                  │  fix: Infra, recoverability: OperatorAction
                  └─ pari::substrate::repo::executor::error::RenameFailed  (primitive)
-                      │  component: AtomicSwapExecutor
                       │  from: "workflows/Initiative/.part/..."
                       │  to:   "workflows/Initiative/..."
                       └─ std::io::Error
@@ -608,7 +613,7 @@ PariError::SaveFailed                                                  (job)
 ### Batch persist failure
 
 ```
-PariError::SaveFailed                         (job)
+SaveWorkspaceError::SaveFailed            (job)
   └─ BatchError<PersistActivityError>         (intermediary op — wraps collection)
        .errors: [
          PersistActivityError                 (activity)
@@ -636,7 +641,7 @@ err.emit();
 
 // Downcast to a specific concrete error type if needed
 if let Some(rename_err) = err.as_error::<RenameFailed>() {
-    // inspect rename_err.component, rename_err.from, rename_err.to
+    // inspect rename_err.from, rename_err.to
 }
 
 // Non-OTel: extract span trace for structured logging
@@ -661,10 +666,10 @@ if let Some(span_trace) = ExtractSpanTrace::span_trace(&err) {
 | OTel emission | `#[derive(OTelEmit)]` — cascades down `source()` chain via `#[otel(delegate)]` |
 | OTel field naming | `opentelemetry_semantic_conventions` crate — no free-form field names |
 | Corrective hint | `hint: Option<String>` — Activity layer only |
-| Component identity | `component` field — Primitive layer only (always present) |
+| Component identity | `component` field — Activity layer only |
 | Execution context | `SpanTrace` — Primitive layer construction |
 | Code location | `Backtrace` — Primitive layer construction |
 | Correlation ID | Not in error — flows via active tracing span, injected by OTel subscriber |
-| Stable error codes | Variant names (`PariError::DefinitionRejected`, etc.) |
+| Stable error codes | Variant names (`DefinitionRejected`, etc.) |
 | Batch failures | `BatchError<E>` — Intermediary Op node, aggregates recoverability + fix domain, owns SpanTrace |
 | Primitive structured fields | Typed fields per error — defined during implementation |
