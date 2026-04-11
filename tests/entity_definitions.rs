@@ -21,6 +21,10 @@ fn role_ref(id: &str) -> EntityRef<Role> {
     EntityRef::new(id)
 }
 
+fn workflow_parent(id: &str) -> WorkflowParent {
+    WorkflowParent::Workflow(EntityRef::new(id))
+}
+
 fn make_raci(responsible_id: &str, accountable_id: &str) -> Raci {
     Raci {
         responsible: vec![role_ref(responsible_id)],
@@ -163,7 +167,7 @@ fn tracked_hook_from_plain_hook() {
 fn tracked_task_from_plain_task() {
     use pari::entities::task::TrackedTask;
     let plain = Task {
-        entity_ref: EntityRef::new_embedded("WriteProposal", "InitiativeWorkflow"),
+        entity_ref: EntityRef::with_parent("WriteProposal", workflow_parent("InitiativeWorkflow")),
         name: "Write Proposal".to_string(),
         description: None,
         purpose: "Draft the initiative proposal".to_string(),
@@ -178,7 +182,10 @@ fn tracked_task_from_plain_task() {
     };
     let tracked = TrackedTask::from(plain);
     assert_eq!(tracked.entity_ref().id(), "WriteProposal");
-    assert_eq!(tracked.entity_ref().parent().workflow_id, "InitiativeWorkflow");
+    assert!(matches!(
+        tracked.entity_ref().parent(),
+        Some(WorkflowParent::Workflow(parent)) if parent.id() == "InitiativeWorkflow"
+    ));
 }
 
 // --- to_any_ref ---
@@ -196,7 +203,10 @@ fn role_to_any_ref_wraps_in_role_variant() {
 #[test]
 fn task_to_any_ref_wraps_in_task_variant() {
     use pari::entity::AnyEntityRef;
-    let r = EntityRef::<Task, WorkflowParent>::new_embedded("WriteProposal", "InitiativeWorkflow");
+    let r = EntityRef::<Task, WorkflowParent>::with_parent(
+        "WriteProposal",
+        workflow_parent("InitiativeWorkflow"),
+    );
     let any = Task::to_any_ref(&r);
     assert_eq!(any.kind(), EntityKind::Task);
     assert_eq!(any.id(), "WriteProposal");
@@ -208,9 +218,9 @@ fn task_to_any_ref_wraps_in_task_variant() {
 #[test]
 fn relay_to_any_ref_has_workflow_parent() {
     use pari::entity::AnyEntityRef;
-    let r = EntityRef::<Relay, WorkflowParent>::new_embedded(
+    let r = EntityRef::<Relay, WorkflowParent>::with_parent(
         "HandoffToReview",
-        "InitiativeWorkflow",
+        workflow_parent("InitiativeWorkflow"),
     );
     let any = Relay::to_any_ref(&r);
     assert_eq!(any.kind(), EntityKind::Relay);
@@ -251,6 +261,9 @@ fn task_trigger_enum_does_not_have_reviewing() {
 
 #[test]
 fn step_enum_variants_compile() {
-    let _task_step = Step::Task { entity_ref: EntityRef::new_embedded("T1", "WF1"), depends_on: None };
+    let _task_step = Step::Task {
+        entity_ref: EntityRef::with_parent("T1", workflow_parent("WF1")),
+        depends_on: None,
+    };
     let _review_step = Step::Review { approver: vec![role_ref("pm")], on_reject: "T1".to_string() };
 }

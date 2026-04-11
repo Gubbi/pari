@@ -20,6 +20,10 @@ fn role_ref(id: &str) -> EntityRef<pari::entities::role::Role> {
     EntityRef::new(id)
 }
 
+fn workflow_parent(id: &str) -> WorkflowParent {
+    WorkflowParent::Workflow(EntityRef::new(id))
+}
+
 fn make_raci() -> Raci {
     Raci {
         responsible: vec![role_ref("eng-lead")],
@@ -339,7 +343,7 @@ async fn workflow_on_reject_valid_passes_when_target_exists() {
 
     let task_step_id = "WriteProposal";
     let task = Task {
-        entity_ref: EntityRef::new_embedded(task_step_id, "TestWorkflow"),
+        entity_ref: EntityRef::with_parent(task_step_id, workflow_parent("TestWorkflow")),
         name: "Write Proposal".to_string(),
         description: None,
         purpose: "Produce proposal".to_string(),
@@ -368,7 +372,7 @@ async fn workflow_on_reject_valid_passes_when_target_exists() {
     steps.insert(
         task_step_id.to_string(),
         Step::Task {
-            entity_ref: EntityRef::new_embedded(task_step_id, "TestWorkflow"),
+            entity_ref: EntityRef::with_parent(task_step_id, workflow_parent("TestWorkflow")),
             depends_on: None,
         },
     );
@@ -444,7 +448,7 @@ fn make_relay_with_state_map(state_map: HashMap<String, StateMapEntry>) -> Track
     use pari::entities::workflow::ReusableWorkflow;
 
     Relay {
-        entity_ref: EntityRef::new_embedded("DelegateTask", "TestWorkflow"),
+        entity_ref: EntityRef::with_parent("DelegateTask", workflow_parent("TestWorkflow")),
         name: "Delegate Task".to_string(),
         description: None,
         purpose: "Delegate work".to_string(),
