@@ -41,9 +41,11 @@ pub enum AnyEntityRef {
 impl AnyEntityRef {
     pub fn kind(&self) -> EntityKind { ... }   // match on variant, return T::KIND
     pub fn id(&self) -> &str { ... }           // match on variant, return inner id
-    pub fn parent(&self) -> Option<AnyEntityRef> { ... }  // Some for embedded entities
+    pub fn parent(&self) -> Option<AnyEntityRef> { ... }  // None for top-level, Some(parent) otherwise
 }
 ```
+
+`AnyEntityRef::parent()` is the erasure-layer view of the same relationship exposed by `EntityRef::parent()`. It returns the immediate parent as another erased ref when one exists.
 
 ---
 

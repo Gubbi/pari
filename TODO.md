@@ -24,7 +24,7 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Done looks like: entity structs compile against the new `EntityRef<T, ParentKind>` model and no entity source file still depends on the old embedded-constructor semantics.
    Completion note: after task 1, these entity source files were already aligned. No source edits were needed for this task; remaining `workflow_id` drift is outside the entity definition layer and is queued in later tasks.
 
-3. [ ] Entity proc-macros
+3. [x] Entity proc-macros
    Context: the proc-macros still encode assumptions from the older identity design, including `WorkflowParent`-specific handling and generation paths that were built around the old embedded entity model.
    Goal: bring macro generation in line with the updated identity design so generated code no longer hard-codes workflow-specific parenting behavior.
    Scope: `pari-macros/src/lib.rs` and only the macro implementation pieces needed to support the new entity identity model.

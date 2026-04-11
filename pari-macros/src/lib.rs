@@ -1570,18 +1570,16 @@ fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         .map(|v| quote! { AnyEntityRef::#v(r) => r.id(), })
         .collect();
 
-    // parent() arms: hierarchy-bearing entities expose their immediate parent;
-    // top-level entities return None.
+    // parent() arms: top-level entities have no parent; hierarchy-bearing
+    // entities erase their concrete parent kind to AnyEntityRef here.
     let parent_arms: Vec<TokenStream2> = entries
         .iter()
         .map(|e| {
             let name = &e.name;
-            if e.parent == "WorkflowParent" {
-                quote! {
-                    AnyEntityRef::#name(r) => Some(r.parent().to_any_ref()),
-                }
-            } else {
+            if e.parent == "NoParent" {
                 quote! { AnyEntityRef::#name(_) => None, }
+            } else {
+                quote! { AnyEntityRef::#name(r) => r.parent().map(|p| p.to_any_ref()), }
             }
         })
         .collect();
@@ -1601,7 +1599,7 @@ fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
                 match self { #(#id_arms)* }
             }
 
-            /// Returns the parent as an `AnyEntityRef::Workflow` for embedded entities,
+            /// Returns the immediate parent ref when the entity has one,
             /// or `None` for top-level entities.
             pub fn parent(&self) -> Option<AnyEntityRef> {
                 match self { #(#parent_arms)* }

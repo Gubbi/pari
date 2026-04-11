@@ -51,6 +51,7 @@ pub trait ParentKind: private::Sealed + Clone + PartialEq + Eq + std::hash::Hash
     where
         Self: Sized,
         E: serde::de::Error;
+    fn value(&self) -> Option<&Self>;
 }
 
 /// Top-level entities have no parent.
@@ -70,6 +71,10 @@ impl ParentKind for NoParent {
             return Err(E::unknown_field("parent", &["id", "kind"]));
         }
         Ok(NoParent)
+    }
+
+    fn value(&self) -> Option<&Self> {
+        None
     }
 }
 
@@ -93,6 +98,10 @@ impl ParentKind for WorkflowParent {
     {
         let parent = parent.ok_or_else(|| E::missing_field("parent"))?;
         serde_json::from_value(parent).map_err(E::custom)
+    }
+
+    fn value(&self) -> Option<&Self> {
+        Some(self)
     }
 }
 
@@ -186,8 +195,8 @@ impl<T: Entity, P: ParentKind> EntityRef<T, P> {
         &self.id
     }
 
-    pub fn parent(&self) -> &P {
-        &self.parent
+    pub fn parent(&self) -> Option<&P> {
+        self.parent.value()
     }
 }
 
@@ -383,6 +392,12 @@ mod tests {
         assert_eq!(map[&r], 42);
     }
 
+    #[test]
+    fn top_level_entity_ref_parent_is_none() {
+        let r: EntityRef<TestEntity> = EntityRef::new("eng-lead");
+        assert!(r.parent().is_none());
+    }
+
     // --- Embedded EntityRef ---
 
     struct EmbeddedTest;
@@ -418,6 +433,18 @@ mod tests {
         );
         assert_eq!(a, b);
         assert_ne!(a, c);
+    }
+
+    #[test]
+    fn embedded_entity_ref_parent_is_some() {
+        let r = EntityRef::<EmbeddedTest, WorkflowParent>::with_parent(
+            "WriteProposal",
+            WorkflowParent::Workflow(EntityRef::<Workflow>::new("InitiativeWorkflow")),
+        );
+        assert!(matches!(
+            r.parent(),
+            Some(WorkflowParent::Workflow(parent)) if parent.id() == "InitiativeWorkflow"
+        ));
     }
 
     #[test]

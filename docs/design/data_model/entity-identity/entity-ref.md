@@ -60,11 +60,16 @@ The constructor model should stay generic: when a parent is part of the ref type
 
 ```rust
 impl<T: Entity, P: ParentKind> EntityRef<T, P> {
-    pub fn parent(&self) -> &P { &self.parent }
+    pub fn parent(&self) -> Option<&P> { self.parent.value() }
 }
 ```
 
-`parent()` returns `&NoParent` (meaningless ZST) for top-level entities, or the appropriate `WorkflowParent` chain for hierarchy-bearing entities.
+`parent()` is the semantic accessor:
+
+- top-level refs (`P = NoParent`) return `None`
+- hierarchy-bearing refs return `Some(&P)`
+
+This keeps `NoParent` useful in the type model without exposing `&NoParent` as the public meaning of "no parent".
 
 ---
 
