@@ -17,11 +17,12 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Scope: `src/entity.rs` only for this task. Do not yet update entity structs, proc-macros, or tests in this commit.
    Done looks like: the identity core in code can represent the designed parent-chain model without relying on `new_embedded(id, workflow_id)` or a workflow-id-only parent struct.
 
-2. [ ] Embedded entity types
+2. [x] Embedded entity types
    Context: once the identity core is fixed, embedded entities will still be wired to the old `WorkflowParent` shape and old constructor expectations. Their field types and surrounding code must follow the redesigned parent identity model.
    Goal: update the entity definitions for `Task`, `Relay`, and `EmbeddedWorkflow`, plus any directly related workflow step types, so they use the new identity core consistently and no longer assume the old workflow-id-only parent shape.
    Scope: `src/entities/task.rs`, `src/entities/relay.rs`, `src/entities/workflow.rs`, and closely related entity-source files only.
    Done looks like: entity structs compile against the new `EntityRef<T, ParentKind>` model and no entity source file still depends on the old embedded-constructor semantics.
+   Completion note: after task 1, these entity source files were already aligned. No source edits were needed for this task; remaining `workflow_id` drift is outside the entity definition layer and is queued in later tasks.
 
 3. [ ] Entity proc-macros
    Context: the proc-macros still encode assumptions from the older identity design, including `WorkflowParent`-specific handling and generation paths that were built around the old embedded entity model.
