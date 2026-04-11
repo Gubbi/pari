@@ -11,7 +11,7 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
 
 ## Code Tasks
 
-1. [ ] Entity identity core
+1. [x] Entity identity core
    Context: `src/entity.rs` still models embedded entity identity in a workflow-specific way via `WorkflowParent { workflow_id }` and `EntityRef::new_embedded(id, workflow_id)`. The design docs now treat parentage as a generic identity concern expressed through `EntityRef<T, ParentKind>`, where parent relationships are part of semantic identity and not hard-coded to workflows in constructors.
    Goal: make `src/entity.rs` reflect the authoritative identity design completely. Remove workflow-specific constructor semantics, make parent representation match the design, and update helper APIs, hashing/equality assumptions, and serde accordingly.
    Scope: `src/entity.rs` only for this task. Do not yet update entity structs, proc-macros, or tests in this commit.

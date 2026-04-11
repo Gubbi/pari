@@ -1570,15 +1570,15 @@ fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         .map(|v| quote! { AnyEntityRef::#v(r) => r.id(), })
         .collect();
 
-    // parent() arms: WorkflowParent entities point to Workflow; NoParent entities return None
+    // parent() arms: hierarchy-bearing entities expose their immediate parent;
+    // top-level entities return None.
     let parent_arms: Vec<TokenStream2> = entries
         .iter()
         .map(|e| {
             let name = &e.name;
             if e.parent == "WorkflowParent" {
                 quote! {
-                    AnyEntityRef::#name(r) =>
-                        Some(AnyEntityRef::Workflow(EntityRef::new(r.parent.workflow_id.clone()))),
+                    AnyEntityRef::#name(r) => Some(r.parent().to_any_ref()),
                 }
             } else {
                 quote! { AnyEntityRef::#name(_) => None, }

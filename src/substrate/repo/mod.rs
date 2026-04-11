@@ -116,24 +116,15 @@ impl RepoSubstrate {
     /// Build a minimal JSON object for path-template resolution from an `AnyEntityRef`.
     fn any_ref_to_json(any_ref: &AnyEntityRef) -> serde_json::Value {
         match any_ref {
-            AnyEntityRef::Role(r) =>
-                serde_json::json!({ "entity_ref": { "id": r.id(), "kind": "Role" } }),
-            AnyEntityRef::Hook(r) =>
-                serde_json::json!({ "entity_ref": { "id": r.id(), "kind": "Hook" } }),
-            AnyEntityRef::Team(r) =>
-                serde_json::json!({ "entity_ref": { "id": r.id(), "kind": "Team" } }),
-            AnyEntityRef::ArtifactKind(r) =>
-                serde_json::json!({ "entity_ref": { "id": r.id(), "kind": "ArtifactKind" } }),
-            AnyEntityRef::Workflow(r) =>
-                serde_json::json!({ "entity_ref": { "id": r.id(), "kind": "Workflow" } }),
-            AnyEntityRef::ReusableWorkflow(r) =>
-                serde_json::json!({ "entity_ref": { "id": r.id(), "kind": "ReusableWorkflow" } }),
-            AnyEntityRef::EmbeddedWorkflow(r) =>
-                serde_json::json!({ "entity_ref": { "id": r.id(), "kind": "EmbeddedWorkflow", "workflow_id": r.parent().workflow_id } }),
-            AnyEntityRef::Task(r) =>
-                serde_json::json!({ "entity_ref": { "id": r.id(), "kind": "Task", "workflow_id": r.parent().workflow_id } }),
-            AnyEntityRef::Relay(r) =>
-                serde_json::json!({ "entity_ref": { "id": r.id(), "kind": "Relay", "workflow_id": r.parent().workflow_id } }),
+            AnyEntityRef::Role(r) => serde_json::json!({ "entity_ref": serde_json::to_value(r).unwrap_or_default() }),
+            AnyEntityRef::Hook(r) => serde_json::json!({ "entity_ref": serde_json::to_value(r).unwrap_or_default() }),
+            AnyEntityRef::Team(r) => serde_json::json!({ "entity_ref": serde_json::to_value(r).unwrap_or_default() }),
+            AnyEntityRef::ArtifactKind(r) => serde_json::json!({ "entity_ref": serde_json::to_value(r).unwrap_or_default() }),
+            AnyEntityRef::Workflow(r) => serde_json::json!({ "entity_ref": serde_json::to_value(r).unwrap_or_default() }),
+            AnyEntityRef::ReusableWorkflow(r) => serde_json::json!({ "entity_ref": serde_json::to_value(r).unwrap_or_default() }),
+            AnyEntityRef::EmbeddedWorkflow(r) => serde_json::json!({ "entity_ref": serde_json::to_value(r).unwrap_or_default() }),
+            AnyEntityRef::Task(r) => serde_json::json!({ "entity_ref": serde_json::to_value(r).unwrap_or_default() }),
+            AnyEntityRef::Relay(r) => serde_json::json!({ "entity_ref": serde_json::to_value(r).unwrap_or_default() }),
         }
     }
 
@@ -296,5 +287,4 @@ impl Substrate for RepoSubstrate {
         })
     }
 }
-
 
