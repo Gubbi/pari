@@ -30,14 +30,14 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Scope: `pari-macros/src/lib.rs` and only the macro implementation pieces needed to support the new entity identity model.
    Done looks like: generated entity-related code can work with the new parent model without special-casing workflow-only semantics.
 
-4. [ ] Tracked semantics
-   Context: `Tracked<T>::new(...)` currently starts dirty in code, but the design says newly constructed tracked values start clean and become dirty only on mutation. This foundational mismatch can leak into store behavior and later test expectations.
-   Goal: make the tracked primitives in `src/tracked.rs` match the design, starting with `Tracked<T>::new(...)` semantics and any closely related comments or helper behavior that now contradict the design.
-   Scope: `src/tracked.rs` only for this task.
-   Done looks like: the tracked primitives reflect the design’s clean-on-create semantics, without yet spending this commit on updating failing tests.
+4. [ ] Tracking framework cleanup
+   Context: the current design does not treat `Tracked<T>`, `TrackedMap<K, V>`, or `#[derive(Tracked)]` as first-class concepts. The real tracking model is built around `TrackedField<T>` on tracked entities plus store-owned added/modified/removed state. The old generic tracking framework remains in code largely as legacy scaffolding.
+   Goal: remove `Tracked<T>`, remove `TrackedMap<K, V>`, remove `#[derive(Tracked)]`, and simplify the codebase so `TrackedField<T>` is the only tracking primitive that remains aligned with the design.
+   Scope: source code only for this task. Remove or refactor code that exists only to support the obsolete generic tracking framework, but do not do broad test cleanup in this commit.
+   Done looks like: the code no longer depends on `Tracked<T>`, `TrackedMap<K, V>`, or `#[derive(Tracked)]`, and the remaining tracking model matches the design’s field-centric approach.
 
 5. [ ] Accessor/setter generation and tracked-field usage
-   Context: the codebase still has drift from older tracked-field helper names and accessor assumptions. Some generated code and source usage patterns were built around older APIs like `get_or_load`, `with_value`, and `new_initialized`, while the newer design and prior refactors moved away from those assumptions.
+   Context: after the obsolete generic tracking framework is removed, the next source-side drift is the remaining tracked-field helper naming and accessor assumptions. Some generated code and source usage patterns still reflect older APIs and older access patterns.
    Goal: finish the source-side migration so generated accessors/setters and direct tracked-field usage follow the current tracked-field design and naming.
    Scope: source files only, including proc-macro-generated patterns where needed. Do not spend this task on test cleanup yet.
    Done looks like: the main code paths no longer depend on stale tracked-field/accessor APIs or their older semantics.
