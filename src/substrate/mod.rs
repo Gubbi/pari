@@ -3,7 +3,6 @@
 pub mod changeset;
 pub mod error;
 pub mod pipeline;
-pub mod repo;
 
 pub use crate::schema::store::EntityStore;
 pub use error::SubstrateError;
