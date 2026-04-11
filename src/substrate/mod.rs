@@ -1,10 +1,8 @@
 //! Substrate layer — persistence backend trait and implementations.
 
-pub mod changeset;
 pub mod error;
 pub mod pipeline;
 
-pub use crate::schema::store::EntityStore;
 pub use error::SubstrateError;
 use pipeline::ExecutorError;
 
@@ -183,15 +181,5 @@ mod tests {
     fn substrate_error_implements_std_error() {
         let e = SubstrateError::Executor(ExecutorError::new("roles/eng-lead.md", "permission denied"));
         let _: &dyn std::error::Error = &e;
-    }
-
-    #[test]
-    fn entity_store_holds_entity_collections() {
-        let store = EntityStore::new();
-        assert!(store.roles.is_empty());
-        assert!(store.hooks.is_empty());
-        assert!(store.teams.is_empty());
-        assert!(store.workflows.is_empty());
-        assert!(store.shared_workflows.is_empty());
     }
 }

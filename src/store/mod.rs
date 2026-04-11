@@ -14,7 +14,7 @@ use tokio::sync::mpsc;
 use crate::entity::{AnyEntityRef, EntityKind, StoreEntity};
 use crate::substrate::{self, EntityChange};
 use crate::substrate::error::SubstrateError;
-use crate::substrate::pipeline::executor::ExecutorError;
+use crate::substrate::pipeline::ExecutorError;
 use crate::substrate::{VoidSlot, VoidResolver, VoidCodec, VoidExecutor};
 use crate::substrate::pipeline;
 use crate::error::BatchError;

@@ -15,7 +15,6 @@ pub mod entities;
 pub mod error;
 pub mod entity;
 pub use error::pari_error::PariError;
-pub mod schema;
 pub mod store;
 pub mod substrate;
 pub mod tracked;
