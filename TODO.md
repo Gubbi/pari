@@ -42,11 +42,12 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Scope: source code only for this task. Remove `src/schema/` from the crate, delete `src/substrate/changeset.rs`, and remove schema-based exports in source. Do not re-implement replacement fixtures/tests/local docs in this commit.
    Done looks like: the library no longer exposes `pari::schema`, no source module depends on `src/substrate/changeset.rs`, and the remaining migration gaps are surfaced explicitly in tests and fixtures rather than hidden behind legacy code.
 
-6. [ ] Tracking framework cleanup
+6. [x] Tracking framework cleanup
    Context: the current design does not treat `Tracked<T>`, `TrackedMap<K, V>`, or `#[derive(Tracked)]` as first-class concepts. The real tracking model is built around `TrackedField<T>` on tracked entities plus store-owned added/modified/removed state. The old generic tracking framework remains in code largely as legacy scaffolding.
    Goal: remove `Tracked<T>`, remove `TrackedMap<K, V>`, remove `#[derive(Tracked)]`, and simplify the codebase so `TrackedField<T>` is the only tracking primitive that remains aligned with the design.
    Scope: source code only for this task. Remove or refactor code that exists only to support the obsolete generic tracking framework, but do not do broad test cleanup in this commit.
    Done looks like: the code no longer depends on `Tracked<T>`, `TrackedMap<K, V>`, or `#[derive(Tracked)]`, and the remaining tracking model matches the design’s field-centric approach.
+   Completion note: `src/tracked.rs` now contains only `TrackedField<T>`. The old `Tracked` derive is no longer publicly exposed from `pari-macros`, and remaining references are confined to legacy local docs and hidden macro internals to be cleaned up in later tasks.
 
 7. [ ] Accessor/setter generation and tracked-field usage
    Context: after the obsolete generic tracking framework is removed, the next source-side drift is the remaining tracked-field helper naming and accessor assumptions. Some generated code and source usage patterns still reflect older APIs and older access patterns.

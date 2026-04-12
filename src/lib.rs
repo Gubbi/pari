@@ -20,6 +20,3 @@ pub mod substrate;
 pub mod tracked;
 pub mod types;
 pub mod validation;
-
-#[cfg(test)]
-pub mod fixtures;
