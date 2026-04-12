@@ -15,7 +15,7 @@ use std::marker::PhantomData;
 
 // ValidationSchema, LoadError, SetterError re-exported so that proc-macro
 // generated code using `::pari::entity::ValidationSchema` etc. resolves here.
-pub use crate::store::error::LoadError;
+pub use crate::workspace::error::LoadError;
 pub use crate::validation::error::SetterError;
 pub use crate::validation::ValidationSchema;
 

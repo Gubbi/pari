@@ -1,7 +1,6 @@
 //! EntityStore — async actor-based store for tracked entities.
 //!
 //! [`EntityServer`] — spawns a store actor and provides access via thread-local override.
-//! [`EntityClient`] — static async API (insert, resolve, checkout, persist, etc.).
 //! [`InMemorySubstrate`] — always-available in-memory substrate for testing.
 
 use std::cell::RefCell;
@@ -18,11 +17,10 @@ use crate::substrate::pipeline::ExecutorError;
 use crate::substrate::{VoidSlot, VoidResolver, VoidCodec, VoidExecutor};
 use crate::substrate::pipeline;
 use crate::error::BatchError;
-
-pub mod error;
-pub use error::{
-    CheckoutError, CommitError, LoadError, PersistError, ResolveError, StoreError, UndoError,
+use crate::workspace::error::{
+    CheckoutError, LoadError, PersistError, ResolveError,
 };
+use crate::store_error::StoreError;
 
 // ---------------------------------------------------------------------------
 // InMemorySubstrate
@@ -134,7 +132,7 @@ pub(crate) enum StoreResponse {
     LoadErr(LoadError),
 }
 
-pub(crate) enum StoreMessage {
+enum StoreMessage {
     Request {
         request: StoreRequest,
         reply: tokio::sync::oneshot::Sender<Result<StoreResponse, StoreError>>,
@@ -460,12 +458,28 @@ impl EntityServer {
         GLOBAL_SENDER.set(tx).expect("EntityServer already initialized");
     }
 
-    pub fn sender() -> mpsc::Sender<StoreMessage> {
+    fn sender() -> mpsc::Sender<StoreMessage> {
         OVERRIDE_SENDER
             .with(|o| o.borrow().clone())
             .unwrap_or_else(|| {
                 GLOBAL_SENDER.get().expect("EntityServer not initialized").clone()
             })
+    }
+
+    pub(crate) async fn request(request: StoreRequest) -> Result<StoreResponse, StoreError> {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        Self::sender()
+            .send(StoreMessage::Request { request, reply: tx })
+            .await
+            .map_err(|_| StoreError::Unavailable)?;
+        rx.await.map_err(|_| StoreError::Unavailable)?
+    }
+
+    pub(crate) async fn send(command: StoreCommand) -> Result<(), StoreError> {
+        Self::sender()
+            .send(StoreMessage::Command(command))
+            .await
+            .map_err(|_| StoreError::Unavailable)
     }
 
     pub async fn with_test<F, Fut>(substrate: impl substrate::Substrate, f: F)
@@ -478,116 +492,5 @@ impl EntityServer {
         OVERRIDE_SENDER.with(|o| *o.borrow_mut() = Some(tx));
         f().await;
         OVERRIDE_SENDER.with(|o| *o.borrow_mut() = None);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// EntityClient
-// ---------------------------------------------------------------------------
-
-pub struct EntityClient;
-
-impl EntityClient {
-    pub async fn resolve(any_ref: AnyEntityRef) -> Result<StoreEntity, ResolveError> {
-        match request(StoreRequest::Resolve { any_ref }).await.map_err(ResolveError::StoreUnavailable)? {
-            StoreResponse::Entity(e) => Ok(e),
-            StoreResponse::ResolveErr(e) => Err(e),
-            _ => unreachable!(),
-        }
-    }
-
-    pub async fn insert(entity: StoreEntity) -> Result<(), StoreError> {
-        send(StoreCommand::Insert(entity)).await
-    }
-
-    pub async fn remove(any_ref: AnyEntityRef) -> Result<StoreEntity, StoreError> {
-        match request(StoreRequest::Remove { any_ref }).await? {
-            StoreResponse::Entity(e) => Ok(e),
-            _ => unreachable!(),
-        }
-    }
-
-    pub async fn checkout(any_ref: AnyEntityRef) -> Result<StoreEntity, CheckoutError> {
-        match request(StoreRequest::Checkout { any_ref }).await.unwrap() {
-            StoreResponse::Entity(e) => Ok(e),
-            StoreResponse::CheckoutErr(e) => Err(e),
-            _ => unreachable!(),
-        }
-    }
-
-    pub async fn load(any_ref: AnyEntityRef, field: &str) -> Result<(), LoadError> {
-        match request(StoreRequest::Load { any_ref, field: field.to_owned() }).await.unwrap() {
-            StoreResponse::Unit => Ok(()),
-            StoreResponse::LoadErr(e) => Err(e),
-            _ => unreachable!(),
-        }
-    }
-
-    pub async fn ensure_mutable(any_ref: AnyEntityRef, field: &str) -> Result<(), LoadError> {
-        match request(StoreRequest::EnsureMutable { any_ref, field: field.to_owned() }).await.unwrap() {
-            StoreResponse::Unit => Ok(()),
-            StoreResponse::LoadErr(e) => Err(e),
-            _ => unreachable!(),
-        }
-    }
-
-    pub async fn persist() -> Result<(), PersistError> {
-        match request(StoreRequest::Persist).await.unwrap() {
-            StoreResponse::Unit => Ok(()),
-            StoreResponse::PersistErr(e) => Err(e),
-            _ => unreachable!(),
-        }
-    }
-
-    pub async fn undo_commit(any_ref: AnyEntityRef) -> Result<(), UndoError> {
-        match request(StoreRequest::UndoCommit { any_ref }).await {
-            Ok(StoreResponse::Unit) => Ok(()),
-            Ok(_) => unreachable!(),
-            Err(e) => Err(UndoError::StoreUnavailable(e)),
-        }
-    }
-
-    pub async fn unload(any_ref: AnyEntityRef) -> Result<(), UndoError> {
-        match request(StoreRequest::Unload { any_ref }).await {
-            Ok(StoreResponse::Unit) => Ok(()),
-            Ok(_) => unreachable!(),
-            Err(e) => Err(UndoError::StoreUnavailable(e)),
-        }
-    }
-}
-
-async fn request(req: StoreRequest) -> Result<StoreResponse, StoreError> {
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    EntityServer::sender()
-        .send(StoreMessage::Request { request: req, reply: tx })
-        .await
-        .map_err(|_| StoreError::Unavailable)?;
-    rx.await.map_err(|_| StoreError::Unavailable)?
-}
-
-async fn send(cmd: StoreCommand) -> Result<(), StoreError> {
-    EntityServer::sender()
-        .send(StoreMessage::Command(cmd))
-        .await
-        .map_err(|_| StoreError::Unavailable)
-}
-
-// ---------------------------------------------------------------------------
-// StoreEntity methods — commit and undo_checkout
-// ---------------------------------------------------------------------------
-
-impl StoreEntity {
-    pub async fn commit(self) -> Result<(), CommitError> {
-        let any_ref = self.any_ref();
-        match request(StoreRequest::Commit { entity: self, any_ref }).await {
-            Ok(StoreResponse::Unit) => Ok(()),
-            Ok(_) => unreachable!(),
-            Err(e) => Err(CommitError::StoreUnavailable(e)),
-        }
-    }
-
-    pub async fn undo_checkout(&self) -> Result<(), StoreError> {
-        let any_ref = self.any_ref();
-        send(StoreCommand::UndoCheckout { any_ref }).await
     }
 }

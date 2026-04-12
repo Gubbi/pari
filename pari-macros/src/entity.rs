@@ -86,7 +86,7 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
             quote! {
                 pub async fn #fname(&self) -> ::std::result::Result<#ret_type, ::pari::entity::LoadError> {
                     if self.#fname.get().is_none() {
-                        ::pari::store::EntityClient::load(
+                        ::pari::workspace::EntityClient::load(
                             <#name as ::pari::entity::Entity>::to_any_ref(self.entity_ref()),
                             #fname_str,
                         ).await?;
@@ -106,11 +106,11 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
             let fname_str = fname.as_ref().unwrap().to_string();
             quote! {
                 pub async fn #setter_name(&mut self, value: #ty) -> ::std::result::Result<(), ::pari::entity::SetterError> {
-                    ::pari::store::EntityClient::ensure_mutable(
+                    ::pari::workspace::EntityClient::ensure_mutable(
                         <#name as ::pari::entity::Entity>::to_any_ref(self.entity_ref()),
                         #fname_str,
                     ).await.map_err(|e| match e {
-                        ::pari::store::LoadError::Substrate(s) => ::pari::entity::SetterError::Substrate(s),
+                        ::pari::workspace::LoadError::Substrate(s) => ::pari::entity::SetterError::Substrate(s),
                         other => panic!("ensure_mutable failed unexpectedly: {:?}", other),
                     })?;
                     self.#fname = ::std::sync::Arc::new(::pari::tracked::TrackedField::mutated(value));

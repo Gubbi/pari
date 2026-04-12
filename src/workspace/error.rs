@@ -1,25 +1,11 @@
-//! Store operation error types.
+//! Workspace-layer operation error types.
 
 use pari_macros::{ErrorCompose, OTelEmit};
+
 use crate::error::BatchError;
+use crate::store_error::StoreError;
 use crate::substrate::error::SubstrateError;
 use crate::validation::error::ValidationErrors;
-
-// ---------------------------------------------------------------------------
-// StoreError — channel-level failure
-// ---------------------------------------------------------------------------
-
-#[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
-pub enum StoreError {
-    #[error("entity server unavailable")]
-    #[compose(fix = Pari, recoverability = NotRecoverable)]
-    #[otel(error_type = "store_unavailable")]
-    Unavailable,
-}
-
-// ---------------------------------------------------------------------------
-// CheckoutError
-// ---------------------------------------------------------------------------
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
 pub enum CheckoutError {
@@ -42,11 +28,11 @@ pub enum CheckoutError {
     #[error(transparent)]
     #[compose(delegate)]
     Substrate(#[from] SubstrateError),
-}
 
-// ---------------------------------------------------------------------------
-// CommitError
-// ---------------------------------------------------------------------------
+    #[error(transparent)]
+    #[compose(delegate)]
+    StoreUnavailable(#[from] StoreError),
+}
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
 pub enum CommitError {
@@ -67,10 +53,6 @@ pub enum CommitError {
     #[compose(delegate)]
     StoreUnavailable(#[from] StoreError),
 }
-
-// ---------------------------------------------------------------------------
-// LoadError
-// ---------------------------------------------------------------------------
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
 pub enum LoadError {
@@ -94,11 +76,11 @@ pub enum LoadError {
         error_count: usize,
         errors: ValidationErrors,
     },
-}
 
-// ---------------------------------------------------------------------------
-// UndoError
-// ---------------------------------------------------------------------------
+    #[error(transparent)]
+    #[compose(delegate)]
+    StoreUnavailable(#[from] StoreError),
+}
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
 pub enum UndoError {
@@ -111,10 +93,6 @@ pub enum UndoError {
     #[compose(delegate)]
     StoreUnavailable(#[from] StoreError),
 }
-
-// ---------------------------------------------------------------------------
-// PersistError
-// ---------------------------------------------------------------------------
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
 pub enum PersistError {
@@ -129,11 +107,11 @@ pub enum PersistError {
     #[error("{0}")]
     #[compose(delegate)]
     SubstrateErrors(BatchError<SubstrateError>),
-}
 
-// ---------------------------------------------------------------------------
-// ResolveError
-// ---------------------------------------------------------------------------
+    #[error(transparent)]
+    #[compose(delegate)]
+    StoreUnavailable(#[from] StoreError),
+}
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
 pub enum ResolveError {

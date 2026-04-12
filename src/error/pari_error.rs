@@ -1,7 +1,7 @@
 //! `PariError` — job-layer error enum.
 
 use pari_macros::{ErrorCompose, OTelEmit};
-use crate::store::error::{CheckoutError, CommitError, LoadError, PersistError, ResolveError};
+use crate::workspace::error::{CheckoutError, CommitError, LoadError, PersistError, ResolveError};
 use crate::validation::error::SetterError;
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]

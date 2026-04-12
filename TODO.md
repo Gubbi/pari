@@ -57,11 +57,12 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Done looks like: `pari-macros/src/lib.rs` is a thin entrypoint only, with no dead tracked-derive helpers remaining.
    Completion note: this is already true after the proc-macro split. `pari-macros/src/lib.rs` now contains only the live entrypoints and module declarations.
 
-8. [ ] Accessor/setter generation and tracked-field usage
+8. [x] Accessor/setter generation and tracked-field usage
    Context: the code is now centered on `TrackedField<T>`, but generated accessors/setters and some surrounding expectations still reflect older helper naming and older mutation/loading assumptions.
    Goal: finish the source-side migration so generated accessors/setters and direct tracked-field usage follow the current tracked-field design and naming consistently.
    Scope: source files only, including proc-macro-generated patterns where needed. Do not spend this task on broader test cleanup.
    Done looks like: the main code paths no longer depend on stale tracked-field helper assumptions or older access semantics.
+   Completion note: the live source no longer contains stale tracked-field helper usage; remaining hits were only in local guide docs. The meaningful code drift here was the public `EntityClient` boundary still living under `store/` and still carrying operation-facing errors there. This task moved `EntityClient` and its operation errors into a new `workspace/` module, updated generated accessor/setter paths to call `::pari::workspace::EntityClient`, and kept channel/request failures mapped into the operation-specific `StoreUnavailable(...)` variants so accessor/setter-triggered load/ensure-mutable flows remain non-panicking at the client boundary.
 
 9. [ ] Substrate boundary alignment
    Context: the legacy repo substrate and schema stack are gone, leaving a clearer substrate boundary in `src/substrate/mod.rs`. The remaining code should now be aligned to that single boundary explicitly.
@@ -82,10 +83,11 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Done looks like: the project has a real concrete substrate again, built on the current design rather than on the deleted schema/repo stack.
 
 12. [ ] Store internals alignment
-   Context: `src/store/mod.rs` still contains pockets of design drift in request/response handling, loading flow, ensure-mutable behavior, naming, and persist orchestration. Earlier cleanup removed legacy distractions so this can now be addressed directly.
-   Goal: align the store internals with the current design end-to-end, including message flow, response naming/shape, loading flow, ensure-mutable behavior, and persist plumbing.
-   Scope: `src/store/mod.rs` and closely related store-internal source files only.
-   Done looks like: the store implementation reads like the design docs rather than like a carry-over from earlier TDD shortcuts.
+    Context: `src/store/mod.rs` still contains pockets of design drift in request/response handling, loading flow, ensure-mutable behavior, naming, and persist orchestration. Earlier cleanup removed legacy distractions so this can now be addressed directly.
+    Goal: align the store internals with the current design end-to-end, including message flow, response naming/shape, loading flow, ensure-mutable behavior, and persist plumbing.
+    Scope: `src/store/mod.rs` and closely related store-internal source files only.
+    Done looks like: the store implementation reads like the design docs rather than like a carry-over from earlier TDD shortcuts.
+    Note: this task includes eliminating `StoreEntity` naming/abstraction drift. The design already uses `TrackedEntity` for the type-erased tracked wrapper role, so the code should align to that design concept instead of keeping `StoreEntity` as a parallel abstraction.
 
 13. [ ] Persist-path implementation cleanup
     Context: even after API cleanup, the persist path may still have real Rust borrowing/lifetime friction because it needs to walk store-owned entity state while interacting with the substrate. This may be pure code cleanup, or it may expose a real design gap.

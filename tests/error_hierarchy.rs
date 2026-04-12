@@ -1,9 +1,8 @@
 use pari::error::{FixDomain, Recoverability, Severity, ErrorCompose};
 use pari::substrate::pipeline::{codec::error::CodecError, executor::error::ExecutorError};
 use pari::substrate::error::SubstrateError;
-use pari::store::error::{
-    StoreError, CheckoutError, CommitError, LoadError, UndoError, PersistError, ResolveError,
-};
+use pari::store_error::StoreError;
+use pari::workspace::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError};
 use pari::validation::error::{SetterError, ValidationErrors, FieldValidationError, ValidationKind};
 use pari::error::pari_error::PariError;
 

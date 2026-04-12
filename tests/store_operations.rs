@@ -1,5 +1,5 @@
-use pari::store::{EntityClient, EntityServer, InMemorySubstrate};
-use pari::store::{CheckoutError, PersistError, ResolveError};
+use pari::store::{EntityServer, InMemorySubstrate};
+use pari::workspace::{CheckoutError, EntityClient, PersistError, ResolveError};
 use pari::entity::{AnyEntityRef, EntityRef, StoreEntity};
 use pari::entities::role::{Role, TrackedRole};
 use std::collections::HashMap;
