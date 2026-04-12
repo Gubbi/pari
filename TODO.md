@@ -8,6 +8,7 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
 - Treat design as authoritative unless a real implementation constraint forces a design amendment.
 - Complete code changes first, then fix tests afterward.
 - Commit at the end of each completed task for easier per-task review.
+- For tests: remove irrelevant tests that only defend deleted architecture. Keep future-relevant broken tests disabled with a `TODO:` comment until the needed implementation exists.
 
 ## Code Tasks
 
@@ -47,84 +48,84 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Goal: remove `Tracked<T>`, remove `TrackedMap<K, V>`, remove `#[derive(Tracked)]`, and simplify the codebase so `TrackedField<T>` is the only tracking primitive that remains aligned with the design.
    Scope: source code only for this task. Remove or refactor code that exists only to support the obsolete generic tracking framework, but do not do broad test cleanup in this commit.
    Done looks like: the code no longer depends on `Tracked<T>`, `TrackedMap<K, V>`, or `#[derive(Tracked)]`, and the remaining tracking model matches the design’s field-centric approach.
-   Completion note: `src/tracked.rs` now contains only `TrackedField<T>`. The old `Tracked` derive is no longer publicly exposed from `pari-macros`, and remaining references are confined to legacy local docs and hidden macro internals to be cleaned up in later tasks.
+   Completion note: the runtime tracking layer now keeps only `TrackedField<T>`, and it lives in `src/tracked/tracked_field.rs`. The old `Tracked` derive entrypoint is gone, but `pari-macros/src/lib.rs` still contains dead helper code that should be deleted in a follow-up cleanup.
 
-7. [ ] Accessor/setter generation and tracked-field usage
-   Context: after the obsolete generic tracking framework is removed, the next source-side drift is the remaining tracked-field helper naming and accessor assumptions. Some generated code and source usage patterns still reflect older APIs and older access patterns.
-   Goal: finish the source-side migration so generated accessors/setters and direct tracked-field usage follow the current tracked-field design and naming.
-   Scope: source files only, including proc-macro-generated patterns where needed. Do not spend this task on test cleanup yet.
-   Done looks like: the main code paths no longer depend on stale tracked-field/accessor APIs or their older semantics.
+7. [ ] Proc-macro dead-code cleanup
+   Context: after splitting the live proc-macros into dedicated files, the crate root still carries dead helper code left behind from the removed `Tracked` derive. It does not affect behavior now, but it is drift and will confuse future work.
+   Goal: remove the obsolete tracked-derive helper block from `pari-macros/src/lib.rs` so the proc-macro crate contains only live entrypoints plus their supporting modules.
+   Scope: `pari-macros/src/lib.rs` and, if useful, small supporting refactors within `pari-macros/src/`.
+   Done looks like: `pari-macros/src/lib.rs` is a thin entrypoint only, with no dead tracked-derive helpers remaining.
 
-8. [ ] Single substrate boundary
-   Context: the design and earlier cleanup discussions converged on a single substrate boundary in `src/substrate/mod.rs`, but the codebase and local guides still contain residual assumptions about a separate store-side substrate interface.
-   Goal: make the source code consistently treat `src/substrate/mod.rs` as the only substrate boundary and remove remaining architectural drift from source modules.
-   Scope: source modules only. This task is about architectural boundary cleanup, not yet signature-style cleanup or tests.
-   Done looks like: the code no longer has meaningful source-level dependency on an old `store::Substrate` architecture.
+8. [ ] Accessor/setter generation and tracked-field usage
+   Context: the code is now centered on `TrackedField<T>`, but generated accessors/setters and some surrounding expectations still reflect older helper naming and older mutation/loading assumptions.
+   Goal: finish the source-side migration so generated accessors/setters and direct tracked-field usage follow the current tracked-field design and naming consistently.
+   Scope: source files only, including proc-macro-generated patterns where needed. Do not spend this task on broader test cleanup.
+   Done looks like: the main code paths no longer depend on stale tracked-field helper assumptions or older access semantics.
 
-9. [ ] Substrate trait signature cleanup
-   Context: the current trait definition style and its implementations have drifted. The substrate trait uses `fn -> impl Future + Send`, but some implementations still use `async fn`, leaving the contract and its implementations inconsistent.
-   Goal: make the substrate trait and all implementations use one coherent signature style that matches the chosen design direction.
-   Scope: `src/substrate/mod.rs`, `src/store/mod.rs`, and repo substrate implementation files only.
-   Done looks like: the trait and all its implementations express the same async contract style consistently.
+9. [ ] Substrate boundary alignment
+   Context: the legacy repo substrate and schema stack are gone, leaving a clearer substrate boundary in `src/substrate/mod.rs`. The remaining code should now be aligned to that single boundary explicitly.
+   Goal: make the source code consistently treat `src/substrate/mod.rs` as the only substrate boundary and remove any remaining architectural assumptions from source modules.
+   Scope: source modules only. This task is about boundary cleanup, not yet implementing a concrete backend.
+   Done looks like: the source no longer has meaningful architectural drift around substrate boundaries.
 
-10. [ ] Persist API migration
-   Context: the code still carries older persistence naming and structure, especially `atomic_persist` and changeset-era terminology, even though the design and later code direction moved to `persist`.
-   Goal: complete the source-side rename and structural migration from `atomic_persist`-era APIs to the current persist design.
-   Scope: source files only, especially `src/substrate/repo/storage.rs`, `src/substrate/changeset.rs`, and any directly related modules.
-   Done looks like: no source API that should now be `persist` still exposes or relies on old `atomic_persist` naming or stale changeset semantics.
+10. [ ] Substrate trait contract cleanup
+   Context: the substrate traits and implementations still need consistency around async style and call shape. Now that legacy backends are removed, that contract can be cleaned up without compatibility baggage.
+   Goal: make the substrate trait and all remaining implementations express one coherent async contract style that matches the design.
+   Scope: `src/substrate/mod.rs`, `src/store/mod.rs`, and any in-tree substrate implementations.
+   Done looks like: the substrate contract is internally consistent and no stale signature style remains.
 
-11. [ ] Store internals alignment
-   Context: `src/store/mod.rs` still contains several pockets of design drift in request/response handling, load and ensure-mutable flow, naming, and persist orchestration. Earlier tasks clear the prerequisites so this task can focus on the store actor itself.
-   Goal: align the store internals with the current store design end-to-end, including message flow, response naming/shape, loading flow, ensure-mutable behavior, and persist plumbing.
+11. [ ] Concrete substrate replacement
+   Context: removing the legacy repo substrate intentionally left the project without a real filesystem-backed substrate. This is now the biggest functional gap rather than a drift-hiding problem.
+   Goal: design and implement a new design-aligned concrete substrate that can replace the removed repo backend without reintroducing legacy architecture.
+   Scope: new source implementation plus the minimal integration points needed to make it usable from the store.
+   Done looks like: the project has a real concrete substrate again, built on the current design rather than on the deleted schema/repo stack.
+
+12. [ ] Store internals alignment
+   Context: `src/store/mod.rs` still contains pockets of design drift in request/response handling, loading flow, ensure-mutable behavior, naming, and persist orchestration. Earlier cleanup removed legacy distractions so this can now be addressed directly.
+   Goal: align the store internals with the current design end-to-end, including message flow, response naming/shape, loading flow, ensure-mutable behavior, and persist plumbing.
    Scope: `src/store/mod.rs` and closely related store-internal source files only.
-   Done looks like: the store implementation reads like the design docs rather than a carry-over from earlier TDD shortcuts.
+   Done looks like: the store implementation reads like the design docs rather than like a carry-over from earlier TDD shortcuts.
 
-12. [ ] Persist-path implementation constraint cleanup
-    Context: even after API cleanup, the persist path may still have real Rust borrowing/lifetime friction because it needs to walk store-owned entity state while interacting with the substrate. This may be a pure code cleanup, or it may expose a legitimate design gap.
-    Goal: refactor the persist path so the current design is implemented cleanly without brittle borrow workarounds. If a real constraint remains, stop and queue a focused design amendment rather than smuggling a workaround into code.
+13. [ ] Persist-path implementation cleanup
+    Context: even after API cleanup, the persist path may still have real Rust borrowing/lifetime friction because it needs to walk store-owned entity state while interacting with the substrate. This may be pure code cleanup, or it may expose a real design gap.
+    Goal: refactor the persist path so the current design is implemented cleanly without brittle borrow workarounds. If a real constraint remains, stop and queue a focused design amendment instead of smuggling a workaround into code.
     Scope: only the persist-path implementation and the minimal source files needed to make it clean.
     Done looks like: either the persist path cleanly matches the current design, or a clearly scoped design-gap item is queued with the code left in a deliberately understandable state.
 
-13. [ ] Code-local docs cleanup
-    Context: several local guidance files still document old architecture and API shapes, which creates a strong risk of reintroducing drift in later sessions. After the code is corrected, these local docs need to be brought back in sync.
+14. [ ] Code-local docs cleanup
+    Context: several local guidance files still describe removed architecture such as schema, repo substrate, and the old tracked macro behavior. They now drift from both code and design.
     Goal: update the code-local guidance files so they reflect the corrected source state and stop teaching stale patterns.
-    Scope: local context docs only, such as `src/store/CLAUDE.md`, `src/entities/CLAUDE.md`, `src/error/CLAUDE.md`, `pari-macros/CLAUDE.md`, `tests/CLAUDE.md`, and any similarly scoped module guidance files.
+    Scope: local context docs only, such as `src/store/CLAUDE.md`, `src/entities/CLAUDE.md`, `src/error/CLAUDE.md`, `src/substrate/CLAUDE.md`, `pari-macros/CLAUDE.md`, `tests/CLAUDE.md`, and similar module guidance files.
     Done looks like: local docs match the code/design state after the code-cleanup tasks above.
 
 ## Test Tasks
 
-14. [ ] Entity identity tests
-    Context: after the code-side identity migration, many tests will still assume `WorkflowParent { workflow_id }` and `EntityRef::new_embedded(...)`.
-    Goal: update tests to the new identity model without changing the design again.
-    Scope: tests only.
-    Done looks like: identity-related tests assert the generic parent-chain model rather than the old workflow-specific constructor model.
+15. [ ] Test surface normalization
+    Context: the obviously legacy tests have been deleted, and some future-relevant tests are now intentionally disabled with file-level `TODO`s. The remaining test surface still needs to be normalized so it represents only meaningful current or future coverage.
+    Goal: remove any remaining irrelevant tests, keep future-relevant broken tests disabled with clear `TODO`s, and leave only meaningful unit/integration/end-to-end test files active.
+    Scope: tests only. This is a pruning/normalization task, not yet a full rewrite of all broken tests.
+    Done looks like: the test tree contains only meaningful current/future tests, and disabled files explain exactly what implementation gap blocks re-enabling them.
 
-15. [ ] Tracked primitive tests
-    Context: once tracked semantics and tracked-field usage are fixed in source, tests will still reflect the older dirty-state default and stale helper names.
-    Goal: update tests to the current tracked design.
-    Scope: tests only.
-    Done looks like: tests assert clean-on-create tracked semantics and current tracked-field APIs.
+16. [ ] Entity identity and tracked-field test updates
+    Context: after the identity and tracking cleanup, the still-relevant tests must be updated to the current `EntityRef` and `TrackedField` APIs. Some are already disabled because they still expect removed helpers like `new_initialized` or `with_value`.
+    Goal: update relevant tests to the new identity model and the current `TrackedField` API.
+    Scope: tests only, especially `entity_definitions`, `validate_entities`, `tracked_serde`, and `derive_entity`.
+    Done looks like: identity- and tracking-related tests assert the current design and no longer rely on removed helper APIs.
 
-16. [ ] Persist/storage tests
-    Context: the storage and substrate tests still encode `atomic_persist` and older persistence behavior.
-    Goal: update those tests to the current persist API and behavior after the source migration is done.
-    Scope: tests only.
-    Done looks like: persist/storage tests reflect the current API names and behavior rather than legacy naming.
+17. [ ] Substrate and end-to-end test restoration
+    Context: `core_jobs` and substrate-focused tests were disabled because the legacy concrete backend was removed. Once a new substrate exists, these tests should come back in a design-aligned form.
+    Goal: restore meaningful substrate-level integration tests and end-to-end job tests against the new concrete substrate.
+    Scope: tests only, after the concrete substrate replacement exists.
+    Done looks like: the project again has meaningful end-to-end and substrate integration coverage without reviving legacy repo/schema assumptions.
 
-17. [ ] Macro/entity generation tests
-    Context: proc-macro and generated-API tests will drift after the identity and accessor changes land.
-    Goal: update tests so they reflect the corrected generated API shape.
+18. [ ] Error and macro test updates
+    Context: the codebase already has settled identity/macro/error changes that can be reflected in tests even before returning to the next round of higher-layer error design.
+    Goal: update tests only for the error and macro behavior that is already settled by current design and code cleanup, without expanding scope into undecided error architecture.
     Scope: tests only.
-    Done looks like: generated entity/macro behavior is asserted against the new source-of-truth model.
-
-18. [ ] Error tests
-    Context: the codebase already has settled error-handling changes that can be reflected in tests, even before we return to the larger Activity and higher-layer error redesign.
-    Goal: update tests only for the error behavior that is already settled by current design and code-cleanup work, without expanding scope into the next round of error design.
-    Scope: tests only.
-    Done looks like: tests no longer enforce stale error assumptions that we already know are wrong, while unresolved higher-layer error design remains intentionally out of scope.
+    Done looks like: tests no longer enforce stale macro/error assumptions that we already know are wrong, while unresolved higher-layer error design remains intentionally out of scope.
 
 19. [ ] Full test sweep
-    Context: after the targeted code and test cleanup tasks above, the remaining failures become signal rather than noise.
+    Context: after the targeted code and test tasks above, the remaining failures become signal rather than noise.
     Goal: run the full test suite, classify any remaining failures, and split them into true code bugs versus real design gaps that need discussion.
     Scope: full verification only.
     Done looks like: the remaining queue is smaller, clearer, and based on real unresolved issues instead of accumulated drift.
