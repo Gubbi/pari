@@ -50,11 +50,12 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Done looks like: the code no longer depends on `Tracked<T>`, `TrackedMap<K, V>`, or `#[derive(Tracked)]`, and the remaining tracking model matches the design’s field-centric approach.
    Completion note: the runtime tracking layer now keeps only `TrackedField<T>`, and it lives in `src/tracked/tracked_field.rs`. The old `Tracked` derive entrypoint is gone, but `pari-macros/src/lib.rs` still contains dead helper code that should be deleted in a follow-up cleanup.
 
-7. [ ] Proc-macro dead-code cleanup
+7. [x] Proc-macro dead-code cleanup
    Context: after splitting the live proc-macros into dedicated files, the crate root still carries dead helper code left behind from the removed `Tracked` derive. It does not affect behavior now, but it is drift and will confuse future work.
    Goal: remove the obsolete tracked-derive helper block from `pari-macros/src/lib.rs` so the proc-macro crate contains only live entrypoints plus their supporting modules.
    Scope: `pari-macros/src/lib.rs` and, if useful, small supporting refactors within `pari-macros/src/`.
    Done looks like: `pari-macros/src/lib.rs` is a thin entrypoint only, with no dead tracked-derive helpers remaining.
+   Completion note: this is already true after the proc-macro split. `pari-macros/src/lib.rs` now contains only the live entrypoints and module declarations.
 
 8. [ ] Accessor/setter generation and tracked-field usage
    Context: the code is now centered on `TrackedField<T>`, but generated accessors/setters and some surrounding expectations still reflect older helper naming and older mutation/loading assumptions.
