@@ -1,4 +1,5 @@
-use pari::substrate::{EntityChange, Substrate, VoidSubstrate};
+use pari::store::EntityChange;
+use pari::substrate::{Substrate, VoidSubstrate};
 #![cfg(any())]
 // TODO: Re-enable after the substrate API settles around the current exists()/persist() contract and we decide the long-term pipeline test shape.
 

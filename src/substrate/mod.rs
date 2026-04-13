@@ -1,23 +1,15 @@
 //! Substrate layer — persistence backend trait and implementations.
 
 pub mod error;
+pub mod in_memory;
 pub mod pipeline;
 
 pub use error::SubstrateError;
+pub use in_memory::InMemorySubstrate;
 use pipeline::ExecutorError;
 
 use crate::entity::{AnyEntityRef, EntityKind, StoreEntity};
-
-// ---------------------------------------------------------------------------
-// EntityChange
-// ---------------------------------------------------------------------------
-
-/// A single entity change to be persisted.
-pub enum EntityChange<'a> {
-    Added(&'a StoreEntity),
-    Modified(&'a StoreEntity, &'a [&'a str]),
-    Removed(&'a AnyEntityRef),
-}
+use crate::store::EntityChange;
 
 // ---------------------------------------------------------------------------
 // Substrate trait

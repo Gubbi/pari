@@ -1,95 +1,24 @@
 //! EntityStore — async actor-based store for tracked entities.
 //!
 //! [`EntityServer`] — spawns a store actor and provides access via thread-local override.
-//! [`InMemorySubstrate`] — always-available in-memory substrate for testing.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
 
 use tokio::sync::mpsc;
 
-use crate::entity::{AnyEntityRef, EntityKind, StoreEntity};
-use crate::substrate::{self, EntityChange};
-use crate::substrate::error::SubstrateError;
-use crate::substrate::pipeline::ExecutorError;
-use crate::substrate::{VoidSlot, VoidResolver, VoidCodec, VoidExecutor};
-use crate::substrate::pipeline;
+use crate::entity::{AnyEntityRef, StoreEntity};
+use crate::substrate;
 use crate::error::BatchError;
 use crate::workspace::error::{
     CheckoutError, LoadError, PersistError, ResolveError,
 };
 use crate::store_error::StoreError;
 
-// ---------------------------------------------------------------------------
-// InMemorySubstrate
-// ---------------------------------------------------------------------------
-
-pub struct InMemorySubstrate {
-    entities: Mutex<HashMap<AnyEntityRef, StoreEntity>>,
-}
-
-impl InMemorySubstrate {
-    pub fn new() -> Self {
-        Self { entities: Mutex::new(HashMap::new()) }
-    }
-
-    pub fn seed(&self, any_ref: AnyEntityRef, entity: StoreEntity) {
-        self.entities.lock().unwrap().insert(any_ref, entity);
-    }
-}
-
-impl Default for InMemorySubstrate {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl substrate::Substrate for InMemorySubstrate {
-    type Slot = VoidSlot;
-    type Location = String;
-    type Encoded = String;
-    type Resolver = VoidResolver;
-    type Codec = VoidCodec;
-    type Executor = VoidExecutor;
-
-    fn resolver(&self) -> &VoidResolver { &VoidResolver }
-    fn codec(&self) -> &VoidCodec { &VoidCodec }
-    fn executor(&self) -> &VoidExecutor { &VoidExecutor }
-
-    fn load_strategy(_: EntityKind, _: &str) -> pipeline::LoadStrategy {
-        pipeline::LoadStrategy { prerequisites: vec![], mutable_without_load: true }
-    }
-
-    async fn exists(&self, refs: &[AnyEntityRef]) -> Result<Vec<bool>, SubstrateError> {
-        let guard = self.entities.lock().unwrap();
-        Ok(refs.iter().map(|r| guard.contains_key(r)).collect())
-    }
-
-    async fn load(
-        &self,
-        entity: &StoreEntity,
-        _fields: &[&str],
-    ) -> Result<StoreEntity, SubstrateError> {
-        let any_ref = entity.any_ref();
-        self.entities
-            .lock()
-            .unwrap()
-            .get(&any_ref)
-            .cloned()
-            .ok_or_else(|| SubstrateError::from(
-                ExecutorError::new(any_ref.id(), "not found")
-            ))
-    }
-
-    async fn persist(
-        &self,
-        _changes: impl Iterator<Item = EntityChange<'_>> + Send,
-    ) -> Result<(), Vec<SubstrateError>> {
-        Ok(())
-    }
-}
+mod change;
+pub use change::EntityChange;
 
 // ---------------------------------------------------------------------------
 // StoreOpError — internal store state errors (not public)

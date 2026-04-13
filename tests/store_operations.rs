@@ -1,4 +1,5 @@
-use pari::store::{EntityServer, InMemorySubstrate};
+use pari::store::EntityServer;
+use pari::substrate::InMemorySubstrate;
 use pari::workspace::{CheckoutError, EntityClient, PersistError, ResolveError};
 use pari::entity::{AnyEntityRef, EntityRef, StoreEntity};
 use pari::entities::role::{Role, TrackedRole};

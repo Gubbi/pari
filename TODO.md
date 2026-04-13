@@ -64,17 +64,19 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Done looks like: the main code paths no longer depend on stale tracked-field helper assumptions or older access semantics.
    Completion note: the live source no longer contains stale tracked-field helper usage; remaining hits were only in local guide docs. The meaningful code drift here was the public `EntityClient` boundary still living under `store/` and still carrying operation-facing errors there. This task moved `EntityClient` and its operation errors into a new `workspace/` module, updated generated accessor/setter paths to call `::pari::workspace::EntityClient`, and kept channel/request failures mapped into the operation-specific `StoreUnavailable(...)` variants so accessor/setter-triggered load/ensure-mutable flows remain non-panicking at the client boundary.
 
-9. [ ] Substrate boundary alignment
+9. [x] Substrate boundary alignment
    Context: the legacy repo substrate and schema stack are gone, leaving a clearer substrate boundary in `src/substrate/mod.rs`. The remaining code should now be aligned to that single boundary explicitly.
    Goal: make the source code consistently treat `src/substrate/mod.rs` as the only substrate boundary and remove any remaining architectural assumptions from source modules.
    Scope: source modules only. This task is about boundary cleanup, not yet implementing a concrete backend.
    Done looks like: the source no longer has meaningful architectural drift around substrate boundaries.
+   Completion note: the remaining concrete substrate helper `InMemorySubstrate` was moved out of `src/store/mod.rs` into `src/substrate/in_memory.rs`, and the substrate module now re-exports it. That leaves `store/` depending on the substrate boundary instead of defining one concrete backend inside the store layer.
 
-10. [ ] Substrate trait contract cleanup
+10. [x] Substrate trait contract cleanup
    Context: the substrate traits and implementations still need consistency around async style and call shape. Now that legacy backends are removed, that contract can be cleaned up without compatibility baggage.
    Goal: make the substrate trait and all remaining implementations express one coherent async contract style that matches the design.
    Scope: `src/substrate/mod.rs`, `src/store/mod.rs`, and any in-tree substrate implementations.
    Done looks like: the substrate contract is internally consistent and no stale signature style remains.
+   Completion note: `EntityChange` was moved out of `src/substrate/mod.rs` and into the store layer as a store-owned persistence boundary type. `InMemorySubstrate` now has its own in-memory slot/resolver/codec/executor types rather than reusing the `Void*` stack, and its `persist()` path now applies added/modified/removed changes into in-memory state.
 
 11. [ ] Concrete substrate replacement
    Context: removing the legacy repo substrate intentionally left the project without a real filesystem-backed substrate. This is now the biggest functional gap rather than a drift-hiding problem.
