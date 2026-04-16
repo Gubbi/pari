@@ -4,9 +4,14 @@ use proc_macro::TokenStream;
 use syn::{parse_macro_input, DeriveInput};
 
 mod entity;
+mod entity_codegen;
 mod entity_registry;
 mod error_compose;
 mod otel_emit;
+mod store_codegen;
+mod substrate_codegen;
+mod validation_codegen;
+mod workspace_codegen;
 
 #[proc_macro_derive(Entity, attributes(entity))]
 pub fn derive_entity(input: TokenStream) -> TokenStream {

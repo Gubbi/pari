@@ -2,6 +2,9 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Ident, Type};
 
+use crate::validation_codegen::generate_validation_schema_access;
+use crate::workspace_codegen::generate_accessors_and_setters;
+
 pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
     let name = &ast.ident;
     let tracked_name = Ident::new(&format!("Tracked{name}"), name.span());
@@ -76,49 +79,7 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
         quote! {}
     };
 
-    let accessors: Vec<TokenStream2> = domain_fields
-        .iter()
-        .map(|f| {
-            let fname = &f.ident;
-            let ty = &f.ty;
-            let (ret_type, map_expr) = accessor_return_type(ty);
-            let fname_str = fname.as_ref().unwrap().to_string();
-            quote! {
-                pub async fn #fname(&self) -> ::std::result::Result<#ret_type, ::pari::entity::LoadError> {
-                    if self.#fname.get().is_none() {
-                        ::pari::workspace::EntityClient::load(
-                            <#name as ::pari::entity::Entity>::to_any_ref(self.entity_ref()),
-                            #fname_str,
-                        ).await?;
-                    }
-                    Ok(self.#fname.get().expect("field not loaded") #map_expr)
-                }
-            }
-        })
-        .collect();
-
-    let setters: Vec<TokenStream2> = domain_fields
-        .iter()
-        .map(|f| {
-            let fname = &f.ident;
-            let setter_name = Ident::new(&format!("set_{}", fname.as_ref().unwrap()), Span::call_site());
-            let ty = &f.ty;
-            let fname_str = fname.as_ref().unwrap().to_string();
-            quote! {
-                pub async fn #setter_name(&mut self, value: #ty) -> ::std::result::Result<(), ::pari::entity::SetterError> {
-                    ::pari::workspace::EntityClient::ensure_mutable(
-                        <#name as ::pari::entity::Entity>::to_any_ref(self.entity_ref()),
-                        #fname_str,
-                    ).await.map_err(|e| match e {
-                        ::pari::workspace::LoadError::Substrate(s) => ::pari::entity::SetterError::Substrate(s),
-                        other => panic!("ensure_mutable failed unexpectedly: {:?}", other),
-                    })?;
-                    self.#fname = ::std::sync::Arc::new(::pari::tracked::TrackedField::mutated(value));
-                    Ok(())
-                }
-            }
-        })
-        .collect();
+    let (accessors, setters) = generate_accessors_and_setters(name, &domain_fields);
 
     let has_dirty_checks: Vec<TokenStream2> = domain_fields
         .iter()
@@ -511,6 +472,8 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
         }
     };
 
+    let validation_schema_method = generate_validation_schema_access(name, &schema_fn);
+
     quote! {
         #[derive(Clone)]
         #vis struct #tracked_name {
@@ -560,11 +523,7 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
         impl ::pari::entity::Entity for #name {
             const KIND: ::pari::entity::EntityKind = #kind_expr;
 
-            fn validation_schema() -> &'static ::pari::entity::ValidationSchema<Self> {
-                static S: ::std::sync::OnceLock<::pari::entity::ValidationSchema<#name>> =
-                    ::std::sync::OnceLock::new();
-                S.get_or_init(|| #schema_fn)
-            }
+            #validation_schema_method
 
             type Parent = #parent_type;
             type Tracked = #tracked_name;
@@ -638,80 +597,4 @@ fn entity_kind_to_any_ref_variant(kind_expr: &TokenStream2) -> TokenStream2 {
     let variant = s.split("::").last().unwrap_or("").trim().to_string();
     let variant_ident = Ident::new(&variant, Span::call_site());
     quote! { #variant_ident }
-}
-
-fn accessor_return_type(ty: &Type) -> (TokenStream2, TokenStream2) {
-    match ty {
-        Type::Path(tp) if tp.qself.is_none() => {
-            let segs = &tp.path.segments;
-            if segs.len() == 1 {
-                let seg = &segs[0];
-                if seg.ident == "String" {
-                    return (quote! { &str }, quote! { .as_str() });
-                }
-                if seg.ident == "Option" {
-                    if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-                        if args.args.len() == 1 {
-                            if let syn::GenericArgument::Type(inner) = &args.args[0] {
-                                if is_type_ident(inner, "String") {
-                                    return (
-                                        quote! { ::std::option::Option<&str> },
-                                        quote! { .as_deref() },
-                                    );
-                                }
-                                if let Some(elem) = vec_inner_type(inner) {
-                                    return (
-                                        quote! { ::std::option::Option<&[#elem]> },
-                                        quote! { .as_deref() },
-                                    );
-                                }
-                                return (
-                                    quote! { ::std::option::Option<&#inner> },
-                                    quote! { .as_ref() },
-                                );
-                            }
-                        }
-                    }
-                }
-                if seg.ident == "Vec" {
-                    if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-                        if args.args.len() == 1 {
-                            if let syn::GenericArgument::Type(elem) = &args.args[0] {
-                                return (quote! { &[#elem] }, quote! { .as_slice() });
-                            }
-                        }
-                    }
-                }
-            }
-            (quote! { &#ty }, quote! {})
-        }
-        _ => (quote! { &#ty }, quote! {}),
-    }
-}
-
-fn is_type_ident(ty: &Type, name: &str) -> bool {
-    if let Type::Path(tp) = ty {
-        if tp.qself.is_none() && tp.path.segments.len() == 1 {
-            return tp.path.segments[0].ident == name;
-        }
-    }
-    false
-}
-
-fn vec_inner_type(ty: &Type) -> Option<&Type> {
-    if let Type::Path(tp) = ty {
-        if tp.path.segments.len() == 1 {
-            let seg = &tp.path.segments[0];
-            if seg.ident == "Vec" {
-                if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-                    if args.args.len() == 1 {
-                        if let syn::GenericArgument::Type(inner) = &args.args[0] {
-                            return Some(inner);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    None
 }

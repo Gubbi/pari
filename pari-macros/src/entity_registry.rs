@@ -2,6 +2,11 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{Ident, Token};
 
+use crate::entity_codegen::generate_entity_registry_parts;
+use crate::store_codegen::generate_store_registry_parts;
+use crate::substrate_codegen::generate_substrate_registry_parts;
+use crate::validation_codegen::generate_registry_validation_dispatch;
+
 pub struct RegistryEntry {
     pub name: Ident,
     pub parent: Ident,
@@ -105,15 +110,15 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         })
         .collect();
 
-    let any_ref_to_json_arms: Vec<TokenStream2> = entries
-        .iter()
-        .map(|e| {
-            let name = &e.name;
-            quote! {
-                AnyEntityRef::#name(r) => ::serde_json::to_value(r),
-            }
-        })
-        .collect();
+    let substrate_parts =
+        generate_substrate_registry_parts(&entries, &variants, &tracked_names, &schema_names);
+    let crate::substrate_codegen::SubstrateRegistryParts {
+        any_ref_to_json_arms,
+        tracked_to_json_arms,
+        tracked_from_json_arms,
+        schema_trait,
+        load_strategy_fn,
+    } = substrate_parts;
 
     let any_entity_ref = quote! {
         #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -142,153 +147,27 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         }
     };
 
-    let from_methods: Vec<TokenStream2> = entries
-        .iter()
-        .zip(tracked_names.iter())
-        .map(|(e, tname)| {
-            let vname = &e.name;
-            let fn_name = Ident::new(
-                &format!("from_{}", to_snake_case(&vname.to_string())),
-                vname.span(),
-            );
-            quote! {
-                pub fn #fn_name(e: #tname) -> Self { TrackedEntity::#vname(e) }
-            }
-        })
-        .collect();
+    let entity_parts = generate_entity_registry_parts(&entries, &tracked_names);
+    let crate::entity_codegen::EntityRegistryParts {
+        from_methods,
+        any_ref_arms,
+    } = entity_parts;
 
-    let any_ref_arms: Vec<TokenStream2> = entries
-        .iter()
-        .map(|e| {
-            let vname = &e.name;
-            quote! {
-                TrackedEntity::#vname(e) => AnyEntityRef::#vname(e.entity_ref().clone()),
-            }
-        })
-        .collect();
+    let store_parts = generate_store_registry_parts(&entries, &tracked_names);
+    let crate::store_codegen::StoreRegistryParts {
+        make_stub_arms,
+        all_refs_arms,
+        initialize_into_arms,
+        merge_dirty_into_arms,
+        has_dirty_arms,
+        dirty_fields_arms,
+        reset_dirty_arms,
+        is_stub_arms,
+        is_field_loaded_arms,
+    } = store_parts;
 
-    let tracked_to_json_arms: Vec<TokenStream2> = entries
-        .iter()
-        .map(|e| {
-            let vname = &e.name;
-            quote! {
-                TrackedEntity::#vname(e) => ::serde_json::to_value(e),
-            }
-        })
-        .collect();
-
-    let tracked_from_json_arms: Vec<TokenStream2> = entries
-        .iter()
-        .zip(tracked_names.iter())
-        .map(|(e, tname)| {
-            let vname = &e.name;
-            quote! {
-                AnyEntityRef::#vname(_) => ::serde_json::from_value::<#tname>(value).map(TrackedEntity::#vname),
-            }
-        })
-        .collect();
-
-    let make_stub_arms: Vec<TokenStream2> = entries
-        .iter()
-        .zip(tracked_names.iter())
-        .map(|(e, tname)| {
-            let vname = &e.name;
-            quote! {
-                AnyEntityRef::#vname(r) => TrackedEntity::#vname(#tname::make_stub(r.clone())),
-            }
-        })
-        .collect();
-
-    let all_refs_arms: Vec<TokenStream2> = entries
-        .iter()
-        .map(|e| {
-            let vname = &e.name;
-            quote! {
-                TrackedEntity::#vname(e) => e.all_refs(),
-            }
-        })
-        .collect();
-
-    let initialize_into_arms: Vec<TokenStream2> = entries
-        .iter()
-        .map(|e| {
-            let vname = &e.name;
-            quote! {
-                (TrackedEntity::#vname(src), TrackedEntity::#vname(dst)) => src.initialize_into(dst),
-            }
-        })
-        .collect();
-
-    let merge_dirty_into_arms: Vec<TokenStream2> = entries
-        .iter()
-        .map(|e| {
-            let vname = &e.name;
-            quote! {
-                (TrackedEntity::#vname(src), TrackedEntity::#vname(dst)) => src.merge_dirty_into(dst),
-            }
-        })
-        .collect();
-
-    let has_dirty_arms: Vec<TokenStream2> = entries
-        .iter()
-        .map(|e| {
-            let vname = &e.name;
-            quote! {
-                TrackedEntity::#vname(e) => e.has_dirty_fields(),
-            }
-        })
-        .collect();
-
-    let dirty_fields_arms: Vec<TokenStream2> = entries
-        .iter()
-        .map(|e| {
-            let vname = &e.name;
-            quote! {
-                TrackedEntity::#vname(e) => e.dirty_fields(),
-            }
-        })
-        .collect();
-
-    let reset_dirty_arms: Vec<TokenStream2> = entries
-        .iter()
-        .map(|e| {
-            let vname = &e.name;
-            quote! {
-                TrackedEntity::#vname(e) => e.reset_dirty(),
-            }
-        })
-        .collect();
-
-    let is_stub_arms: Vec<TokenStream2> = entries
-        .iter()
-        .map(|e| {
-            let vname = &e.name;
-            quote! {
-                TrackedEntity::#vname(e) => e.is_stub(),
-            }
-        })
-        .collect();
-
-    let is_field_loaded_arms: Vec<TokenStream2> = entries
-        .iter()
-        .map(|e| {
-            let vname = &e.name;
-            quote! {
-                TrackedEntity::#vname(e) => e.is_field_loaded(field),
-            }
-        })
-        .collect();
-
-    let run_validations_arms: Vec<TokenStream2> = entries
-        .iter()
-        .map(|e| {
-            let vname = &e.name;
-            let ty = &e.name;
-            quote! {
-                TrackedEntity::#vname(e) => ::pari::validation::run_validations::<#ty>(e, fields, kinds).await,
-            }
-        })
-        .collect();
+    let run_validations_arms: Vec<TokenStream2> =
+        generate_registry_validation_dispatch(&entries);
 
     let tracked_entity = quote! {
         #[derive(Clone)]
@@ -388,57 +267,11 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         }
     };
 
-    let substrate_schema = quote! {
-        pub trait SubstrateSchema: Send + Sync {
-            fn kind(&self) -> EntityKind;
-        }
-    };
-
-    let schema_structs: Vec<TokenStream2> = entries
-        .iter()
-        .zip(schema_names.iter())
-        .map(|(e, schema_name)| {
-            let kind_variant = &e.name;
-            quote! {
-                struct #schema_name;
-                impl SubstrateSchema for #schema_name {
-                    fn kind(&self) -> EntityKind { EntityKind::#kind_variant }
-                }
-            }
-        })
-        .collect();
-
-    let load_arms: Vec<TokenStream2> = variants
-        .iter()
-        .zip(schema_names.iter())
-        .map(|(v, s)| quote! { EntityKind::#v => &#s, })
-        .collect();
-
-    let load_strategy = quote! {
-        pub fn load_strategy(kind: EntityKind) -> &'static dyn SubstrateSchema {
-            #(#schema_structs)*
-            match kind {
-                #(#load_arms)*
-            }
-        }
-    };
-
     quote! {
         #entity_kind
         #any_entity_ref
         #tracked_entity
-        #substrate_schema
-        #load_strategy
+        #schema_trait
+        #load_strategy_fn
     }
-}
-
-fn to_snake_case(s: &str) -> String {
-    let mut result = String::new();
-    for (i, c) in s.chars().enumerate() {
-        if c.is_uppercase() && i > 0 {
-            result.push('_');
-        }
-        result.push(c.to_lowercase().next().unwrap());
-    }
-    result
 }
