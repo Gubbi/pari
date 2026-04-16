@@ -1,11 +1,12 @@
 //! Structural and cross-entity validation schema for [`Relay`].
 
+use std::collections::HashMap;
+
 use super::{
-    AnyStructuralRule, AnyCrossEntityRule, RuleViolation, ValidationSchema,
-    camel_case, camel_case_id, non_empty_str, x_prefix_keys,
+    camel_case, camel_case_id, non_empty_str, x_prefix_keys, AnyCrossEntityRule, AnyStructuralRule,
+    RuleViolation, ValidationSchema,
 };
 use crate::entities::relay::{Relay, TrackedRelay};
-use std::collections::HashMap;
 
 fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
     match value {
@@ -56,14 +57,20 @@ pub fn relay_validation_schema() -> ValidationSchema<Relay> {
     structural.insert(
         "description",
         vec![Box::new(|e: &TrackedRelay| {
-            e.description.get().map(|v| opt_non_empty_str(v)).unwrap_or_default()
+            e.description
+                .get()
+                .map(|v| opt_non_empty_str(v))
+                .unwrap_or_default()
         })],
     );
 
     structural.insert(
         "purpose",
         vec![Box::new(|e: &TrackedRelay| {
-            e.purpose.get().map(|v| non_empty_str(v)).unwrap_or_default()
+            e.purpose
+                .get()
+                .map(|v| non_empty_str(v))
+                .unwrap_or_default()
         })],
     );
 
@@ -88,7 +95,10 @@ pub fn relay_validation_schema() -> ValidationSchema<Relay> {
     structural.insert(
         "extensions",
         vec![Box::new(|e: &TrackedRelay| {
-            e.extensions.get().map(|v| x_prefix_keys(v)).unwrap_or_default()
+            e.extensions
+                .get()
+                .map(|v| x_prefix_keys(v))
+                .unwrap_or_default()
         })],
     );
 

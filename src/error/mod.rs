@@ -42,12 +42,12 @@ pub enum Severity {
 impl Severity {
     pub fn from_classification(fix: FixDomain, recoverability: Recoverability) -> Self {
         match (fix, recoverability) {
-            (FixDomain::Pari,   Recoverability::NotRecoverable) => Severity::Error,
-            (FixDomain::Data,   Recoverability::OperatorAction) => Severity::Error,
-            (FixDomain::Infra,  Recoverability::OperatorAction) => Severity::Error,
-            (FixDomain::Infra,  Recoverability::Retryable)      => Severity::Warn,
-            (FixDomain::Client, Recoverability::UserAction)     => Severity::Warn,
-            _                                                   => Severity::Error,
+            (FixDomain::Pari, Recoverability::NotRecoverable) => Severity::Error,
+            (FixDomain::Data, Recoverability::OperatorAction) => Severity::Error,
+            (FixDomain::Infra, Recoverability::OperatorAction) => Severity::Error,
+            (FixDomain::Infra, Recoverability::Retryable) => Severity::Warn,
+            (FixDomain::Client, Recoverability::UserAction) => Severity::Warn,
+            _ => Severity::Error,
         }
     }
 }
@@ -57,14 +57,16 @@ impl Severity {
 // ---------------------------------------------------------------------------
 
 pub trait ErrorCompose: sealed::AsAny + std::error::Error + Send + Sync + 'static {
-    fn fix_domain(&self)     -> FixDomain;
+    fn fix_domain(&self) -> FixDomain;
     fn recoverability(&self) -> Recoverability;
-    fn severity(&self)       -> Severity {
+    fn severity(&self) -> Severity {
         Severity::from_classification(self.fix_domain(), self.recoverability())
     }
     /// For delegating enums: returns `&dyn Any` of the wrapped inner error.
     /// Default returns `None`; the `#[derive(ErrorCompose)]` macro overrides this for enums.
-    fn as_any_inner(&self) -> Option<&dyn std::any::Any> { None }
+    fn as_any_inner(&self) -> Option<&dyn std::any::Any> {
+        None
+    }
 }
 
 impl dyn ErrorCompose {
@@ -83,7 +85,9 @@ mod sealed {
         fn as_any(&self) -> &dyn std::any::Any;
     }
     impl<T: 'static> AsAny for T {
-        fn as_any(&self) -> &dyn std::any::Any { self }
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
     }
 }
 
@@ -108,7 +112,9 @@ pub struct BatchError<E: ErrorCompose + std::fmt::Debug> {
 }
 
 impl<E: ErrorCompose + std::fmt::Debug> BatchError<E> {
-    pub fn new(errors: Vec<E>) -> Self { Self { errors } }
+    pub fn new(errors: Vec<E>) -> Self {
+        Self { errors }
+    }
 }
 
 impl<E: ErrorCompose + std::fmt::Debug + std::fmt::Display> std::fmt::Display for BatchError<E> {
@@ -125,25 +131,27 @@ impl<E: ErrorCompose + std::fmt::Debug + std::fmt::Display> std::error::Error fo
 
 impl<E: ErrorCompose + std::fmt::Debug + std::fmt::Display> ErrorCompose for BatchError<E> {
     fn fix_domain(&self) -> FixDomain {
-        self.errors.iter()
+        self.errors
+            .iter()
             .map(|e| e.fix_domain())
             .max_by_key(|d| match d {
-                FixDomain::Pari   => 3,
-                FixDomain::Data   => 2,
-                FixDomain::Infra  => 1,
+                FixDomain::Pari => 3,
+                FixDomain::Data => 2,
+                FixDomain::Infra => 1,
                 FixDomain::Client => 0,
             })
             .unwrap_or(FixDomain::Pari)
     }
 
     fn recoverability(&self) -> Recoverability {
-        self.errors.iter()
+        self.errors
+            .iter()
             .map(|e| e.recoverability())
             .max_by_key(|r| match r {
                 Recoverability::NotRecoverable => 3,
                 Recoverability::OperatorAction => 2,
-                Recoverability::UserAction     => 1,
-                Recoverability::Retryable      => 0,
+                Recoverability::UserAction => 1,
+                Recoverability::Retryable => 0,
             })
             .unwrap_or(Recoverability::NotRecoverable)
     }

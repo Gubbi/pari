@@ -1,13 +1,16 @@
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
-use crate::substrate::error::SubstrateError;
-use crate::substrate::repo::codec::RepoCodec;
-use crate::substrate::repo::executor::RepoExecutor;
-use crate::substrate::repo::resolver::RepoLocationResolver;
-use crate::substrate::repo::schema::RepoSlot;
-use crate::substrate::pipeline::ExecutorError;
-use crate::substrate::Substrate;
+use crate::substrate::{
+    error::SubstrateError,
+    pipeline::ExecutorError,
+    repo::{
+        codec::RepoCodec, executor::RepoExecutor, resolver::RepoLocationResolver, schema::RepoSlot,
+    },
+    Substrate,
+};
 
 pub struct RepoSubstrate {
     resolver: RepoLocationResolver,
@@ -61,10 +64,7 @@ fn cleanup_stale(root: &Path) -> Result<(), SubstrateError> {
 
     fn walk(dir: &Path) -> Result<(), SubstrateError> {
         for entry in fs::read_dir(dir).map_err(|e| {
-            SubstrateError::Executor(ExecutorError::new(
-                dir.display().to_string(),
-                e.to_string(),
-            ))
+            SubstrateError::Executor(ExecutorError::new(dir.display().to_string(), e.to_string()))
         })? {
             let entry = entry.map_err(|e| {
                 SubstrateError::Executor(ExecutorError::new(

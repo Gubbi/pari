@@ -1,7 +1,7 @@
 pub mod error;
-pub use error::CodecError;
-
 use std::collections::HashMap;
+
+pub use error::CodecError;
 
 use crate::substrate::pipeline::{FieldMapping, Slot};
 

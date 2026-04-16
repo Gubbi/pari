@@ -1,8 +1,12 @@
-use crate::entity::{AnyEntityRef, TrackedEntity};
-use crate::store::{StoreRequest, StoreResponse};
-use crate::store_error::StoreError;
-use crate::workspace::error::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError};
-use crate::workspace::protocol::request;
+use crate::{
+    entity::{AnyEntityRef, TrackedEntity},
+    store::{StoreRequest, StoreResponse},
+    store_error::StoreError,
+    workspace::{
+        error::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError},
+        protocol::request,
+    },
+};
 
 pub struct EntityClient;
 

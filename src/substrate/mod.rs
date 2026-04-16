@@ -18,8 +18,7 @@ pub use void::VoidSubstrate;
 
 #[cfg(test)]
 mod tests {
-    use crate::substrate::pipeline::ExecutorError;
-    use crate::substrate::SubstrateError;
+    use crate::substrate::{pipeline::ExecutorError, SubstrateError};
 
     #[test]
     fn substrate_error_display_format() {

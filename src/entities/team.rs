@@ -1,7 +1,10 @@
 use std::collections::HashMap;
-use crate::entity::{EntityKind, EntityRef};
-use crate::types::Extensions;
-use crate::entities::role::Role;
+
+use crate::{
+    entities::role::Role,
+    entity::{EntityKind, EntityRef},
+    types::Extensions,
+};
 
 #[derive(pari_macros::Entity)]
 #[entity(kind = EntityKind::Team, schema = crate::validation::team::team_validation_schema)]

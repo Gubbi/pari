@@ -1,14 +1,16 @@
-use crate::entities::{
-    artifact_kind::ArtifactKind,
-    hook::Hook,
-    relay::Relay,
-    role::Role,
-    task::Task,
-    team::Team,
-    workflow::{EmbeddedWorkflow, ReusableWorkflow, Workflow},
+use crate::{
+    entities::{
+        artifact_kind::ArtifactKind,
+        hook::Hook,
+        relay::Relay,
+        role::Role,
+        task::Task,
+        team::Team,
+        workflow::{EmbeddedWorkflow, ReusableWorkflow, Workflow},
+    },
+    entity::EntityKind,
+    substrate::{pipeline, Substrate},
 };
-use crate::entity::EntityKind;
-use crate::substrate::{pipeline, Substrate};
 
 pub trait SchemaBackedSubstrate: Substrate {
     fn schema_for(kind: EntityKind) -> &'static pipeline::EntitySchema<Self::Slot>;

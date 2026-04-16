@@ -1,6 +1,6 @@
-use std::{
-    sync::OnceLock,
-    sync::atomic::{AtomicBool, Ordering},
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    OnceLock,
 };
 
 /// OnceLock-backed field with an atomic dirty flag.
@@ -21,7 +21,10 @@ pub struct TrackedField<T> {
 impl<T> TrackedField<T> {
     /// Create an empty, clean field (uninitialized, not dirty).
     pub fn new() -> Self {
-        Self { value: OnceLock::new(), dirty: AtomicBool::new(false) }
+        Self {
+            value: OnceLock::new(),
+            dirty: AtomicBool::new(false),
+        }
     }
 
     /// Create a field pre-seeded with `value` and marked dirty.
@@ -29,7 +32,10 @@ impl<T> TrackedField<T> {
     pub fn mutated(value: T) -> Self {
         let lock = OnceLock::new();
         let _ = lock.set(value);
-        Self { value: lock, dirty: AtomicBool::new(true) }
+        Self {
+            value: lock,
+            dirty: AtomicBool::new(true),
+        }
     }
 
     /// Write-once initialization. Used by the load path and deserializer.
@@ -69,8 +75,9 @@ impl<T> Default for TrackedField<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::sync::Arc;
+
+    use super::*;
 
     #[test]
     fn new_field_is_uninitialized_and_clean() {

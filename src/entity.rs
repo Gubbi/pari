@@ -9,6 +9,7 @@
 
 use std::marker::PhantomData;
 
+pub use crate::validation::{error::SetterError, ValidationSchema};
 // ---------------------------------------------------------------------------
 // Re-exports from validation module (Task 06)
 // ---------------------------------------------------------------------------
@@ -16,8 +17,6 @@ use std::marker::PhantomData;
 // ValidationSchema, LoadError, SetterError re-exported so that proc-macro
 // generated code using `::pari::entity::ValidationSchema` etc. resolves here.
 pub use crate::workspace::error::LoadError;
-pub use crate::validation::error::SetterError;
-pub use crate::validation::ValidationSchema;
 
 // ---------------------------------------------------------------------------
 // Sealed
@@ -45,7 +44,9 @@ use crate::entities::{
 // ---------------------------------------------------------------------------
 
 /// Marker trait for parent type parameters on EntityRef.
-pub trait ParentKind: private::Sealed + Clone + PartialEq + Eq + std::hash::Hash + std::fmt::Debug {
+pub trait ParentKind:
+    private::Sealed + Clone + PartialEq + Eq + std::hash::Hash + std::fmt::Debug
+{
     fn serialize_parent<M: serde::ser::SerializeMap>(&self, map: &mut M) -> Result<(), M::Error>;
     fn deserialize_parent<E>(parent: Option<serde_json::Value>) -> Result<Self, E>
     where
@@ -188,7 +189,11 @@ impl<T: Entity> EntityRef<T, NoParent> {
 impl<T: Entity, P: ParentKind> EntityRef<T, P> {
     /// Construct an entity reference with an explicit parent value.
     pub fn with_parent(id: impl Into<String>, parent: P) -> Self {
-        Self { id: id.into(), parent, _marker: PhantomData }
+        Self {
+            id: id.into(),
+            parent,
+            _marker: PhantomData,
+        }
     }
 
     pub fn id(&self) -> &str {
@@ -218,7 +223,11 @@ impl<T: Entity, P: ParentKind + std::hash::Hash> std::hash::Hash for EntityRef<T
 
 impl<T: Entity, P: ParentKind + Clone> Clone for EntityRef<T, P> {
     fn clone(&self) -> Self {
-        Self { id: self.id.clone(), parent: self.parent.clone(), _marker: PhantomData }
+        Self {
+            id: self.id.clone(),
+            parent: self.parent.clone(),
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -249,8 +258,9 @@ impl<T: Entity, P: ParentKind> serde::Serialize for EntityRef<T, P> {
 
 impl<'de, T: Entity, P: ParentKind> serde::Deserialize<'de> for EntityRef<T, P> {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        use serde::de::{MapAccess, Visitor};
         use std::fmt;
+
+        use serde::de::{MapAccess, Visitor};
 
         struct V<T, P>(std::marker::PhantomData<(T, P)>);
 
@@ -261,10 +271,7 @@ impl<'de, T: Entity, P: ParentKind> serde::Deserialize<'de> for EntityRef<T, P> 
                 write!(f, "an entity ref object")
             }
 
-            fn visit_map<A: MapAccess<'de>>(
-                self,
-                mut map: A,
-            ) -> Result<EntityRef<T, P>, A::Error> {
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<EntityRef<T, P>, A::Error> {
                 let mut id: Option<String> = None;
                 let mut kind: Option<String> = None;
                 let mut parent: Option<serde_json::Value> = None;
@@ -273,7 +280,9 @@ impl<'de, T: Entity, P: ParentKind> serde::Deserialize<'de> for EntityRef<T, P> 
                         "id" => id = Some(map.next_value()?),
                         "kind" => kind = Some(map.next_value()?),
                         "parent" => parent = Some(map.next_value()?),
-                        _ => { let _: serde_json::Value = map.next_value()?; }
+                        _ => {
+                            let _: serde_json::Value = map.next_value()?;
+                        }
                     }
                 }
                 let id = id.ok_or_else(|| serde::de::Error::missing_field("id"))?;
@@ -304,15 +313,15 @@ impl WorkflowParent {
     }
 }
 
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::HashMap;
+
+    use super::*;
 
     // --- ParentKind ---
 
@@ -351,13 +360,18 @@ mod tests {
     impl Entity for TestEntity {
         const KIND: EntityKind = EntityKind::Role;
         fn validation_schema() -> &'static ValidationSchema<Self> {
-            static S: std::sync::OnceLock<ValidationSchema<TestEntity>> = std::sync::OnceLock::new();
+            static S: std::sync::OnceLock<ValidationSchema<TestEntity>> =
+                std::sync::OnceLock::new();
             S.get_or_init(ValidationSchema::empty)
         }
         type Parent = NoParent;
         type Tracked = TestTrackedEntity;
-        fn to_any_ref(_: &EntityRef<Self, Self::Parent>) -> AnyEntityRef { unimplemented!() }
-        fn extract(_: &TrackedEntity) -> Option<&Self::Tracked> { unimplemented!() }
+        fn to_any_ref(_: &EntityRef<Self, Self::Parent>) -> AnyEntityRef {
+            unimplemented!()
+        }
+        fn extract(_: &TrackedEntity) -> Option<&Self::Tracked> {
+            unimplemented!()
+        }
     }
     struct TestTrackedEntity;
     impl TrackedFor for TestTrackedEntity {
@@ -404,13 +418,18 @@ mod tests {
     impl Entity for EmbeddedTest {
         const KIND: EntityKind = EntityKind::Task;
         fn validation_schema() -> &'static ValidationSchema<Self> {
-            static S: std::sync::OnceLock<ValidationSchema<EmbeddedTest>> = std::sync::OnceLock::new();
+            static S: std::sync::OnceLock<ValidationSchema<EmbeddedTest>> =
+                std::sync::OnceLock::new();
             S.get_or_init(ValidationSchema::empty)
         }
         type Parent = WorkflowParent;
         type Tracked = EmbeddedTracked;
-        fn to_any_ref(_: &EntityRef<Self, Self::Parent>) -> AnyEntityRef { unimplemented!() }
-        fn extract(_: &TrackedEntity) -> Option<&Self::Tracked> { unimplemented!() }
+        fn to_any_ref(_: &EntityRef<Self, Self::Parent>) -> AnyEntityRef {
+            unimplemented!()
+        }
+        fn extract(_: &TrackedEntity) -> Option<&Self::Tracked> {
+            unimplemented!()
+        }
     }
     struct EmbeddedTracked;
     impl TrackedFor for EmbeddedTracked {
@@ -451,10 +470,13 @@ mod tests {
     fn entity_ref_serde_roundtrip_top_level() {
         let original: EntityRef<Workflow> = EntityRef::new("InitiativeWorkflow");
         let json = serde_json::to_value(&original).unwrap();
-        assert_eq!(json, serde_json::json!({
-            "id": "InitiativeWorkflow",
-            "kind": "Workflow",
-        }));
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "id": "InitiativeWorkflow",
+                "kind": "Workflow",
+            })
+        );
 
         let decoded: EntityRef<Workflow> = serde_json::from_value(json).unwrap();
         assert_eq!(decoded, original);
@@ -462,30 +484,35 @@ mod tests {
 
     #[test]
     fn entity_ref_serde_roundtrip_embedded_with_recursive_parent() {
-        let parent = WorkflowParent::EmbeddedWorkflow(Box::new(
-            EntityRef::<EmbeddedWorkflow, WorkflowParent>::with_parent(
-                "SubWorkflow",
-                WorkflowParent::Workflow(EntityRef::<Workflow>::new("InitiativeWorkflow")),
-            ),
-        ));
+        let parent = WorkflowParent::EmbeddedWorkflow(Box::new(EntityRef::<
+            EmbeddedWorkflow,
+            WorkflowParent,
+        >::with_parent(
+            "SubWorkflow",
+            WorkflowParent::Workflow(EntityRef::<Workflow>::new("InitiativeWorkflow")),
+        )));
         let original: EntityRef<EmbeddedTest, WorkflowParent> =
             EntityRef::with_parent("WriteProposal", parent);
 
         let json = serde_json::to_value(&original).unwrap();
-        assert_eq!(json, serde_json::json!({
-            "id": "WriteProposal",
-            "kind": "Task",
-            "parent": {
-                "id": "SubWorkflow",
-                "kind": "EmbeddedWorkflow",
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "id": "WriteProposal",
+                "kind": "Task",
                 "parent": {
-                    "id": "InitiativeWorkflow",
-                    "kind": "Workflow",
+                    "id": "SubWorkflow",
+                    "kind": "EmbeddedWorkflow",
+                    "parent": {
+                        "id": "InitiativeWorkflow",
+                        "kind": "Workflow",
+                    }
                 }
-            }
-        }));
+            })
+        );
 
-        let decoded: EntityRef<EmbeddedTest, WorkflowParent> = serde_json::from_value(json).unwrap();
+        let decoded: EntityRef<EmbeddedTest, WorkflowParent> =
+            serde_json::from_value(json).unwrap();
         assert_eq!(decoded, original);
     }
 
@@ -517,15 +544,15 @@ mod tests {
     fn workflow_parent_to_any_ref_preserves_parent_variant() {
         let workflow_parent =
             WorkflowParent::Workflow(EntityRef::<Workflow>::new("InitiativeWorkflow"));
-        let reusable_parent = WorkflowParent::ReusableWorkflow(
-            EntityRef::<ReusableWorkflow>::new("CommonFlow"),
-        );
-        let embedded_parent = WorkflowParent::EmbeddedWorkflow(Box::new(
-            EntityRef::<EmbeddedWorkflow, WorkflowParent>::with_parent(
-                "SubWorkflow",
-                WorkflowParent::Workflow(EntityRef::<Workflow>::new("InitiativeWorkflow")),
-            ),
-        ));
+        let reusable_parent =
+            WorkflowParent::ReusableWorkflow(EntityRef::<ReusableWorkflow>::new("CommonFlow"));
+        let embedded_parent = WorkflowParent::EmbeddedWorkflow(Box::new(EntityRef::<
+            EmbeddedWorkflow,
+            WorkflowParent,
+        >::with_parent(
+            "SubWorkflow",
+            WorkflowParent::Workflow(EntityRef::<Workflow>::new("InitiativeWorkflow")),
+        )));
 
         assert!(matches!(
             workflow_parent.to_any_ref(),
@@ -554,13 +581,21 @@ mod tests {
     #[test]
     fn entity_kind_all_variants_distinct() {
         let kinds = [
-            EntityKind::Role, EntityKind::Hook, EntityKind::Team,
-            EntityKind::Workflow, EntityKind::ReusableWorkflow, EntityKind::ArtifactKind,
-            EntityKind::Task, EntityKind::Relay, EntityKind::EmbeddedWorkflow,
+            EntityKind::Role,
+            EntityKind::Hook,
+            EntityKind::Team,
+            EntityKind::Workflow,
+            EntityKind::ReusableWorkflow,
+            EntityKind::ArtifactKind,
+            EntityKind::Task,
+            EntityKind::Relay,
+            EntityKind::EmbeddedWorkflow,
         ];
         for (i, a) in kinds.iter().enumerate() {
             for (j, b) in kinds.iter().enumerate() {
-                if i != j { assert_ne!(a, b); }
+                if i != j {
+                    assert_ne!(a, b);
+                }
             }
         }
     }
@@ -576,15 +611,27 @@ mod tests {
 
     #[test]
     fn load_strategy_returns_correct_kind_for_each_entity() {
-        assert_eq!(load_strategy(EntityKind::Role).kind(),             EntityKind::Role);
-        assert_eq!(load_strategy(EntityKind::Hook).kind(),             EntityKind::Hook);
-        assert_eq!(load_strategy(EntityKind::Team).kind(),             EntityKind::Team);
-        assert_eq!(load_strategy(EntityKind::Workflow).kind(),         EntityKind::Workflow);
-        assert_eq!(load_strategy(EntityKind::ReusableWorkflow).kind(), EntityKind::ReusableWorkflow);
-        assert_eq!(load_strategy(EntityKind::ArtifactKind).kind(),     EntityKind::ArtifactKind);
-        assert_eq!(load_strategy(EntityKind::Task).kind(),             EntityKind::Task);
-        assert_eq!(load_strategy(EntityKind::Relay).kind(),            EntityKind::Relay);
-        assert_eq!(load_strategy(EntityKind::EmbeddedWorkflow).kind(), EntityKind::EmbeddedWorkflow);
+        assert_eq!(load_strategy(EntityKind::Role).kind(), EntityKind::Role);
+        assert_eq!(load_strategy(EntityKind::Hook).kind(), EntityKind::Hook);
+        assert_eq!(load_strategy(EntityKind::Team).kind(), EntityKind::Team);
+        assert_eq!(
+            load_strategy(EntityKind::Workflow).kind(),
+            EntityKind::Workflow
+        );
+        assert_eq!(
+            load_strategy(EntityKind::ReusableWorkflow).kind(),
+            EntityKind::ReusableWorkflow
+        );
+        assert_eq!(
+            load_strategy(EntityKind::ArtifactKind).kind(),
+            EntityKind::ArtifactKind
+        );
+        assert_eq!(load_strategy(EntityKind::Task).kind(), EntityKind::Task);
+        assert_eq!(load_strategy(EntityKind::Relay).kind(), EntityKind::Relay);
+        assert_eq!(
+            load_strategy(EntityKind::EmbeddedWorkflow).kind(),
+            EntityKind::EmbeddedWorkflow
+        );
     }
 
     // --- AnyEntityRef (compile-time checks; runtime tests deferred to Task 05) ---
@@ -593,6 +640,6 @@ mod tests {
     fn any_entity_ref_kind_id_parent_methods_exist() {
         // Verify methods are present by taking function pointers
         let _: fn(&AnyEntityRef) -> EntityKind = AnyEntityRef::kind;
-        let _: fn(&AnyEntityRef) -> &str       = AnyEntityRef::id;
+        let _: fn(&AnyEntityRef) -> &str = AnyEntityRef::id;
     }
 }

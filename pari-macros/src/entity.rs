@@ -2,8 +2,10 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Ident, Type};
 
-use crate::validation_codegen::generate_validation_schema_access;
-use crate::workspace_codegen::generate_accessors_and_setters;
+use crate::{
+    validation_codegen::generate_validation_schema_access,
+    workspace_codegen::generate_accessors_and_setters,
+};
 
 pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
     let name = &ast.ident;
@@ -20,14 +22,13 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
             }
         },
         _ => {
-            return syn::Error::new_spanned(name, "Entity only supports structs")
-                .to_compile_error()
+            return syn::Error::new_spanned(name, "Entity only supports structs").to_compile_error()
         }
     };
 
-    let entity_ref_field = fields.iter().find(|f| {
-        f.ident.as_ref().map(|i| i == "entity_ref").unwrap_or(false)
-    });
+    let entity_ref_field = fields
+        .iter()
+        .find(|f| f.ident.as_ref().map(|i| i == "entity_ref").unwrap_or(false));
     let domain_fields: Vec<_> = fields
         .iter()
         .filter(|f| f.ident.as_ref().map(|i| i != "entity_ref").unwrap_or(true))

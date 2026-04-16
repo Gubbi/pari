@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
-use crate::substrate::pipeline::{Codec, CodecError, FieldMapping};
-use crate::substrate::repo::schema::{RepoSlot, SectionContent};
-use crate::substrate::serde::value_at_path;
+use crate::substrate::{
+    pipeline::{Codec, CodecError, FieldMapping},
+    repo::schema::{RepoSlot, SectionContent},
+    serde::value_at_path,
+};
 
 pub struct RepoCodec;
 
@@ -28,7 +30,9 @@ impl Codec for RepoCodec {
         let mut sections: Vec<(String, String)> = Vec::new();
 
         for field in schema {
-            let Some(value) = value_at_path(entity_json, field.key) else { continue };
+            let Some(value) = value_at_path(entity_json, field.key) else {
+                continue;
+            };
             match field.slot {
                 RepoSlot::H1 => {
                     title = value.as_str().map(str::to_string);
@@ -37,7 +41,9 @@ impl Codec for RepoCodec {
                     description = match value {
                         serde_json::Value::Null => None,
                         serde_json::Value::String(s) => Some(s.clone()),
-                        _ => return Err(CodecError::new(field.key, "description must be a string")),
+                        _ => {
+                            return Err(CodecError::new(field.key, "description must be a string"))
+                        }
                     };
                 }
                 RepoSlot::FrontmatterKey(key) => {
@@ -73,14 +79,19 @@ impl Codec for RepoCodec {
                         .map(|item| {
                             item.as_str()
                                 .map(|text| format!("- {text}"))
-                                .ok_or_else(|| CodecError::new(field.key, "section bullet must be string"))
+                                .ok_or_else(|| {
+                                    CodecError::new(field.key, "section bullet must be string")
+                                })
                         })
                         .collect::<Result<Vec<_>, _>>()?
                         .join("\n");
                     sections.push((heading.to_string(), body));
                 }
                 RepoSlot::FileContent => {
-                    return Err(CodecError::new(field.key, "FileContent must be a single-field asset"));
+                    return Err(CodecError::new(
+                        field.key,
+                        "FileContent must be a single-field asset",
+                    ));
                 }
             }
         }
@@ -126,8 +137,8 @@ impl Codec for RepoCodec {
             )]));
         }
 
-        let (frontmatter, body) = split_frontmatter(raw)
-            .map_err(|e| CodecError::new("frontmatter", e))?;
+        let (frontmatter, body) =
+            split_frontmatter(raw).map_err(|e| CodecError::new("frontmatter", e))?;
         let title = find_h1(body);
         let description = find_description(body);
         let sections = parse_sections(body);
@@ -173,7 +184,9 @@ impl Codec for RepoCodec {
                         .get(heading)
                         .map(|body| {
                             body.lines()
-                                .filter_map(|line| line.strip_prefix("- ").map(|item| item.to_string()))
+                                .filter_map(|line| {
+                                    line.strip_prefix("- ").map(|item| item.to_string())
+                                })
                                 .map(serde_json::Value::String)
                                 .collect::<Vec<_>>()
                         })
@@ -189,9 +202,7 @@ impl Codec for RepoCodec {
     }
 }
 
-fn split_frontmatter(
-    raw: &str,
-) -> Result<(HashMap<String, serde_json::Value>, &str), String> {
+fn split_frontmatter(raw: &str) -> Result<(HashMap<String, serde_json::Value>, &str), String> {
     if !raw.starts_with("---\n") {
         return Ok((HashMap::new(), raw));
     }
@@ -211,8 +222,10 @@ fn split_frontmatter(
 }
 
 fn find_h1(body: &str) -> Option<String> {
-    body.lines()
-        .find_map(|line| line.strip_prefix("# ").map(|title| title.trim().to_string()))
+    body.lines().find_map(|line| {
+        line.strip_prefix("# ")
+            .map(|title| title.trim().to_string())
+    })
 }
 
 fn find_description(body: &str) -> Option<String> {

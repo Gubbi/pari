@@ -13,9 +13,7 @@ pub use asset_mapper::AssetMapper;
 pub use codec::{Codec, CodecError};
 pub use executor::{Executor, ExecutorError};
 pub use resolver::LocationResolver;
-pub use schema::{
-    AssetDef, EntitySchema, FieldMapping, LoadStrategy, RefAssetDef, SchemaAsset,
-};
+pub use schema::{AssetDef, EntitySchema, FieldMapping, LoadStrategy, RefAssetDef, SchemaAsset};
 pub use slot::{Slot, ValueSlot};
 
 pub trait SubstrateSchema<Sub: super::Substrate>: crate::entity::Entity {

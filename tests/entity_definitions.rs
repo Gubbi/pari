@@ -1,19 +1,22 @@
-use pari::entity::{Entity, EntityKind, EntityRef, NoParent, WorkflowParent};
-use pari::entities::{
-    role::Role,
-    hook::{Hook, HookInput},
-    team::{Team, TeamMember},
-    artifact_kind::ArtifactKind,
-    workflow::{EmbeddedWorkflow, ReusableWorkflow, Step, Workflow},
-    task::Task,
-    relay::{Relay, StateMapEntry, StateMapSemantic},
-};
-use pari::types::{
-    Artifact, Extensions, HookCall, Raci, TaskSemantic, TaskStateEntry, TaskTrigger,
-    WorkflowSemantic, WorkflowStateEntry, WorkflowTrigger,
-};
-use indexmap::IndexMap;
 use std::collections::HashMap;
+
+use indexmap::IndexMap;
+use pari::{
+    entities::{
+        artifact_kind::ArtifactKind,
+        hook::{Hook, HookInput},
+        relay::{Relay, StateMapEntry, StateMapSemantic},
+        role::Role,
+        task::Task,
+        team::{Team, TeamMember},
+        workflow::{EmbeddedWorkflow, ReusableWorkflow, Step, Workflow},
+    },
+    entity::{Entity, EntityKind, EntityRef, NoParent, WorkflowParent},
+    types::{
+        Artifact, Extensions, HookCall, Raci, TaskSemantic, TaskStateEntry, TaskTrigger,
+        WorkflowSemantic, WorkflowStateEntry, WorkflowTrigger,
+    },
+};
 
 // --- Helper builders ---
 
@@ -74,7 +77,10 @@ fn workflow_kind_is_workflow() {
 
 #[test]
 fn reusable_workflow_kind_is_reusable_workflow() {
-    assert_eq!(<ReusableWorkflow as Entity>::KIND, EntityKind::ReusableWorkflow);
+    assert_eq!(
+        <ReusableWorkflow as Entity>::KIND,
+        EntityKind::ReusableWorkflow
+    );
 }
 
 #[test]
@@ -94,7 +100,10 @@ fn relay_kind_is_relay() {
 
 #[test]
 fn embedded_workflow_kind_is_embedded_workflow() {
-    assert_eq!(<EmbeddedWorkflow as Entity>::KIND, EntityKind::EmbeddedWorkflow);
+    assert_eq!(
+        <EmbeddedWorkflow as Entity>::KIND,
+        EntityKind::EmbeddedWorkflow
+    );
 }
 
 // --- Parent types ---
@@ -174,7 +183,10 @@ fn tracked_task_from_plain_task() {
         instructions: vec!["Write a clear proposal".to_string()],
         criteria: vec!["Proposal is approved".to_string()],
         raci: None,
-        artifact: Artifact { kind: EntityRef::new("doc"), template: None },
+        artifact: Artifact {
+            kind: EntityRef::new("doc"),
+            template: None,
+        },
         states: vec![task_done_state()],
         intercepts: None,
         guidance: None,
@@ -265,5 +277,8 @@ fn step_enum_variants_compile() {
         entity_ref: EntityRef::with_parent("T1", workflow_parent("WF1")),
         depends_on: None,
     };
-    let _review_step = Step::Review { approver: vec![role_ref("pm")], on_reject: "T1".to_string() };
+    let _review_step = Step::Review {
+        approver: vec![role_ref("pm")],
+        on_reject: "T1".to_string(),
+    };
 }

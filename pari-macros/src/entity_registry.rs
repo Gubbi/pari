@@ -2,10 +2,11 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{Ident, Token};
 
-use crate::entity_codegen::generate_entity_registry_parts;
-use crate::store_codegen::generate_store_registry_parts;
-use crate::substrate_codegen::generate_substrate_registry_parts;
-use crate::validation_codegen::generate_registry_validation_dispatch;
+use crate::{
+    entity_codegen::generate_entity_registry_parts, store_codegen::generate_store_registry_parts,
+    substrate_codegen::generate_substrate_registry_parts,
+    validation_codegen::generate_registry_validation_dispatch,
+};
 
 pub struct RegistryEntry {
     pub name: Ident,
@@ -166,8 +167,7 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         is_field_loaded_arms,
     } = store_parts;
 
-    let run_validations_arms: Vec<TokenStream2> =
-        generate_registry_validation_dispatch(&entries);
+    let run_validations_arms: Vec<TokenStream2> = generate_registry_validation_dispatch(&entries);
 
     let tracked_entity = quote! {
         #[derive(Clone)]

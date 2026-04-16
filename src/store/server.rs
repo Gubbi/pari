@@ -1,13 +1,15 @@
-use std::cell::RefCell;
-use std::future::Future;
-use std::sync::OnceLock;
+use std::{cell::RefCell, future::Future, sync::OnceLock};
 
 use tokio::sync::mpsc;
 
-use crate::store::message::{StoreMessage, StoreRequest, StoreResponse};
-use crate::store::state::Store;
-use crate::store_error::StoreError;
-use crate::substrate::schema_registry::SchemaBackedSubstrate;
+use crate::{
+    store::{
+        message::{StoreMessage, StoreRequest, StoreResponse},
+        state::Store,
+    },
+    store_error::StoreError,
+    substrate::schema_registry::SchemaBackedSubstrate,
+};
 
 static GLOBAL_SENDER: OnceLock<mpsc::Sender<StoreMessage>> = OnceLock::new();
 
@@ -37,13 +39,20 @@ impl EntityServer {
         let (tx, rx) = mpsc::channel(32);
         let store = Store::new(substrate);
         tokio::spawn(async move { store.run(rx).await });
-        GLOBAL_SENDER.set(tx).expect("EntityServer already initialized");
+        GLOBAL_SENDER
+            .set(tx)
+            .expect("EntityServer already initialized");
     }
 
     fn sender() -> mpsc::Sender<StoreMessage> {
         OVERRIDE_SENDER
             .with(|o| o.borrow().clone())
-            .unwrap_or_else(|| GLOBAL_SENDER.get().expect("EntityServer not initialized").clone())
+            .unwrap_or_else(|| {
+                GLOBAL_SENDER
+                    .get()
+                    .expect("EntityServer not initialized")
+                    .clone()
+            })
     }
 
     pub(crate) async fn request(request: StoreRequest) -> Result<StoreResponse, StoreError> {
@@ -63,7 +72,8 @@ impl EntityServer {
     {
         let (tx, rx) = mpsc::channel(32);
         tokio::spawn(Store::new(substrate).run(rx));
-        let previous = OVERRIDE_SENDER.with(|override_sender| override_sender.borrow_mut().replace(tx));
+        let previous =
+            OVERRIDE_SENDER.with(|override_sender| override_sender.borrow_mut().replace(tx));
         let _guard = OverrideGuard { previous };
         f().await;
     }

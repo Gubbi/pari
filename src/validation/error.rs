@@ -1,6 +1,7 @@
 //! Validation data types and `SetterError`.
 
 use pari_macros::{ErrorCompose, OTelEmit};
+
 use crate::substrate::error::SubstrateError;
 
 // ---------------------------------------------------------------------------
@@ -13,25 +14,37 @@ pub struct ValidationErrors {
 }
 
 impl ValidationErrors {
-    pub fn new() -> Self { Self { errors: vec![] } }
-    pub fn is_empty(&self) -> bool { self.errors.is_empty() }
-    pub fn extend(&mut self, other: ValidationErrors) { self.errors.extend(other.errors); }
+    pub fn new() -> Self {
+        Self { errors: vec![] }
+    }
+    pub fn is_empty(&self) -> bool {
+        self.errors.is_empty()
+    }
+    pub fn extend(&mut self, other: ValidationErrors) {
+        self.errors.extend(other.errors);
+    }
 }
 
 impl Default for ValidationErrors {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct FieldValidationError {
     /// Dot-notation path: `"id"`, `"steps.WriteProposal.depends_on"`
-    pub path:    String,
+    pub path: String,
     pub message: String,
-    pub kind:    ValidationKind,
+    pub kind: ValidationKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ValidationKind { Structural, Semantic, CrossEntity }
+pub enum ValidationKind {
+    Structural,
+    Semantic,
+    CrossEntity,
+}
 
 // ---------------------------------------------------------------------------
 // SetterError

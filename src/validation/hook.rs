@@ -1,8 +1,8 @@
 //! Structural validation schema for [`Hook`].
 
 use super::{
-    AnyStructuralRule, RuleViolation, ValidationSchema,
-    kebab_case_id, non_empty_str, non_empty_list, unique_by, x_prefix_keys,
+    kebab_case_id, non_empty_list, non_empty_str, unique_by, x_prefix_keys, AnyStructuralRule,
+    RuleViolation, ValidationSchema,
 };
 use crate::entities::hook::{Hook, HookInput, TrackedHook};
 
@@ -59,7 +59,10 @@ pub fn hook_validation_schema() -> ValidationSchema<Hook> {
     structural.insert(
         "description",
         vec![Box::new(|e: &TrackedHook| {
-            e.description.get().map(|v| opt_non_empty_str(v)).unwrap_or_default()
+            e.description
+                .get()
+                .map(|v| opt_non_empty_str(v))
+                .unwrap_or_default()
         })],
     );
 
@@ -86,14 +89,20 @@ pub fn hook_validation_schema() -> ValidationSchema<Hook> {
     structural.insert(
         "inputs",
         vec![Box::new(|e: &TrackedHook| {
-            e.inputs.get().map(|v| hook_inputs_structural(v)).unwrap_or_default()
+            e.inputs
+                .get()
+                .map(|v| hook_inputs_structural(v))
+                .unwrap_or_default()
         })],
     );
 
     structural.insert(
         "extensions",
         vec![Box::new(|e: &TrackedHook| {
-            e.extensions.get().map(|v| x_prefix_keys(v)).unwrap_or_default()
+            e.extensions
+                .get()
+                .map(|v| x_prefix_keys(v))
+                .unwrap_or_default()
         })],
     );
 

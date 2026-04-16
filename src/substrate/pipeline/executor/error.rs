@@ -10,18 +10,18 @@ pub struct ExecutorError {
     #[otel(field = "fs.path")]
     pub location: String,
     #[otel(field = "error.message")]
-    pub message:  String,
+    pub message: String,
     pub span_trace: tracing_error::SpanTrace,
-    pub backtrace:  std::backtrace::Backtrace,
+    pub backtrace: std::backtrace::Backtrace,
 }
 
 impl ExecutorError {
     pub fn new(location: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
-            location:   location.into(),
-            message:    message.into(),
+            location: location.into(),
+            message: message.into(),
             span_trace: tracing_error::SpanTrace::capture(),
-            backtrace:  std::backtrace::Backtrace::capture(),
+            backtrace: std::backtrace::Backtrace::capture(),
         }
     }
 }

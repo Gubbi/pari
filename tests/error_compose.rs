@@ -1,4 +1,4 @@
-use pari::error::{FixDomain, Recoverability, Severity, ErrorCompose, OTelEmit, BatchError};
+use pari::error::{BatchError, ErrorCompose, FixDomain, OTelEmit, Recoverability, Severity};
 use pari_macros::{ErrorCompose, OTelEmit};
 use thiserror::Error;
 
@@ -48,19 +48,28 @@ struct TestDataError {
 
 #[test]
 fn activity_fix_domain() {
-    let e = TestDataError { message: "bad".into(), hint: None };
+    let e = TestDataError {
+        message: "bad".into(),
+        hint: None,
+    };
     assert_eq!(e.fix_domain(), FixDomain::Data);
 }
 
 #[test]
 fn activity_recoverability() {
-    let e = TestDataError { message: "bad".into(), hint: None };
+    let e = TestDataError {
+        message: "bad".into(),
+        hint: None,
+    };
     assert_eq!(e.recoverability(), Recoverability::OperatorAction);
 }
 
 #[test]
 fn activity_severity_derived() {
-    let e = TestDataError { message: "bad".into(), hint: None };
+    let e = TestDataError {
+        message: "bad".into(),
+        hint: None,
+    };
     assert_eq!(e.severity(), Severity::Error);
 }
 
@@ -84,7 +93,10 @@ pub enum TestOpError {
 
 #[test]
 fn delegating_propagates_data_fix_domain() {
-    let e = TestOpError::Data(TestDataError { message: "x".into(), hint: None });
+    let e = TestOpError::Data(TestDataError {
+        message: "x".into(),
+        hint: None,
+    });
     assert_eq!(e.fix_domain(), FixDomain::Data);
 }
 
@@ -98,8 +110,10 @@ fn delegating_propagates_client_recoverability() {
 
 #[test]
 fn as_error_finds_inner_type() {
-    let op: &dyn ErrorCompose =
-        &TestOpError::Data(TestDataError { message: "oops".into(), hint: Some("fix it".into()) });
+    let op: &dyn ErrorCompose = &TestOpError::Data(TestDataError {
+        message: "oops".into(),
+        hint: Some("fix it".into()),
+    });
     let inner = op.as_error::<TestDataError>();
     assert!(inner.is_some());
     assert_eq!(inner.unwrap().hint.as_deref(), Some("fix it"));
@@ -117,7 +131,10 @@ fn as_error_returns_none_for_wrong_type() {
 fn batch_fix_domain_worst_case() {
     let batch = BatchError::new(vec![
         TestOpError::Client(TestClientError),
-        TestOpError::Data(TestDataError { message: "x".into(), hint: None }),
+        TestOpError::Data(TestDataError {
+            message: "x".into(),
+            hint: None,
+        }),
     ]);
     // Data > Client
     assert_eq!(batch.fix_domain(), FixDomain::Data);
@@ -126,8 +143,11 @@ fn batch_fix_domain_worst_case() {
 #[test]
 fn batch_recoverability_worst_case() {
     let batch = BatchError::new(vec![
-        TestOpError::Client(TestClientError),       // UserAction
-        TestOpError::Data(TestDataError { message: "x".into(), hint: None }), // OperatorAction
+        TestOpError::Client(TestClientError), // UserAction
+        TestOpError::Data(TestDataError {
+            message: "x".into(),
+            hint: None,
+        }), // OperatorAction
     ]);
     // OperatorAction > UserAction
     assert_eq!(batch.recoverability(), Recoverability::OperatorAction);
@@ -153,6 +173,8 @@ struct TestEmitError {
 
 #[test]
 fn otel_emit_compiles_and_is_callable() {
-    let e = TestEmitError { detail: "hello".into() };
-    e.emit();  // must compile; event is a no-op if no tracing subscriber
+    let e = TestEmitError {
+        detail: "hello".into(),
+    };
+    e.emit(); // must compile; event is a no-op if no tracing subscriber
 }

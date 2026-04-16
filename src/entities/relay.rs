@@ -1,7 +1,10 @@
 use std::collections::HashMap;
-use crate::entity::{EntityKind, EntityRef, WorkflowParent};
-use crate::types::{Extensions, HookCall, Raci, TaskTrigger};
-use crate::entities::workflow::ReusableWorkflow;
+
+use crate::{
+    entities::workflow::ReusableWorkflow,
+    entity::{EntityKind, EntityRef, WorkflowParent},
+    types::{Extensions, HookCall, Raci, TaskTrigger},
+};
 
 #[derive(pari_macros::Entity)]
 #[entity(kind = EntityKind::Relay, parent = WorkflowParent, schema = crate::validation::relay::relay_validation_schema)]

@@ -1,5 +1,7 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 #[derive(Clone, Default)]
 pub struct InMemoryStorage {

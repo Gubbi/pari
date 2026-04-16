@@ -1,5 +1,7 @@
-use std::collections::{HashMap, HashSet};
-use std::sync::{LazyLock, Mutex};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{LazyLock, Mutex},
+};
 
 use crate::substrate::pipeline::{AssetKind, CodecError, Slot};
 
@@ -93,7 +95,10 @@ impl<S: Slot> EntitySchema<S> {
         }
     }
 
-    pub fn assets_for_read<'a>(&'a self, fields: &[&str]) -> Result<Vec<SchemaAsset<'a, S>>, CodecError> {
+    pub fn assets_for_read<'a>(
+        &'a self,
+        fields: &[&str],
+    ) -> Result<Vec<SchemaAsset<'a, S>>, CodecError> {
         if fields.is_empty() {
             Ok(self.all_assets().collect())
         } else {
@@ -106,7 +111,10 @@ impl<S: Slot> EntitySchema<S> {
             .chain(self.assets.iter().map(SchemaAsset::Asset))
     }
 
-    fn assets_for_fields<'a>(&'a self, fields: &[&str]) -> Result<Vec<SchemaAsset<'a, S>>, CodecError> {
+    fn assets_for_fields<'a>(
+        &'a self,
+        fields: &[&str],
+    ) -> Result<Vec<SchemaAsset<'a, S>>, CodecError> {
         let mut resolved = Vec::new();
         let mut seen = HashSet::new();
         for field in fields {
@@ -120,7 +128,10 @@ impl<S: Slot> EntitySchema<S> {
         Ok(resolved)
     }
 
-    fn asset_parts<'a>(&'a self, selector: AssetSelector) -> (SchemaAsset<'a, S>, &'static [&'static str]) {
+    fn asset_parts<'a>(
+        &'a self,
+        selector: AssetSelector,
+    ) -> (SchemaAsset<'a, S>, &'static [&'static str]) {
         match selector {
             AssetSelector::RefAsset => (SchemaAsset::RefAsset(&self.ref_asset), &[]),
             AssetSelector::Asset(index) => {
@@ -141,12 +152,20 @@ impl<S: Slot> EntitySchema<S> {
             let mut index: HashMap<&'static str, AssetSelector> = HashMap::new();
             for mapping in self.ref_asset.fields {
                 let previous = index.insert(mapping.key, AssetSelector::RefAsset);
-                assert!(previous.is_none(), "field '{}' mapped more than once in schema", mapping.key);
+                assert!(
+                    previous.is_none(),
+                    "field '{}' mapped more than once in schema",
+                    mapping.key
+                );
             }
             for (asset_index, asset) in self.assets.iter().enumerate() {
                 for mapping in asset.fields {
                     let previous = index.insert(mapping.key, AssetSelector::Asset(asset_index));
-                    assert!(previous.is_none(), "field '{}' mapped more than once in schema", mapping.key);
+                    assert!(
+                        previous.is_none(),
+                        "field '{}' mapped more than once in schema",
+                        mapping.key
+                    );
                 }
             }
             index

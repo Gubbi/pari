@@ -2,10 +2,10 @@
 
 use pari_macros::{ErrorCompose, OTelEmit};
 
-use crate::error::BatchError;
-use crate::store_error::StoreError;
-use crate::substrate::error::SubstrateError;
-use crate::validation::error::ValidationErrors;
+use crate::{
+    error::BatchError, store_error::StoreError, substrate::error::SubstrateError,
+    validation::error::ValidationErrors,
+};
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
 pub enum CheckoutError {

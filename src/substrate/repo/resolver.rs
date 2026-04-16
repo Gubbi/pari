@@ -1,9 +1,12 @@
 use std::path::{Path, PathBuf};
 
-use crate::entity::EntityKind;
-use crate::substrate::pipeline::LocationResolver;
-use crate::substrate::repo::substrate::RepoSubstrate;
-use crate::substrate::schema_registry::SchemaBackedSubstrate;
+use crate::{
+    entity::EntityKind,
+    substrate::{
+        pipeline::LocationResolver, repo::substrate::RepoSubstrate,
+        schema_registry::SchemaBackedSubstrate,
+    },
+};
 
 pub struct RepoLocationResolver {
     root: PathBuf,
@@ -40,10 +43,7 @@ impl LocationResolver for RepoLocationResolver {
 }
 
 fn parent_base(parent: &serde_json::Value) -> String {
-    let Some(kind) = parent["kind"]
-        .as_str()
-        .and_then(EntityKind::from_str)
-    else {
+    let Some(kind) = parent["kind"].as_str().and_then(EntityKind::from_str) else {
         return String::new();
     };
 

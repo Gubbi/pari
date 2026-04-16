@@ -1,8 +1,8 @@
 //! Structural and cross-entity validation schema for [`Task`].
 
 use super::{
-    AnyStructuralRule, AnyCrossEntityRule, RuleViolation, ValidationSchema,
-    camel_case_id, non_empty_str, non_empty_list, states_valid_task, x_prefix_keys,
+    camel_case_id, non_empty_list, non_empty_str, states_valid_task, x_prefix_keys,
+    AnyCrossEntityRule, AnyStructuralRule, RuleViolation, ValidationSchema,
 };
 use crate::entities::task::{Task, TrackedTask};
 
@@ -32,42 +32,60 @@ pub fn task_validation_schema() -> ValidationSchema<Task> {
     structural.insert(
         "description",
         vec![Box::new(|e: &TrackedTask| {
-            e.description.get().map(|v| opt_non_empty_str(v)).unwrap_or_default()
+            e.description
+                .get()
+                .map(|v| opt_non_empty_str(v))
+                .unwrap_or_default()
         })],
     );
 
     structural.insert(
         "purpose",
         vec![Box::new(|e: &TrackedTask| {
-            e.purpose.get().map(|v| non_empty_str(v)).unwrap_or_default()
+            e.purpose
+                .get()
+                .map(|v| non_empty_str(v))
+                .unwrap_or_default()
         })],
     );
 
     structural.insert(
         "instructions",
         vec![Box::new(|e: &TrackedTask| {
-            e.instructions.get().map(|v| non_empty_list(v.as_slice())).unwrap_or_default()
+            e.instructions
+                .get()
+                .map(|v| non_empty_list(v.as_slice()))
+                .unwrap_or_default()
         })],
     );
 
     structural.insert(
         "criteria",
         vec![Box::new(|e: &TrackedTask| {
-            e.criteria.get().map(|v| non_empty_list(v.as_slice())).unwrap_or_default()
+            e.criteria
+                .get()
+                .map(|v| non_empty_list(v.as_slice()))
+                .unwrap_or_default()
         })],
     );
 
     structural.insert(
         "states",
         vec![Box::new(|e: &TrackedTask| {
-            e.states.get().map(|v| states_valid_task(v.as_slice())).unwrap_or_default()
+            e.states
+                .get()
+                .map(|v| states_valid_task(v.as_slice()))
+                .unwrap_or_default()
         })],
     );
 
     structural.insert(
         "extensions",
         vec![Box::new(|e: &TrackedTask| {
-            e.extensions.get().map(|v| x_prefix_keys(v)).unwrap_or_default()
+            e.extensions
+                .get()
+                .map(|v| x_prefix_keys(v))
+                .unwrap_or_default()
         })],
     );
 

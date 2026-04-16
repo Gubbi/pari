@@ -1,8 +1,8 @@
 //! Structural and cross-entity validation schema for [`Team`].
 
 use super::{
-    AnyStructuralRule, AnyCrossEntityRule, RuleViolation, ValidationSchema,
-    kebab_case_id, non_empty_str, unique_by, x_prefix_keys,
+    kebab_case_id, non_empty_str, unique_by, x_prefix_keys, AnyCrossEntityRule, AnyStructuralRule,
+    RuleViolation, ValidationSchema,
 };
 use crate::entities::team::{Team, TeamMember, TrackedTeam};
 
@@ -39,21 +39,30 @@ pub fn team_validation_schema() -> ValidationSchema<Team> {
     structural.insert(
         "description",
         vec![Box::new(|e: &TrackedTeam| {
-            e.description.get().map(|v| opt_non_empty_str(v)).unwrap_or_default()
+            e.description
+                .get()
+                .map(|v| opt_non_empty_str(v))
+                .unwrap_or_default()
         })],
     );
 
     structural.insert(
         "members",
         vec![Box::new(|e: &TrackedTeam| {
-            e.members.get().map(|v| unique_member_handles(v)).unwrap_or_default()
+            e.members
+                .get()
+                .map(|v| unique_member_handles(v))
+                .unwrap_or_default()
         })],
     );
 
     structural.insert(
         "extensions",
         vec![Box::new(|e: &TrackedTeam| {
-            e.extensions.get().map(|v| x_prefix_keys(v)).unwrap_or_default()
+            e.extensions
+                .get()
+                .map(|v| x_prefix_keys(v))
+                .unwrap_or_default()
         })],
     );
 
@@ -63,9 +72,7 @@ pub fn team_validation_schema() -> ValidationSchema<Team> {
     // Stubs: member_roles_exist, include_teams_exist, no_include_cycle, no_import_cycle
     cross_entity.insert(
         "members",
-        vec![Box::new(|_e: &TrackedTeam| {
-            Box::pin(async { vec![] })
-        })],
+        vec![Box::new(|_e: &TrackedTeam| Box::pin(async { vec![] }))],
     );
 
     cross_entity.insert(

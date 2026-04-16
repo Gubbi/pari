@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+
 use crate::entity::EntityRef;
 
 /// Open-ended metadata. Only `x-` prefixed keys are permitted (enforced by validation).

@@ -117,6 +117,7 @@ cargo xtask              # regenerate schemas/ from Rust types
 
 - Queue pending topics and open questions as they surface; work through them one by one.
 - Keep the active queue in a repo-root `TODO.md` so it survives the session and does not become ephemeral.
+- Run `rustfmt` as part of finishing each code change before committing. Prefer formatting the touched files immediately after editing; if full-workspace formatting is blocked, still run `rustfmt` on the files changed for the current task so formatting does not spill into a later unrelated commit.
 - Commit at the end of each task so diffs stay reviewable on a per-task basis.
 - Treat "file changed" and "change accepted" as separate states; modified files still require review and explicit acceptance.
 - Follow DRY for design docs and context files: make one place authoritative for a concept, then link to it instead of repeating the same explanation in many places.

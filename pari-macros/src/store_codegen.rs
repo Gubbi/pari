@@ -1,5 +1,6 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
+
 use crate::entity_registry::RegistryEntry;
 
 pub struct StoreRegistryParts {

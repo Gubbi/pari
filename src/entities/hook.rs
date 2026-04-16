@@ -1,5 +1,7 @@
-use crate::entity::{EntityKind, EntityRef};
-use crate::types::Extensions;
+use crate::{
+    entity::{EntityKind, EntityRef},
+    types::Extensions,
+};
 
 #[derive(pari_macros::Entity)]
 #[entity(kind = EntityKind::Hook, schema = crate::validation::hook::hook_validation_schema)]

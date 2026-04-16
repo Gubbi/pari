@@ -1,10 +1,12 @@
 use std::collections::HashMap;
+
 use indexmap::IndexMap;
-use crate::entity::{EntityKind, EntityRef, WorkflowParent};
-use crate::types::{Extensions, HookCall, Raci, WorkflowStateEntry, WorkflowTrigger};
-use crate::entities::role::Role;
-use crate::entities::task::Task;
-use crate::entities::relay::Relay;
+
+use crate::{
+    entities::{relay::Relay, role::Role, task::Task},
+    entity::{EntityKind, EntityRef, WorkflowParent},
+    types::{Extensions, HookCall, Raci, WorkflowStateEntry, WorkflowTrigger},
+};
 
 /// A step inside a workflow. Not an entity — no EntityRef, no derive(Entity).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

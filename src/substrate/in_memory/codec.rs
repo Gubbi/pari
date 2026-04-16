@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
-use crate::substrate::pipeline::{Codec, CodecError, FieldMapping, ValueSlot};
-use crate::substrate::serde::value_at_path;
+use crate::substrate::{
+    pipeline::{Codec, CodecError, FieldMapping, ValueSlot},
+    serde::value_at_path,
+};
 
 pub struct InMemoryCodec;
 

@@ -1,7 +1,11 @@
-use crate::entity::{AnyEntityRef, EntityKind, TrackedEntity};
-use crate::store::EntityChange;
-use crate::substrate::pipeline::{self, ExecutorError};
-use crate::substrate::{Substrate, SubstrateError};
+use crate::{
+    entity::{AnyEntityRef, EntityKind, TrackedEntity},
+    store::EntityChange,
+    substrate::{
+        pipeline::{self, ExecutorError},
+        Substrate, SubstrateError,
+    },
+};
 
 pub struct VoidSubstrate;
 
@@ -95,7 +99,11 @@ impl Substrate for VoidSubstrate {
         Ok(vec![false; refs.len()])
     }
 
-    async fn load(&self, entity: &TrackedEntity, _: &[&str]) -> Result<TrackedEntity, SubstrateError> {
+    async fn load(
+        &self,
+        entity: &TrackedEntity,
+        _: &[&str],
+    ) -> Result<TrackedEntity, SubstrateError> {
         Err(SubstrateError::Executor(ExecutorError::new(
             entity.any_ref().id().to_string(),
             "VoidSubstrate: no load",

@@ -1,9 +1,11 @@
-use crate::substrate::in_memory::codec::InMemoryCodec;
-use crate::substrate::in_memory::executor::InMemoryExecutor;
-use crate::substrate::in_memory::resolver::InMemoryResolver;
-use crate::substrate::in_memory::storage::InMemoryStorage;
-use crate::substrate::Substrate;
-use crate::substrate::pipeline::ValueSlot;
+use crate::substrate::{
+    in_memory::{
+        codec::InMemoryCodec, executor::InMemoryExecutor, resolver::InMemoryResolver,
+        storage::InMemoryStorage,
+    },
+    pipeline::ValueSlot,
+    Substrate,
+};
 
 pub struct InMemorySubstrate {
     resolver: InMemoryResolver,

@@ -1,6 +1,6 @@
 //! `#[derive(ErrorCompose)]` proc macro implementation.
 
-use darling::{ast, FromDeriveInput, FromVariant, FromField};
+use darling::{ast, FromDeriveInput, FromField, FromVariant};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::DeriveInput;
@@ -99,7 +99,8 @@ pub fn derive_error_compose(input: DeriveInput) -> TokenStream {
                         return syn::Error::new_spanned(
                             vname,
                             "#[compose(delegate)] variant must have exactly one field",
-                        ).to_compile_error();
+                        )
+                        .to_compile_error();
                     }
                     fix_arms.push(quote! {
                         Self::#vname(inner) => ::pari::error::ErrorCompose::fix_domain(inner),
@@ -129,7 +130,8 @@ pub fn derive_error_compose(input: DeriveInput) -> TokenStream {
                         vname,
                         "enum variant must have either #[compose(delegate)] \
                          or #[compose(fix = ..., recoverability = ...)]",
-                    ).to_compile_error();
+                    )
+                    .to_compile_error();
                 }
             }
 
@@ -166,8 +168,8 @@ fn variant_wildcard_pattern(
     fields: &ast::Fields<ErrorComposeField>,
 ) -> TokenStream {
     match fields.style {
-        ast::Style::Unit   => quote! { Self::#vname },
-        ast::Style::Tuple  => quote! { Self::#vname(..) },
+        ast::Style::Unit => quote! { Self::#vname },
+        ast::Style::Tuple => quote! { Self::#vname(..) },
         ast::Style::Struct => quote! { Self::#vname { .. } },
     }
 }

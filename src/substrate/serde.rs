@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
-use crate::entity::{AnyEntityRef, TrackedEntity};
-use crate::substrate::{pipeline, SubstrateError};
+use crate::{
+    entity::{AnyEntityRef, TrackedEntity},
+    substrate::{pipeline, SubstrateError},
+};
 
 pub(crate) fn any_ref_to_stub_json(any_ref: &AnyEntityRef) -> serde_json::Value {
     serde_json::json!({

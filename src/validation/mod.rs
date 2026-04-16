@@ -4,23 +4,21 @@
 //! [`run_validations`] — async runner that dispatches rules and accumulates errors.
 //! Shared structural primitive rule functions.
 
-use std::collections::HashMap;
-use std::hash::Hash;
+use std::{collections::HashMap, hash::Hash};
+
 use crate::entity::{Entity, TrackedEntity};
 
+pub mod artifact_kind;
 pub mod cross_entity;
 pub mod error;
-pub mod role;
 pub mod hook;
-pub mod team;
-pub mod artifact_kind;
-pub mod task;
 pub mod relay;
+pub mod role;
+pub mod task;
+pub mod team;
 pub mod workflow;
 
-pub use error::{
-    FieldValidationError, SetterError, ValidationErrors, ValidationKind,
-};
+pub use error::{FieldValidationError, SetterError, ValidationErrors, ValidationKind};
 
 // ---------------------------------------------------------------------------
 // RuleViolation — single violation from one rule
@@ -36,14 +34,19 @@ pub struct RuleViolation {
 
 impl RuleViolation {
     pub fn field(message: impl Into<String>) -> Self {
-        Self { sub_path: None, message: message.into() }
+        Self {
+            sub_path: None,
+            message: message.into(),
+        }
     }
 
     pub fn sub(sub_path: impl Into<String>, message: impl Into<String>) -> Self {
-        Self { sub_path: Some(sub_path.into()), message: message.into() }
+        Self {
+            sub_path: Some(sub_path.into()),
+            message: message.into(),
+        }
     }
 }
-
 
 // ---------------------------------------------------------------------------
 // Rule function type aliases
@@ -58,9 +61,9 @@ pub type AnyStructuralRule<E> =
 pub type AnySemanticRule<E> = Box<
     dyn for<'a> Fn(
             &'a <E as Entity>::Tracked,
-        )
-            -> std::pin::Pin<Box<dyn std::future::Future<Output = Vec<RuleViolation>> + Send + 'a>>
-        + Send
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Vec<RuleViolation>> + Send + 'a>,
+        > + Send
         + Sync,
 >;
 
@@ -82,7 +85,11 @@ pub struct ValidationSchema<E: Entity> {
 
 impl<E: Entity> ValidationSchema<E> {
     pub fn empty() -> Self {
-        Self { structural: HashMap::new(), semantic: HashMap::new(), cross_entity: HashMap::new() }
+        Self {
+            structural: HashMap::new(),
+            semantic: HashMap::new(),
+            cross_entity: HashMap::new(),
+        }
     }
 
     /// All field names that appear in any rule map.
@@ -148,8 +155,11 @@ where
     let mut result = ValidationErrors::new();
 
     let all_fields = schema.all_field_names();
-    let target_fields: Vec<&str> =
-        if fields.is_empty() { all_fields } else { fields.to_vec() };
+    let target_fields: Vec<&str> = if fields.is_empty() {
+        all_fields
+    } else {
+        fields.to_vec()
+    };
 
     for field_name in &target_fields {
         if kinds.contains(&ValidationKind::Structural) {
@@ -215,13 +225,17 @@ pub fn build_path(field: &str, sub_path: &Option<String>) -> String {
 // Structural primitives
 // ---------------------------------------------------------------------------
 
-use crate::entity::{EntityRef, ParentKind};
-use crate::types::{Extensions, Raci, TaskStateEntry, WorkflowStateEntry};
+use crate::{
+    entity::{EntityRef, ParentKind},
+    types::{Extensions, Raci, TaskStateEntry, WorkflowStateEntry},
+};
 
 /// Id must match `[a-z0-9]+(-[a-z0-9]+)*`
 pub fn kebab_case(value: &str) -> Vec<RuleViolation> {
     let valid = !value.is_empty()
-        && value.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && value
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
         && !value.starts_with('-')
         && !value.ends_with('-')
         && !value.contains("--");
@@ -325,17 +339,24 @@ pub fn states_valid_workflow(value: &[WorkflowStateEntry]) -> Vec<RuleViolation>
     v.extend(
         unique_by(value, |s| s.id.clone())
             .into_iter()
-            .map(|viol| RuleViolation { sub_path: viol.sub_path.map(|p| p + ".id"), ..viol }),
+            .map(|viol| RuleViolation {
+                sub_path: viol.sub_path.map(|p| p + ".id"),
+                ..viol
+            }),
     );
-    let has_done =
-        value.iter().any(|s| matches!(s.semantic, Some(crate::types::WorkflowSemantic::Done)));
-    let has_non_done =
-        value.iter().any(|s| !matches!(s.semantic, Some(crate::types::WorkflowSemantic::Done)));
+    let has_done = value
+        .iter()
+        .any(|s| matches!(s.semantic, Some(crate::types::WorkflowSemantic::Done)));
+    let has_non_done = value
+        .iter()
+        .any(|s| !matches!(s.semantic, Some(crate::types::WorkflowSemantic::Done)));
     if !has_done {
         v.push(RuleViolation::field("must include at least one Done state"));
     }
     if !has_non_done {
-        v.push(RuleViolation::field("must include at least one non-Done state"));
+        v.push(RuleViolation::field(
+            "must include at least one non-Done state",
+        ));
     }
     v
 }
@@ -354,17 +375,24 @@ pub fn states_valid_task(value: &[TaskStateEntry]) -> Vec<RuleViolation> {
     v.extend(
         unique_by(value, |s| s.id.clone())
             .into_iter()
-            .map(|viol| RuleViolation { sub_path: viol.sub_path.map(|p| p + ".id"), ..viol }),
+            .map(|viol| RuleViolation {
+                sub_path: viol.sub_path.map(|p| p + ".id"),
+                ..viol
+            }),
     );
-    let has_done =
-        value.iter().any(|s| matches!(s.semantic, Some(crate::types::TaskSemantic::Done)));
-    let has_non_done =
-        value.iter().any(|s| !matches!(s.semantic, Some(crate::types::TaskSemantic::Done)));
+    let has_done = value
+        .iter()
+        .any(|s| matches!(s.semantic, Some(crate::types::TaskSemantic::Done)));
+    let has_non_done = value
+        .iter()
+        .any(|s| !matches!(s.semantic, Some(crate::types::TaskSemantic::Done)));
     if !has_done {
         v.push(RuleViolation::field("must include at least one Done state"));
     }
     if !has_non_done {
-        v.push(RuleViolation::field("must include at least one non-Done state"));
+        v.push(RuleViolation::field(
+            "must include at least one non-Done state",
+        ));
     }
     v
 }
@@ -563,16 +591,20 @@ mod tests {
 
     #[test]
     fn states_valid_workflow_requires_min_2() {
-        let states =
-            vec![make_workflow_state("Done", Some(crate::types::WorkflowSemantic::Done))];
+        let states = vec![make_workflow_state(
+            "Done",
+            Some(crate::types::WorkflowSemantic::Done),
+        )];
         let v = states_valid_workflow(&states);
         assert!(!v.is_empty());
     }
 
     #[test]
     fn states_valid_workflow_requires_done_semantic() {
-        let states =
-            vec![make_workflow_state("Draft", None), make_workflow_state("Active", None)];
+        let states = vec![
+            make_workflow_state("Draft", None),
+            make_workflow_state("Active", None),
+        ];
         let v = states_valid_workflow(&states);
         assert!(v.iter().any(|e| e.message.contains("Done")));
     }
@@ -594,17 +626,18 @@ mod tests {
             make_workflow_state("Done", Some(crate::types::WorkflowSemantic::Done)),
         ];
         let v = states_valid_workflow(&states);
-        assert!(v
-            .iter()
-            .any(|e| e.sub_path.as_ref().map(|p| p.contains("id")).unwrap_or(false)));
+        assert!(v.iter().any(|e| e
+            .sub_path
+            .as_ref()
+            .map(|p| p.contains("id"))
+            .unwrap_or(false)));
     }
 
     // --- raci_structural ---
 
     #[test]
     fn raci_structural_valid_when_responsible_non_empty() {
-        use crate::entity::EntityRef;
-        use crate::entities::role::Role;
+        use crate::{entities::role::Role, entity::EntityRef};
         let raci = crate::types::Raci {
             responsible: vec![EntityRef::<Role>::new("eng-lead")],
             accountable: EntityRef::new("pm"),
@@ -616,8 +649,7 @@ mod tests {
 
     #[test]
     fn raci_structural_rejects_empty_responsible() {
-        use crate::entity::EntityRef;
-        use crate::entities::role::Role;
+        use crate::{entities::role::Role, entity::EntityRef};
         let raci = crate::types::Raci {
             responsible: vec![],
             accountable: EntityRef::<Role>::new("pm"),
@@ -626,9 +658,11 @@ mod tests {
         };
         let v = raci_structural(&raci);
         assert!(!v.is_empty());
-        assert!(
-            v[0].sub_path.as_ref().map(|p| p.contains("responsible")).unwrap_or(false)
-        );
+        assert!(v[0]
+            .sub_path
+            .as_ref()
+            .map(|p| p.contains("responsible"))
+            .unwrap_or(false));
     }
 
     // --- ValidationErrors ---

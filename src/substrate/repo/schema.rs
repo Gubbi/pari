@@ -1,16 +1,20 @@
-use crate::entities::{
-    artifact_kind::ArtifactKind,
-    hook::Hook,
-    relay::Relay,
-    role::Role,
-    task::Task,
-    team::Team,
-    workflow::{EmbeddedWorkflow, ReusableWorkflow, Workflow},
+use crate::{
+    entities::{
+        artifact_kind::ArtifactKind,
+        hook::Hook,
+        relay::Relay,
+        role::Role,
+        task::Task,
+        team::Team,
+        workflow::{EmbeddedWorkflow, ReusableWorkflow, Workflow},
+    },
+    substrate::{
+        pipeline::{
+            AssetDef, AssetKind, EntitySchema, FieldMapping, RefAssetDef, Slot, SubstrateSchema,
+        },
+        repo::substrate::RepoSubstrate,
+    },
 };
-use crate::substrate::pipeline::{
-    AssetDef, AssetKind, EntitySchema, FieldMapping, RefAssetDef, Slot, SubstrateSchema,
-};
-use crate::substrate::repo::substrate::RepoSubstrate;
 
 #[derive(Clone, Copy)]
 pub enum RepoSlot {
@@ -40,59 +44,152 @@ const RAW_FILE: &AssetKind = &AssetKind {
 };
 const EMPTY_ASSETS: &[AssetDef<RepoSlot>] = &[];
 const ROLE_FIELDS: &[FieldMapping<RepoSlot>] = &[
-    FieldMapping { key: "name", slot: RepoSlot::H1 },
-    FieldMapping { key: "description", slot: RepoSlot::DescriptionParagraph },
-    FieldMapping { key: "purpose", slot: RepoSlot::FrontmatterKey("purpose") },
-    FieldMapping { key: "traits", slot: RepoSlot::FrontmatterKey("traits") },
-    FieldMapping { key: "extensions", slot: RepoSlot::FrontmatterFlattened },
+    FieldMapping {
+        key: "name",
+        slot: RepoSlot::H1,
+    },
+    FieldMapping {
+        key: "description",
+        slot: RepoSlot::DescriptionParagraph,
+    },
+    FieldMapping {
+        key: "purpose",
+        slot: RepoSlot::FrontmatterKey("purpose"),
+    },
+    FieldMapping {
+        key: "traits",
+        slot: RepoSlot::FrontmatterKey("traits"),
+    },
+    FieldMapping {
+        key: "extensions",
+        slot: RepoSlot::FrontmatterFlattened,
+    },
 ];
 const HOOK_FIELDS: &[FieldMapping<RepoSlot>] = &[
-    FieldMapping { key: "name", slot: RepoSlot::H1 },
-    FieldMapping { key: "description", slot: RepoSlot::DescriptionParagraph },
+    FieldMapping {
+        key: "name",
+        slot: RepoSlot::H1,
+    },
+    FieldMapping {
+        key: "description",
+        slot: RepoSlot::DescriptionParagraph,
+    },
     FieldMapping {
         key: "instructions",
         slot: RepoSlot::Section("Instructions", SectionContent::BulletList),
     },
-    FieldMapping { key: "inputs", slot: RepoSlot::FrontmatterKey("inputs") },
-    FieldMapping { key: "extensions", slot: RepoSlot::FrontmatterFlattened },
+    FieldMapping {
+        key: "inputs",
+        slot: RepoSlot::FrontmatterKey("inputs"),
+    },
+    FieldMapping {
+        key: "extensions",
+        slot: RepoSlot::FrontmatterFlattened,
+    },
 ];
 const TEAM_FIELDS: &[FieldMapping<RepoSlot>] = &[
-    FieldMapping { key: "name", slot: RepoSlot::H1 },
-    FieldMapping { key: "description", slot: RepoSlot::DescriptionParagraph },
-    FieldMapping { key: "members", slot: RepoSlot::FrontmatterKey("members") },
-    FieldMapping { key: "include", slot: RepoSlot::FrontmatterKey("include") },
-    FieldMapping { key: "import", slot: RepoSlot::FrontmatterKey("import") },
-    FieldMapping { key: "extensions", slot: RepoSlot::FrontmatterFlattened },
+    FieldMapping {
+        key: "name",
+        slot: RepoSlot::H1,
+    },
+    FieldMapping {
+        key: "description",
+        slot: RepoSlot::DescriptionParagraph,
+    },
+    FieldMapping {
+        key: "members",
+        slot: RepoSlot::FrontmatterKey("members"),
+    },
+    FieldMapping {
+        key: "include",
+        slot: RepoSlot::FrontmatterKey("include"),
+    },
+    FieldMapping {
+        key: "import",
+        slot: RepoSlot::FrontmatterKey("import"),
+    },
+    FieldMapping {
+        key: "extensions",
+        slot: RepoSlot::FrontmatterFlattened,
+    },
 ];
 const ARTIFACT_KIND_FIELDS: &[FieldMapping<RepoSlot>] = &[
-    FieldMapping { key: "name", slot: RepoSlot::H1 },
-    FieldMapping { key: "description", slot: RepoSlot::DescriptionParagraph },
-    FieldMapping { key: "service", slot: RepoSlot::FrontmatterKey("service") },
-    FieldMapping { key: "access", slot: RepoSlot::FrontmatterKey("access") },
+    FieldMapping {
+        key: "name",
+        slot: RepoSlot::H1,
+    },
+    FieldMapping {
+        key: "description",
+        slot: RepoSlot::DescriptionParagraph,
+    },
+    FieldMapping {
+        key: "service",
+        slot: RepoSlot::FrontmatterKey("service"),
+    },
+    FieldMapping {
+        key: "access",
+        slot: RepoSlot::FrontmatterKey("access"),
+    },
     FieldMapping {
         key: "guidance",
         slot: RepoSlot::Section("Guidance", SectionContent::Paragraph),
     },
-    FieldMapping { key: "extensions", slot: RepoSlot::FrontmatterFlattened },
+    FieldMapping {
+        key: "extensions",
+        slot: RepoSlot::FrontmatterFlattened,
+    },
 ];
 const WORKFLOW_FIELDS: &[FieldMapping<RepoSlot>] = &[
-    FieldMapping { key: "name", slot: RepoSlot::H1 },
-    FieldMapping { key: "description", slot: RepoSlot::DescriptionParagraph },
-    FieldMapping { key: "purpose", slot: RepoSlot::Section("Purpose", SectionContent::Paragraph) },
-    FieldMapping { key: "raci", slot: RepoSlot::FrontmatterKey("raci") },
-    FieldMapping { key: "states", slot: RepoSlot::FrontmatterKey("states") },
-    FieldMapping { key: "steps", slot: RepoSlot::FrontmatterKey("steps") },
-    FieldMapping { key: "intercepts", slot: RepoSlot::FrontmatterKey("intercepts") },
+    FieldMapping {
+        key: "name",
+        slot: RepoSlot::H1,
+    },
+    FieldMapping {
+        key: "description",
+        slot: RepoSlot::DescriptionParagraph,
+    },
+    FieldMapping {
+        key: "purpose",
+        slot: RepoSlot::Section("Purpose", SectionContent::Paragraph),
+    },
+    FieldMapping {
+        key: "raci",
+        slot: RepoSlot::FrontmatterKey("raci"),
+    },
+    FieldMapping {
+        key: "states",
+        slot: RepoSlot::FrontmatterKey("states"),
+    },
+    FieldMapping {
+        key: "steps",
+        slot: RepoSlot::FrontmatterKey("steps"),
+    },
+    FieldMapping {
+        key: "intercepts",
+        slot: RepoSlot::FrontmatterKey("intercepts"),
+    },
     FieldMapping {
         key: "guidance",
         slot: RepoSlot::Section("Guidance", SectionContent::Paragraph),
     },
-    FieldMapping { key: "extensions", slot: RepoSlot::FrontmatterFlattened },
+    FieldMapping {
+        key: "extensions",
+        slot: RepoSlot::FrontmatterFlattened,
+    },
 ];
 const TASK_FIELDS: &[FieldMapping<RepoSlot>] = &[
-    FieldMapping { key: "name", slot: RepoSlot::H1 },
-    FieldMapping { key: "description", slot: RepoSlot::DescriptionParagraph },
-    FieldMapping { key: "purpose", slot: RepoSlot::Section("Purpose", SectionContent::Paragraph) },
+    FieldMapping {
+        key: "name",
+        slot: RepoSlot::H1,
+    },
+    FieldMapping {
+        key: "description",
+        slot: RepoSlot::DescriptionParagraph,
+    },
+    FieldMapping {
+        key: "purpose",
+        slot: RepoSlot::Section("Purpose", SectionContent::Paragraph),
+    },
     FieldMapping {
         key: "instructions",
         slot: RepoSlot::Section("Instructions", SectionContent::BulletList),
@@ -101,22 +198,52 @@ const TASK_FIELDS: &[FieldMapping<RepoSlot>] = &[
         key: "criteria",
         slot: RepoSlot::Section("Criteria", SectionContent::BulletList),
     },
-    FieldMapping { key: "raci", slot: RepoSlot::FrontmatterKey("raci") },
-    FieldMapping { key: "artifact.kind", slot: RepoSlot::FrontmatterKey("artifact") },
-    FieldMapping { key: "states", slot: RepoSlot::FrontmatterKey("states") },
-    FieldMapping { key: "intercepts", slot: RepoSlot::FrontmatterKey("intercepts") },
+    FieldMapping {
+        key: "raci",
+        slot: RepoSlot::FrontmatterKey("raci"),
+    },
+    FieldMapping {
+        key: "artifact.kind",
+        slot: RepoSlot::FrontmatterKey("artifact"),
+    },
+    FieldMapping {
+        key: "states",
+        slot: RepoSlot::FrontmatterKey("states"),
+    },
+    FieldMapping {
+        key: "intercepts",
+        slot: RepoSlot::FrontmatterKey("intercepts"),
+    },
     FieldMapping {
         key: "guidance",
         slot: RepoSlot::Section("Guidance", SectionContent::Paragraph),
     },
-    FieldMapping { key: "extensions", slot: RepoSlot::FrontmatterFlattened },
+    FieldMapping {
+        key: "extensions",
+        slot: RepoSlot::FrontmatterFlattened,
+    },
 ];
 const RELAY_FIELDS: &[FieldMapping<RepoSlot>] = &[
-    FieldMapping { key: "name", slot: RepoSlot::H1 },
-    FieldMapping { key: "description", slot: RepoSlot::DescriptionParagraph },
-    FieldMapping { key: "purpose", slot: RepoSlot::Section("Purpose", SectionContent::Paragraph) },
-    FieldMapping { key: "raci", slot: RepoSlot::FrontmatterKey("raci") },
-    FieldMapping { key: "delegates_to", slot: RepoSlot::FrontmatterKey("delegates_to") },
+    FieldMapping {
+        key: "name",
+        slot: RepoSlot::H1,
+    },
+    FieldMapping {
+        key: "description",
+        slot: RepoSlot::DescriptionParagraph,
+    },
+    FieldMapping {
+        key: "purpose",
+        slot: RepoSlot::Section("Purpose", SectionContent::Paragraph),
+    },
+    FieldMapping {
+        key: "raci",
+        slot: RepoSlot::FrontmatterKey("raci"),
+    },
+    FieldMapping {
+        key: "delegates_to",
+        slot: RepoSlot::FrontmatterKey("delegates_to"),
+    },
     FieldMapping {
         key: "briefing",
         slot: RepoSlot::Section("Briefing", SectionContent::Paragraph),
@@ -125,13 +252,22 @@ const RELAY_FIELDS: &[FieldMapping<RepoSlot>] = &[
         key: "debriefing",
         slot: RepoSlot::Section("Debriefing", SectionContent::Paragraph),
     },
-    FieldMapping { key: "state_map", slot: RepoSlot::FrontmatterKey("state_map") },
-    FieldMapping { key: "intercepts", slot: RepoSlot::FrontmatterKey("intercepts") },
+    FieldMapping {
+        key: "state_map",
+        slot: RepoSlot::FrontmatterKey("state_map"),
+    },
+    FieldMapping {
+        key: "intercepts",
+        slot: RepoSlot::FrontmatterKey("intercepts"),
+    },
     FieldMapping {
         key: "guidance",
         slot: RepoSlot::Section("Guidance", SectionContent::Paragraph),
     },
-    FieldMapping { key: "extensions", slot: RepoSlot::FrontmatterFlattened },
+    FieldMapping {
+        key: "extensions",
+        slot: RepoSlot::FrontmatterFlattened,
+    },
 ];
 
 macro_rules! simple_schema {

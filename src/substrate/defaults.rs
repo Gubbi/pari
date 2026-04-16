@@ -1,12 +1,16 @@
-use crate::entity::{AnyEntityRef, EntityKind, TrackedEntity};
-use crate::store::EntityChange;
-use crate::substrate::schema_registry::SchemaBackedSubstrate;
-use crate::substrate::serde::{
-    any_ref_to_stub_json, entity_to_json, merge_field_map_into,
-};
-use crate::substrate::pipeline::{Codec, Executor, LocationResolver};
-use crate::substrate::{pipeline, SubstrateError};
 use std::collections::HashSet;
+
+use crate::{
+    entity::{AnyEntityRef, EntityKind, TrackedEntity},
+    store::EntityChange,
+    substrate::{
+        pipeline,
+        pipeline::{Codec, Executor, LocationResolver},
+        schema_registry::SchemaBackedSubstrate,
+        serde::{any_ref_to_stub_json, entity_to_json, merge_field_map_into},
+        SubstrateError,
+    },
+};
 
 pub(crate) fn load_strategy<Sub>(
     entity_kind: EntityKind,
@@ -20,23 +24,24 @@ where
         .map_err(SubstrateError::from)
 }
 
-pub(crate) async fn exists<Sub>(substrate: &Sub, refs: &[AnyEntityRef]) -> Result<Vec<bool>, SubstrateError>
+pub(crate) async fn exists<Sub>(
+    substrate: &Sub,
+    refs: &[AnyEntityRef],
+) -> Result<Vec<bool>, SubstrateError>
 where
     Sub: SchemaBackedSubstrate,
 {
-    let requests = refs
-        .iter()
-        .map(|any_ref| {
-            let schema = Sub::schema_for(any_ref.kind());
-            let stub_json = any_ref_to_stub_json(any_ref);
-            let location = substrate
-                .resolver()
-                .resolve(schema.ref_asset.path_template, &stub_json);
-            pipeline::AssetRequest {
-                location,
-                op: pipeline::AssetOp::Head,
-            }
-        });
+    let requests = refs.iter().map(|any_ref| {
+        let schema = Sub::schema_for(any_ref.kind());
+        let stub_json = any_ref_to_stub_json(any_ref);
+        let location = substrate
+            .resolver()
+            .resolve(schema.ref_asset.path_template, &stub_json);
+        pipeline::AssetRequest {
+            location,
+            op: pipeline::AssetOp::Head,
+        }
+    });
 
     let responses = substrate
         .executor()
@@ -62,18 +67,18 @@ where
 {
     let schema = Sub::schema_for(entity.any_ref().kind());
     let entity_json = entity_to_json(entity)?;
-    let assets_to_fetch = pipeline::AssetMapper::select_for_read(schema, fields)
-        .map_err(SubstrateError::from)?;
+    let assets_to_fetch =
+        pipeline::AssetMapper::select_for_read(schema, fields).map_err(SubstrateError::from)?;
 
-    let requests = assets_to_fetch
-        .iter()
-        .map(|asset| {
-            let location = substrate.resolver().resolve(asset.path_template(), &entity_json);
-            pipeline::AssetRequest {
-                location,
-                op: pipeline::AssetOp::Get,
-            }
-        });
+    let requests = assets_to_fetch.iter().map(|asset| {
+        let location = substrate
+            .resolver()
+            .resolve(asset.path_template(), &entity_json);
+        pipeline::AssetRequest {
+            location,
+            op: pipeline::AssetOp::Get,
+        }
+    });
 
     let responses = substrate
         .executor()
@@ -129,9 +134,13 @@ where
             }
             EntityChange::Modified(entity, dirty_fields) => {
                 let schema = Sub::schema_for(entity.any_ref().kind());
-                if let Err(mut es) =
-                    build_write_ops(substrate, entity, schema, Some(dirty_fields.as_slice()), &mut ops)
-                {
+                if let Err(mut es) = build_write_ops(
+                    substrate,
+                    entity,
+                    schema,
+                    Some(dirty_fields.as_slice()),
+                    &mut ops,
+                ) {
                     errors.append(&mut es);
                 }
             }
@@ -166,7 +175,9 @@ where
         .map_err(SubstrateError::from)
         .map_err(|e| vec![e])?
     {
-        let location = substrate.resolver().resolve(asset.path_template(), &entity_json);
+        let location = substrate
+            .resolver()
+            .resolve(asset.path_template(), &entity_json);
         let is_partial = dirty_fields
             .map(|dirty| asset_write_is_partial(asset.fields(), dirty))
             .unwrap_or(false);
@@ -200,9 +211,7 @@ fn asset_write_is_partial<S: pipeline::Slot>(
     dirty_in_asset < asset_fields.len()
 }
 
-fn collapse_executor_errors(
-    errors: Vec<pipeline::ExecutorError>,
-) -> SubstrateError {
+fn collapse_executor_errors(errors: Vec<pipeline::ExecutorError>) -> SubstrateError {
     let error = errors
         .into_iter()
         .next()

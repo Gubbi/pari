@@ -1,19 +1,45 @@
-use crate::entity::{AnyEntityRef, TrackedEntity};
-use crate::store_error::StoreError;
-use crate::workspace::error::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError};
+use crate::{
+    entity::{AnyEntityRef, TrackedEntity},
+    store_error::StoreError,
+    workspace::error::{
+        CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError,
+    },
+};
 
 pub(crate) enum StoreRequest {
-    Resolve { any_ref: AnyEntityRef },
-    Insert { entity: TrackedEntity },
-    Checkout { any_ref: AnyEntityRef },
-    Commit { entity: TrackedEntity },
-    Remove { any_ref: AnyEntityRef },
+    Resolve {
+        any_ref: AnyEntityRef,
+    },
+    Insert {
+        entity: TrackedEntity,
+    },
+    Checkout {
+        any_ref: AnyEntityRef,
+    },
+    Commit {
+        entity: TrackedEntity,
+    },
+    Remove {
+        any_ref: AnyEntityRef,
+    },
     Persist,
-    Load { any_ref: AnyEntityRef, field: String },
-    EnsureMutable { any_ref: AnyEntityRef, field: String },
-    UndoCheckout { any_ref: AnyEntityRef },
-    UndoCommit { any_ref: AnyEntityRef },
-    Unload { any_ref: AnyEntityRef },
+    Load {
+        any_ref: AnyEntityRef,
+        field: String,
+    },
+    EnsureMutable {
+        any_ref: AnyEntityRef,
+        field: String,
+    },
+    UndoCheckout {
+        any_ref: AnyEntityRef,
+    },
+    UndoCommit {
+        any_ref: AnyEntityRef,
+    },
+    Unload {
+        any_ref: AnyEntityRef,
+    },
 }
 
 pub(crate) enum StoreResponse {

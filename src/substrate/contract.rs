@@ -1,8 +1,8 @@
-use crate::entity::{AnyEntityRef, EntityKind, TrackedEntity};
-use crate::store::EntityChange;
-use crate::substrate::defaults;
-use crate::substrate::schema_registry::SchemaBackedSubstrate;
-use crate::substrate::{pipeline, SubstrateError};
+use crate::{
+    entity::{AnyEntityRef, EntityKind, TrackedEntity},
+    store::EntityChange,
+    substrate::{defaults, pipeline, schema_registry::SchemaBackedSubstrate, SubstrateError},
+};
 
 pub trait Substrate: Sized + Send + Sync + 'static {
     type Slot: pipeline::Slot;

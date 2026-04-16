@@ -1,5 +1,7 @@
-use crate::entity::{EntityKind, EntityRef};
-use crate::types::Extensions;
+use crate::{
+    entity::{EntityKind, EntityRef},
+    types::Extensions,
+};
 
 #[derive(pari_macros::Entity)]
 #[entity(kind = EntityKind::ArtifactKind, schema = crate::validation::artifact_kind::artifact_kind_validation_schema)]

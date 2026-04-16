@@ -12,8 +12,8 @@
 extern crate self as pari;
 
 pub mod entities;
-pub mod error;
 pub mod entity;
+pub mod error;
 pub use error::pari_error::PariError;
 pub mod store;
 pub mod store_error;

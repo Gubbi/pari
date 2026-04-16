@@ -1,5 +1,7 @@
-use crate::substrate::pipeline::{AssetOp, AssetRequest, AssetResponse, Executor, ExecutorError};
-use crate::substrate::in_memory::storage::InMemoryStorage;
+use crate::substrate::{
+    in_memory::storage::InMemoryStorage,
+    pipeline::{AssetOp, AssetRequest, AssetResponse, Executor, ExecutorError},
+};
 pub struct InMemoryExecutor {
     pub(super) assets: InMemoryStorage,
 }
@@ -14,10 +16,7 @@ impl Executor for InMemoryExecutor {
     type Location = String;
     type Encoded = String;
 
-    fn execute<I>(
-        &self,
-        ops: I,
-    ) -> Result<Vec<AssetResponse<Self::Encoded>>, Vec<ExecutorError>>
+    fn execute<I>(&self, ops: I) -> Result<Vec<AssetResponse<Self::Encoded>>, Vec<ExecutorError>>
     where
         I: IntoIterator<Item = AssetRequest<Self::Location, Self::Encoded>>,
     {

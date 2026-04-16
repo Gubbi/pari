@@ -1,6 +1,9 @@
 use std::collections::HashMap;
-use crate::entity::{EntityKind, EntityRef, WorkflowParent};
-use crate::types::{Artifact, Extensions, HookCall, Raci, TaskStateEntry, TaskTrigger};
+
+use crate::{
+    entity::{EntityKind, EntityRef, WorkflowParent},
+    types::{Artifact, Extensions, HookCall, Raci, TaskStateEntry, TaskTrigger},
+};
 
 #[derive(pari_macros::Entity)]
 #[entity(kind = EntityKind::Task, parent = WorkflowParent, schema = crate::validation::task::task_validation_schema)]

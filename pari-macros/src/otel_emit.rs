@@ -78,10 +78,13 @@ pub fn derive_otel_emit(input: DeriveInput) -> TokenStream {
 
         ast::Data::Enum(variants) => {
             let arms: Vec<TokenStream> = variants.iter().map(|v| emit_variant_arm(v)).collect();
-            let has_errors: Vec<TokenStream> = arms.iter().map(|a| {
-                // check if it's a compile_error token — just collect all
-                a.clone()
-            }).collect();
+            let has_errors: Vec<TokenStream> = arms
+                .iter()
+                .map(|a| {
+                    // check if it's a compile_error token — just collect all
+                    a.clone()
+                })
+                .collect();
             // If any arm generated an error, the overall result should propagate it.
             // We just emit all arms inside the match.
             quote! {
@@ -119,7 +122,8 @@ fn emit_variant_arm(variant: &OTelVariant) -> TokenStream {
     syn::Error::new_spanned(
         vname,
         "OTelEmit enum variant must have #[otel(delegate)] or #[otel(error_type = \"...\")]",
-    ).to_compile_error()
+    )
+    .to_compile_error()
 }
 
 fn emit_declaring_variant_arm(
@@ -259,8 +263,14 @@ fn emit_struct_body(error_type: &str, is_warn: bool, fields: &[OTelField]) -> To
 // ---------------------------------------------------------------------------
 
 fn severity_is_warn(fix: &Option<syn::Path>, recoverability: &Option<syn::Path>) -> bool {
-    let fix_str = fix.as_ref().and_then(|p| p.get_ident()).map(|i| i.to_string());
-    let rec_str = recoverability.as_ref().and_then(|p| p.get_ident()).map(|i| i.to_string());
+    let fix_str = fix
+        .as_ref()
+        .and_then(|p| p.get_ident())
+        .map(|i| i.to_string());
+    let rec_str = recoverability
+        .as_ref()
+        .and_then(|p| p.get_ident())
+        .map(|i| i.to_string());
     matches!(
         (fix_str.as_deref(), rec_str.as_deref()),
         (Some("Infra"), Some("Retryable")) | (Some("Client"), Some("UserAction"))
