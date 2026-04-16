@@ -7,7 +7,7 @@ from Task 12. Replace all stub error types introduced in Tasks 06, 09, 10, and 1
 
 The error type names and variant structures come directly from the design docs:
 - `substrate_layer/substrate-trait/error-types.md` — store-boundary errors
-- `validation/validation-api.md` — validation error types
+- `validation_layer/validation-api.md` — validation error types
 - `substrate_layer/pipeline/codec.md` — `CodecError`
 - `substrate_layer/pipeline/executor.md` — `ExecutorError`
 - `store_layer/entity-server/store-server.md` — `StoreError`

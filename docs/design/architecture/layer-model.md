@@ -12,7 +12,7 @@ The formal layers are:
 6. `error`
 7. `test`
 
-These names are the canonical architecture vocabulary even where the current design tree still uses older directory names such as `data_model/`, `store_layer/`, or `workspace_layer/`.
+These names are the canonical architecture vocabulary even where parts of the current design tree still use historical directory names such as `store_layer/`, `workspace_layer/`, or `substrate_layer/`.
 
 ## Why This Exists
 
@@ -75,16 +75,16 @@ When a concept touches more than one layer, the owning layer is the one that def
 
 ## Design Tree Mapping
 
-The current design tree predates this formal naming. Until the broader docs rewrite happens, interpret the existing directories like this:
+The design tree is being aligned to the formal layer model. The current top-level design directories map like this:
 
 | Current docs area | Formal layer meaning |
 |---|---|
-| `data_model/` | `entity` |
+| `entity_layer/` | `entity` |
 | `workspace_layer/` | `workspace` |
 | `store_layer/` | `store` |
 | `substrate_layer/` | `substrate` |
-| `validation/` | `validation` |
-| `error-handling/` | `error` |
-| `testing/` | `test` |
+| `validation_layer/` | `validation` |
+| `error_layer/` | `error` |
+| `test_layer/` | `test` |
 
 `codegen/` is intentionally not a formal architecture layer. Code generation belongs to whichever formal layer owns the behavior being generated. Later cleanup should use this rule instead of treating codegen as a separate architectural home.

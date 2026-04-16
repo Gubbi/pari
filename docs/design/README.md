@@ -1,70 +1,71 @@
 # Pari — Design Docs
 
-The authoritative architecture reference for this tree is [architecture/layer-model](architecture/layer-model.md). The directory buckets below are the current document organization, not the canonical layer vocabulary.
+The authoritative architecture reference for this tree is [architecture/layer-model](architecture/layer-model.md). The directory buckets below are the current document organization, aligned where practical to the canonical layer vocabulary.
 
 ## Structure
 
 | Layer | Contents |
 |---|---|
 | `architecture/` | Formal architectural model, layer ownership, dependency expectations |
-| `data_model/` | Field primitives, entity identity, value types, plain entities, tracked entities |
+| `entity_layer/` | Field primitives, entity identity, value types, plain entities, tracked entities |
 | `store_layer/` | Store structure, checkout/commit lifecycle, change tracking, persist phases |
 | `workspace_layer/` | EntityClient API, field accessors/setters, loading |
 | `substrate_layer/` | Substrate trait, asset pipeline, RepoSubstrate implementation |
-| `validation/` | Validation API and per-entity implementations |
+| `validation_layer/` | Validation API and per-entity implementations |
+| `error_layer/` | Error taxonomy, composition, observability, batch errors, primitive-error design |
+| `test_layer/` | Test-layer design docs and verification guidance |
 | `codegen/` | Derive macros, schema codegen |
-| `error-handling/` | Error taxonomy, composition, observability, batch errors, primitive-error design |
 
 ---
 
 ## architecture
 
-- [layer-model](architecture/layer-model.md) — authoritative definition of the formal `entity`, `workspace`, `store`, `substrate`, `validation`, `error`, and `test` layers; also maps the older doc directories onto that model
+- [layer-model](architecture/layer-model.md) — authoritative definition of the formal `entity`, `workspace`, `store`, `substrate`, `validation`, `error`, and `test` layers; also explains how the current design directories map onto that model
 
 ---
 
-## data_model
+## entity_layer
 
 ### field-primitives
-- [tracked-field](data_model/field-primitives/tracked-field.md) — `TrackedField<T>`: `OnceLock<T>`, dirty flag, optional fields, Arc COW wrapping
-- [cow-field-convention](data_model/field-primitives/cow-field-convention.md) — `Arc<TrackedField<T>>` as the COW wrapper: checkout cost, setter pattern, merge_dirty_into
+- [tracked-field](entity_layer/field-primitives/tracked-field.md) — `TrackedField<T>`: `OnceLock<T>`, dirty flag, optional fields, Arc COW wrapping
+- [cow-field-convention](entity_layer/field-primitives/cow-field-convention.md) — `Arc<TrackedField<T>>` as the COW wrapper: checkout cost, setter pattern, merge_dirty_into
 
 ### entity-identity
-- [entity-trait](data_model/entity-identity/entity-trait.md) — `Entity` trait: KIND, VALIDATION_SCHEMA, Parent, Tracked; `TrackedEntity` companion trait
-- [entity-kind-enum](data_model/entity-identity/entity-kind-enum.md) — `EntityKind` variants
-- [parent-kind](data_model/entity-identity/parent-kind.md) — `ParentKind` trait, `NoParent`, workflow parents
-- [entity-ref](data_model/entity-identity/entity-ref.md) — `EntityRef<T,P>`: structure, construction, id(), path()
-- [entity-ref-hash-eq](data_model/entity-identity/entity-ref-hash-eq.md) — Hash+Eq via (KIND, id, parent chain)
-- [entity-ref-serde](data_model/entity-identity/entity-ref-serde.md) — Wire format: `{id, type, parent?}`
-- [any-entity-ref](data_model/entity-identity/any-entity-ref.md) — `AnyEntityRef` enum; one variant per entity kind
+- [entity-trait](entity_layer/entity-identity/entity-trait.md) — `Entity` trait: KIND, VALIDATION_SCHEMA, Parent, Tracked; `TrackedEntity` companion trait
+- [entity-kind-enum](entity_layer/entity-identity/entity-kind-enum.md) — `EntityKind` variants
+- [parent-kind](entity_layer/entity-identity/parent-kind.md) — `ParentKind` trait, `NoParent`, workflow parents
+- [entity-ref](entity_layer/entity-identity/entity-ref.md) — `EntityRef<T,P>`: structure, construction, id(), path()
+- [entity-ref-hash-eq](entity_layer/entity-identity/entity-ref-hash-eq.md) — Hash+Eq via (KIND, id, parent chain)
+- [entity-ref-serde](entity_layer/entity-identity/entity-ref-serde.md) — Wire format: `{id, type, parent?}`
+- [any-entity-ref](entity_layer/entity-identity/any-entity-ref.md) — `AnyEntityRef` enum; one variant per entity kind
 
 ### value-types
-- [extensions](data_model/value-types/extensions.md)
-- [raci](data_model/value-types/raci.md)
-- [hook-call](data_model/value-types/hook-call.md)
-- [artifact](data_model/value-types/artifact.md)
-- [state-entries](data_model/value-types/state-entries.md)
-- [intercepts](data_model/value-types/intercepts.md)
+- [extensions](entity_layer/value-types/extensions.md)
+- [raci](entity_layer/value-types/raci.md)
+- [hook-call](entity_layer/value-types/hook-call.md)
+- [artifact](entity_layer/value-types/artifact.md)
+- [state-entries](entity_layer/value-types/state-entries.md)
+- [intercepts](entity_layer/value-types/intercepts.md)
 
 ### plain-entities
-- [role](data_model/plain-entities/role.md)
-- [hook](data_model/plain-entities/hook.md)
-- [team](data_model/plain-entities/team.md)
-- [workflow](data_model/plain-entities/workflow.md)
-- [workflow-restructuring](data_model/plain-entities/workflow-restructuring.md)
-- [workflow-variants](data_model/plain-entities/workflow-variants.md)
-- [step-types](data_model/plain-entities/step-types.md)
-- [task](data_model/plain-entities/task.md)
-- [relay](data_model/plain-entities/relay.md)
-- [artifact-kind](data_model/plain-entities/artifact-kind.md)
+- [role](entity_layer/plain-entities/role.md)
+- [hook](entity_layer/plain-entities/hook.md)
+- [team](entity_layer/plain-entities/team.md)
+- [workflow](entity_layer/plain-entities/workflow.md)
+- [workflow-restructuring](entity_layer/plain-entities/workflow-restructuring.md)
+- [workflow-variants](entity_layer/plain-entities/workflow-variants.md)
+- [step-types](entity_layer/plain-entities/step-types.md)
+- [task](entity_layer/plain-entities/task.md)
+- [relay](entity_layer/plain-entities/relay.md)
+- [artifact-kind](entity_layer/plain-entities/artifact-kind.md)
 
 ### tracked-entity
-- [tracked-entity-pattern](data_model/tracked-entity/tracked-entity-pattern.md) — `TrackedField`, `Arc` COW, accessor generation
-- [tracked-role](data_model/tracked-entity/tracked-role.md)
-- [tracked-relay](data_model/tracked-entity/tracked-relay.md)
-- [dirty-operations](data_model/tracked-entity/dirty-operations.md) — `has_dirty_fields()`, `reset_dirty()`, `dirty_fields()`
-- [all-refs](data_model/tracked-entity/all-refs.md) — `all_refs()` for cross-entity ref collection
-- [from-plain-entity](data_model/tracked-entity/from-plain-entity.md) — `From<PlainEntity>` conversion
+- [tracked-entity-pattern](entity_layer/tracked-entity/tracked-entity-pattern.md) — `TrackedField`, `Arc` COW, accessor generation
+- [tracked-role](entity_layer/tracked-entity/tracked-role.md)
+- [tracked-relay](entity_layer/tracked-entity/tracked-relay.md)
+- [dirty-operations](entity_layer/tracked-entity/dirty-operations.md) — `has_dirty_fields()`, `reset_dirty()`, `dirty_fields()`
+- [all-refs](entity_layer/tracked-entity/all-refs.md) — `all_refs()` for cross-entity ref collection
+- [from-plain-entity](entity_layer/tracked-entity/from-plain-entity.md) — `From<PlainEntity>` conversion
 
 ---
 
@@ -136,17 +137,17 @@ The authoritative architecture reference for this tree is [architecture/layer-mo
 
 ---
 
-## validation
-- [validation-api](validation/validation-api.md)
-- [validate-shared](validation/validate-shared.md)
-- [validate-role](validation/validate-role.md)
-- [validate-hook](validation/validate-hook.md)
-- [validate-team](validation/validate-team.md)
-- [validate-task](validation/validate-task.md)
-- [validate-relay](validation/validate-relay.md)
-- [validate-workflow](validation/validate-workflow.md)
-- [validation-integration](validation/validation-integration.md)
-- [partial-validation](validation/partial-validation.md)
+## validation_layer
+- [validation-api](validation_layer/validation-api.md)
+- [validate-shared](validation_layer/validate-shared.md)
+- [validate-role](validation_layer/validate-role.md)
+- [validate-hook](validation_layer/validate-hook.md)
+- [validate-team](validation_layer/validate-team.md)
+- [validate-task](validation_layer/validate-task.md)
+- [validate-relay](validation_layer/validate-relay.md)
+- [validate-workflow](validation_layer/validate-workflow.md)
+- [validation-integration](validation_layer/validation-integration.md)
+- [partial-validation](validation_layer/partial-validation.md)
 
 ---
 
@@ -162,9 +163,15 @@ The authoritative architecture reference for this tree is [architecture/layer-mo
 
 ---
 
-## error-handling
-- [error-handling](error-handling/error-handling.md) — error taxonomy, `ErrorCompose`, `OTelEmit`, batch errors, client usage
-- [primitive-errors](error-handling/primitive-errors.md) — Primitive Error design: derive-driven contract, auto-captured diagnostics, and standardized observability
+## error_layer
+- [error-handling](error_layer/error-handling.md) — error taxonomy, `ErrorCompose`, `OTelEmit`, batch errors, client usage
+- [primitive-errors](error_layer/primitive-errors.md) — Primitive Error design: derive-driven contract, auto-captured diagnostics, and standardized observability
+
+---
+
+## test_layer
+
+This layer currently has no dedicated design docs.
 
 ---
 

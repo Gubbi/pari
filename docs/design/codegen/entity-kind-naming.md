@@ -70,7 +70,7 @@ The trait exists because entity types need a compile-time contract for `EntityRe
 
 ## `AnyEntityRef` — type erasure without `dyn`
 
-`AnyEntityRef` (see [12 · any-entity-ref](../data_model/entity-identity/any-entity-ref.md)) is the concrete enum that provides type erasure without trait objects:
+`AnyEntityRef` (see [12 · any-entity-ref](../entity_layer/entity-identity/any-entity-ref.md)) is the concrete enum that provides type erasure without trait objects:
 
 ```rust
 pub enum AnyEntityRef {
