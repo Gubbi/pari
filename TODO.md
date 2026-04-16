@@ -118,12 +118,13 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Follow-up queue: after the current pipeline pass is flushed, revisit how template asset filenames and placement are modeled across substrates so that raw/template assets are fully design-driven rather than hard-coded as `template.*`.
    Follow-up queue: revisit schema field-to-asset indexing so lookups are direct and cached rather than rebuilt per call. The fail-fast unknown-field behavior is now in place, but the indexing optimization still needs a const-friendly design that works cleanly with the substrate schema registry.
 
-17. [ ] Store internals alignment
+17. [x] Store internals alignment
     Context: `src/store/mod.rs` still contains pockets of design drift in request/response handling, loading flow, ensure-mutable behavior, naming, and persist orchestration. Earlier cleanup removed legacy distractions so this can now be addressed directly.
     Goal: align the store internals with the current design end-to-end, including message flow, response naming/shape, loading flow, ensure-mutable behavior, and persist plumbing.
     Scope: `src/store/mod.rs` and closely related store-internal source files only.
     Done looks like: the store implementation reads like the design docs rather than like a carry-over from earlier TDD shortcuts.
     Note: this task includes eliminating `StoreEntity` naming/abstraction drift. The design already uses `TrackedEntity` for the type-erased tracked wrapper role, so the code should align to that design concept instead of keeping `StoreEntity` as a parallel abstraction.
+    Completion note: the store now exposes its persist set via a dedicated lazy `changes()` iterator, handles remove-then-reinsert transitions as store-level modifications, clears dirty flags for added entities at commit time, and enforces `checked_out` / wrong-state behavior consistently across `undo_checkout`, `undo_commit`, and `unload`. `TrackedEntity` remains the store-facing type-erased wrapper throughout the flow.
 
 18. [ ] Persist-path implementation cleanup
     Context: even after API cleanup, the persist path may still have real Rust borrowing/lifetime friction because it needs to walk store-owned entity state while interacting with the substrate. This may be pure code cleanup, or it may expose a real design gap.

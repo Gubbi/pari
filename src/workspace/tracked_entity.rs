@@ -1,8 +1,11 @@
-use crate::entity::TrackedEntity;
-use crate::store::{StoreRequest, StoreResponse};
-use crate::store_error::StoreError;
-use crate::workspace::error::CommitError;
-use crate::workspace::protocol::request;
+use crate::{
+    entity::TrackedEntity,
+    store::{StoreRequest, StoreResponse},
+    workspace::{
+        error::{CommitError, UndoError},
+        protocol::request,
+    },
+};
 
 impl TrackedEntity {
     pub async fn commit(self) -> Result<(), CommitError> {
@@ -16,10 +19,14 @@ impl TrackedEntity {
         }
     }
 
-    pub async fn undo_checkout(&self) -> Result<(), StoreError> {
+    pub async fn undo_checkout(&self) -> Result<(), UndoError> {
         let any_ref = self.any_ref();
-        match request(StoreRequest::UndoCheckout { any_ref }).await? {
+        match request(StoreRequest::UndoCheckout { any_ref })
+            .await
+            .map_err(UndoError::StoreUnavailable)?
+        {
             StoreResponse::Unit => Ok(()),
+            StoreResponse::UndoErr(e) => Err(e),
             _ => unreachable!(),
         }
     }

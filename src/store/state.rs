@@ -1,18 +1,23 @@
-use std::collections::{HashMap, HashSet};
-use std::future::Future;
-use std::pin::Pin;
+use std::{
+    collections::{HashMap, HashSet},
+    future::Future,
+    pin::Pin,
+};
 
 use tokio::sync::mpsc;
 
-use crate::entity::{AnyEntityRef, TrackedEntity};
-use crate::error::BatchError;
-use crate::store::message::{StoreMessage, StoreRequest, StoreResponse};
-use crate::store_error::StoreError;
-use crate::substrate::schema_registry::SchemaBackedSubstrate;
-use crate::validation::{run_validations_for_entity, ValidationKind};
-use crate::workspace::error::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError};
-
 use super::EntityChange;
+use crate::{
+    entity::{AnyEntityRef, TrackedEntity},
+    error::BatchError,
+    store::message::{StoreMessage, StoreRequest, StoreResponse},
+    store_error::StoreError,
+    substrate::schema_registry::SchemaBackedSubstrate,
+    validation::{run_validations_for_entity, ValidationKind},
+    workspace::error::{
+        CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError,
+    },
+};
 
 #[derive(Debug)]
 enum StoreOpError {
@@ -79,37 +84,45 @@ where
                 Ok(()) => Ok(StoreResponse::Unit),
                 Err(e) => Ok(StoreResponse::PersistErr(e)),
             },
-            StoreRequest::Load { any_ref, field } => match self.load_field(&any_ref, &field).await {
-                Ok(()) => Ok(StoreResponse::Unit),
-                Err(e) => Ok(StoreResponse::LoadErr(e)),
-            },
+            StoreRequest::Load { any_ref, field } => {
+                match self.load_field(&any_ref, &field).await {
+                    Ok(()) => Ok(StoreResponse::Unit),
+                    Err(e) => Ok(StoreResponse::LoadErr(e)),
+                }
+            }
             StoreRequest::EnsureMutable { any_ref, field } => {
                 match self.ensure_mutable(&any_ref, &field).await {
                     Ok(()) => Ok(StoreResponse::Unit),
                     Err(e) => Ok(StoreResponse::LoadErr(e)),
                 }
             }
-            StoreRequest::UndoCheckout { any_ref } => {
-                self.undo_checkout(&any_ref);
-                Ok(StoreResponse::Unit)
-            }
+            StoreRequest::UndoCheckout { any_ref } => match self.undo_checkout(&any_ref) {
+                Ok(()) => Ok(StoreResponse::Unit),
+                Err(
+                    StoreOpError::WrongState | StoreOpError::CheckedOut | StoreOpError::NotFound,
+                ) => Ok(StoreResponse::UndoErr(UndoError::WrongState)),
+            },
             StoreRequest::UndoCommit { any_ref } => match self.undo_commit(&any_ref) {
                 Ok(()) => Ok(StoreResponse::Unit),
-                Err(StoreOpError::WrongState | StoreOpError::CheckedOut | StoreOpError::NotFound) => {
-                    Ok(StoreResponse::UndoErr(UndoError::WrongState))
-                }
+                Err(
+                    StoreOpError::WrongState | StoreOpError::CheckedOut | StoreOpError::NotFound,
+                ) => Ok(StoreResponse::UndoErr(UndoError::WrongState)),
             },
             StoreRequest::Unload { any_ref } => match self.unload(&any_ref) {
                 Ok(()) => Ok(StoreResponse::Unit),
-                Err(StoreOpError::WrongState | StoreOpError::CheckedOut | StoreOpError::NotFound) => {
-                    Ok(StoreResponse::UndoErr(UndoError::WrongState))
-                }
+                Err(
+                    StoreOpError::WrongState | StoreOpError::CheckedOut | StoreOpError::NotFound,
+                ) => Ok(StoreResponse::UndoErr(UndoError::WrongState)),
             },
         }
     }
 
-    fn undo_checkout(&mut self, any_ref: &AnyEntityRef) {
-        self.checked_out.remove(any_ref);
+    fn undo_checkout(&mut self, any_ref: &AnyEntityRef) -> Result<(), StoreOpError> {
+        if self.checked_out.remove(any_ref) {
+            Ok(())
+        } else {
+            Err(StoreOpError::WrongState)
+        }
     }
 
     async fn insert(&mut self, entity: TrackedEntity) -> Result<(), CommitError> {
@@ -126,7 +139,11 @@ where
 
         let any_ref = entity.any_ref();
         self.entities.insert(any_ref.clone(), entity);
-        self.added.insert(any_ref);
+        if self.removed.remove(&any_ref) {
+            self.modified.insert(any_ref);
+        } else {
+            self.added.insert(any_ref);
+        }
         Ok(())
     }
 
@@ -193,8 +210,12 @@ where
         self.checked_out.remove(&any_ref);
         if let Some(existing) = self.entities.get_mut(&any_ref) {
             entity.merge_dirty_into(existing);
-            if entity.has_dirty_fields() && !self.added.contains(&any_ref) {
-                self.modified.insert(any_ref.clone());
+            if entity.has_dirty_fields() {
+                if self.added.contains(&any_ref) {
+                    existing.reset_dirty();
+                } else {
+                    self.modified.insert(any_ref.clone());
+                }
             }
         }
         Ok(())
@@ -224,20 +245,8 @@ where
             });
         }
 
-        let changes = self
-            .added
-            .iter()
-            .filter_map(|r| self.entities.get(r))
-            .map(EntityChange::Added)
-            .chain(self.modified.iter().filter_map(|r| {
-                self.entities
-                    .get(r)
-                    .map(|entity| EntityChange::Modified(entity, entity.dirty_fields()))
-            }))
-            .chain(self.removed.iter().map(EntityChange::Removed));
-
         self.substrate
-            .persist(changes)
+            .persist(self.changes())
             .await
             .map_err(|errs| PersistError::SubstrateErrors(BatchError::new(errs)))?;
 
@@ -254,6 +263,19 @@ where
         Ok(())
     }
 
+    fn changes(&self) -> impl Iterator<Item = EntityChange<'_>> + Send + '_ {
+        self.added
+            .iter()
+            .filter_map(|any_ref| self.entities.get(any_ref))
+            .map(EntityChange::Added)
+            .chain(self.modified.iter().filter_map(|any_ref| {
+                self.entities
+                    .get(any_ref)
+                    .map(|entity| EntityChange::Modified(entity, entity.dirty_fields()))
+            }))
+            .chain(self.removed.iter().map(EntityChange::Removed))
+    }
+
     async fn load_field(&mut self, any_ref: &AnyEntityRef, field: &str) -> Result<(), LoadError> {
         self.load_fields(any_ref, &[field], true).await
     }
@@ -263,8 +285,7 @@ where
         any_ref: &AnyEntityRef,
         field: &str,
     ) -> Result<(), LoadError> {
-        let strategy = S::load_strategy(any_ref.kind(), field)
-            .map_err(LoadError::Substrate)?;
+        let strategy = S::load_strategy(any_ref.kind(), field).map_err(LoadError::Substrate)?;
 
         for prereq in strategy.prerequisites {
             self.load_fields(any_ref, &[prereq], true).await?;
@@ -278,6 +299,10 @@ where
     }
 
     fn undo_commit(&mut self, any_ref: &AnyEntityRef) -> Result<(), StoreOpError> {
+        if self.checked_out.contains(any_ref) {
+            return Err(StoreOpError::WrongState);
+        }
+
         if self.added.contains(any_ref) {
             self.entities.remove(any_ref);
             self.added.remove(any_ref);
@@ -296,6 +321,9 @@ where
         if !self.entities.contains_key(any_ref) {
             return Err(StoreOpError::NotFound);
         }
+        if self.checked_out.contains(any_ref) {
+            return Err(StoreOpError::WrongState);
+        }
         if self.added.contains(any_ref) || self.modified.contains(any_ref) {
             return Err(StoreOpError::WrongState);
         }
@@ -312,9 +340,12 @@ where
     ) -> Pin<Box<dyn Future<Output = Result<(), LoadError>> + Send + 'a>> {
         Box::pin(async move {
             let mut pending_fields = {
-                let current = self.entities.get(any_ref).ok_or_else(|| LoadError::NotFound {
-                    entity_ref: any_ref.id().to_string(),
-                })?;
+                let current = self
+                    .entities
+                    .get(any_ref)
+                    .ok_or_else(|| LoadError::NotFound {
+                        entity_ref: any_ref.id().to_string(),
+                    })?;
                 fields
                     .iter()
                     .copied()
@@ -328,17 +359,20 @@ where
 
             if include_prerequisites {
                 for field in pending_fields.clone() {
-                    let strategy = S::load_strategy(any_ref.kind(), field)
-                        .map_err(LoadError::Substrate)?;
+                    let strategy =
+                        S::load_strategy(any_ref.kind(), field).map_err(LoadError::Substrate)?;
                     for prereq in strategy.prerequisites {
                         self.load_fields(any_ref, &[prereq], true).await?;
                     }
                 }
             }
 
-            let current = self.entities.get(any_ref).ok_or_else(|| LoadError::NotFound {
-                entity_ref: any_ref.id().to_string(),
-            })?;
+            let current = self
+                .entities
+                .get(any_ref)
+                .ok_or_else(|| LoadError::NotFound {
+                    entity_ref: any_ref.id().to_string(),
+                })?;
             pending_fields.retain(|field| !current.is_field_loaded(field));
             if pending_fields.is_empty() {
                 return Ok(());
@@ -418,5 +452,4 @@ where
             })
         }
     }
-
 }
