@@ -1,6 +1,6 @@
 # workflow-restructuring
 
-**Entity Layer → `entity_layer/plain-entities/`**
+**Owning layer: `entity`**
 
 ---
 

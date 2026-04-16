@@ -1,6 +1,6 @@
 # entity-ref
 
-**Entity Layer → `entity_layer/entity-identity/`**
+**Owning layer: `entity`**
 
 ---
 

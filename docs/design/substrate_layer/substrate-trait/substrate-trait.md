@@ -1,6 +1,6 @@
 # substrate-trait
 
-**Substrate Layer → `substrate_layer/substrate-trait/`**
+**Owning layer: `substrate`**
 
 ---
 

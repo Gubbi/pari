@@ -1,6 +1,6 @@
 # store-structure
 
-**Store Layer → `store_layer/entity-store/`**
+**Owning layer: `store`**
 
 ---
 

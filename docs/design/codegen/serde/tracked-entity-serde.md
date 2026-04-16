@@ -1,12 +1,12 @@
 # tracked-entity-serde
 
-**Codegen → `codegen/serde/`**
+**Owning layer: `entity`**
 
 ---
 
 ## Purpose
 
-Tracked entities hold fields in `Arc<TrackedField<T>>` backed by `OnceLock`. Standard `#[derive(Serialize, Deserialize)]` does not know how to handle uninitialized fields. `#[derive(Entity)]` generates custom `Serialize` and `Deserialize` impls that are OnceLock-aware.
+Tracked entities hold fields in `Arc<TrackedField<T>>` backed by `OnceLock`. Standard `#[derive(Serialize, Deserialize)]` does not know how to handle uninitialized fields. `#[derive(Entity)]` generates custom `Serialize` and `Deserialize` impls that are OnceLock-aware. Although code-generated, this behavior belongs to the `entity` layer because it defines how tracked entity state is represented and merged.
 
 ---
 

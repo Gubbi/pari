@@ -1,12 +1,12 @@
 # entity-registry
 
-**Codegen → `codegen/`**
+**Generated behavior layers: `entity`, `store`, `substrate`**
 
 ---
 
 ## Purpose
 
-`entity_registry!` is a declarative macro invoked once in the crate. It takes the full list of entity types and generates the aggregate types that the store, substrate, and load dispatch depend on. Adding a new entity type requires only adding it to this list — the generated types stay in sync at compile time.
+`entity_registry!` is a declarative macro invoked once in the crate. It takes the full list of entity types and generates aggregate types whose behavior belongs to the formal `entity`, `store`, and `substrate` layers. This doc lives under `codegen/` because the mechanism is a macro, but the generated outputs are not a separate architectural layer. Adding a new entity type requires only adding it to this list — the generated types stay in sync at compile time.
 
 ---
 

@@ -1,6 +1,6 @@
 # extensions
 
-**Entity Layer → `entity_layer/value-types/`**
+**Owning layer: `entity`**
 
 ---
 
@@ -37,7 +37,7 @@ pub struct Role {
 
 ## The `x-` Prefix Rule
 
-Only keys beginning with `x-` are valid (e.g. `x-owner`, `x-priority`). This rule is enforced by validation, not by serde or the type system — any string key can be inserted at runtime, but validation rejects non-`x-` keys. See `validate_extensions()` in the validation layer.
+Only keys beginning with `x-` are valid (e.g. `x-owner`, `x-priority`). This rule is enforced by `validation`, not by serde or the type system — any string key can be inserted at runtime, but validation rejects non-`x-` keys. See `validate_extensions()` in the `validation` layer.
 
 ---
 

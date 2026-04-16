@@ -1,12 +1,12 @@
 # async-accessor-variants
 
-**Codegen → `codegen/async/`**
+**Owning layer: `workspace`**
 
 ---
 
 ## Purpose
 
-`#[derive(Entity)]` generates async accessor and setter methods as inherent methods on each tracked entity struct. All methods are async — there are no sync counterparts and no `_async` suffix. This document covers the generated signatures.
+`#[derive(Entity)]` generates async accessor and setter methods as inherent methods on each tracked entity struct. Although the code is generated, the behavior belongs to the `workspace` layer because it defines the caller-facing async interaction surface over tracked entities. All methods are async — there are no sync counterparts and no `_async` suffix. This document covers the generated signatures.
 
 ---
 

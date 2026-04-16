@@ -1,12 +1,12 @@
 # ensure-mutable
 
-**Workspace Layer → `workspace_layer/load/`**
+**Owning layer: `store`**
 
 ---
 
 ## Purpose
 
-Every generated `set_*()` accessor is async and sends `StoreRequest::EnsureMutable` to `EntityServer` before mutating the field. `EntityServer` ensures the field is ready for mutation — loading prerequisites and the field itself if required. This prevents writes to a stub that would be silently overwritten on the next load.
+Every generated workspace-layer `set_*()` accessor is async and sends `StoreRequest::EnsureMutable` to `EntityServer` before mutating the field. `EntityServer` owns the preparation flow and ensures the field is ready for mutation by loading prerequisites and the field itself if required. This prevents writes to a stub that would be silently overwritten on the next load.
 
 ---
 
@@ -41,7 +41,7 @@ The setter sends a single `StoreRequest::EnsureMutable { any_ref, field }` messa
 
 4. Return `Ok(())` — the field is now safe to overwrite.
 
-Step 1 (`load_strategy`) is internal to the EntityServer and the substrate layer. The store layer knows only that a field must be prepared for mutation — it does not know about assets, file layout, or which other fields share storage with the mutated field.
+Step 1 (`load_strategy`) is internal to the `store` layer's `EntityServer` in collaboration with the `substrate` layer. The `workspace` layer knows only that a field must be prepared for mutation — it does not know about assets, file layout, or which other fields share storage with the mutated field.
 
 ---
 

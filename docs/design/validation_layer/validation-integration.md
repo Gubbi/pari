@@ -1,12 +1,12 @@
 # validation-integration
 
-**Validation Layer → `validation_layer/`**
+**Owning layer: `validation`**
 
 ---
 
 ## Purpose
 
-Describes how validation wires into `EntityServer` at each of the three trigger points: setter, load path, and check-in. Covers the call sites, the `fields` and `kinds` arguments passed to `run_validations`, and how errors are surfaced.
+Describes how validation wires into the `store` layer's `EntityServer` at each of the three trigger points: setter, load path, and check-in. Covers the call sites, the `fields` and `kinds` arguments passed to `run_validations`, and how errors are surfaced.
 
 ---
 
@@ -26,14 +26,14 @@ Setters run only `Structural` and `Semantic` — no store access. The `fields` s
 
 ## Load Path
 
-The authoritative load sequence lives in [store-load-internal](../workspace_layer/load/store-load-internal.md). From the validation layer's perspective, load integration is:
+The authoritative `store` load sequence lives in [store-load-internal](../workspace_layer/load/store-load-internal.md). From the `validation` layer's perspective, load integration is:
 
 - `EntityServer` fetches partial fields from the substrate
 - it may prefetch refs via `all_refs()` + batched `exists()` as an optimization
 - `run_validations(..., kinds: &[Structural, Semantic, CrossEntity])` runs before merge
 - `LoadError::ValidationFailed` aborts the merge for that fetch result
 
-This doc intentionally does not restate the detailed load algorithm; see [store-load-internal](../workspace_layer/load/store-load-internal.md) and [ensure-mutable](../workspace_layer/load/ensure-mutable.md) for the canonical flow.
+This doc intentionally does not restate the detailed load algorithm; see [store-load-internal](../workspace_layer/load/store-load-internal.md) and [ensure-mutable](../workspace_layer/load/ensure-mutable.md) for the canonical `store`-owned flow that workspace accessors and setters trigger.
 
 ---
 

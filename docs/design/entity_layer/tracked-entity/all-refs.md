@@ -1,6 +1,6 @@
 # all-refs
 
-**Entity Layer → `entity_layer/tracked-entity/`**
+**Owning layer: `entity`**
 
 ---
 

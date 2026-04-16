@@ -1,6 +1,6 @@
 # store-persist-phases
 
-**Store Layer → `store_layer/entity-store/`**
+**Owning layer: `store`**
 
 ---
 

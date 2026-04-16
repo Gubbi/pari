@@ -1,6 +1,6 @@
 # state-entries
 
-**Entity Layer → `entity_layer/value-types/`**
+**Owning layer: `entity`**
 
 ---
 

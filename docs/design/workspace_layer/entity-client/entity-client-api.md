@@ -1,6 +1,6 @@
 # entity-client-api
 
-**Workspace Layer → `workspace_layer/entity-client/`**
+**Owning layer: `workspace`**
 
 ---
 

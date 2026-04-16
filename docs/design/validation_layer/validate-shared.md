@@ -1,6 +1,6 @@
 # validate-shared
 
-**Validation Layer → `validation_layer/`**
+**Owning layer: `validation`**
 
 ---
 

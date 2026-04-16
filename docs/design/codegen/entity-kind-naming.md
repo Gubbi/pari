@@ -1,12 +1,12 @@
 # entity-kind-naming
 
-**Codegen → `codegen/`**
+**Owning layer: `entity`**
 
 ---
 
 ## Purpose
 
-`EntityKind` and `Entity` address the same concept at two different levels. This doc names each one unambiguously to prevent confusion when reading code and design docs.
+`EntityKind` and `Entity` address the same concept at two different levels. This doc stays under `codegen/` because derive output wires the two together, but the concept itself belongs to the `entity` layer. The goal is to name each piece unambiguously so reading code and design docs does not blur compile-time identity with runtime identity.
 
 ---
 

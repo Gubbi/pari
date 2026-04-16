@@ -1,12 +1,12 @@
 # progressive-loading-loop
 
-**Workspace Layer → `workspace_layer/load/`**
+**Owning layer: `store`**
 
 ---
 
 ## Purpose
 
-Loading is multi-round. Each round fetches one asset (or one field group), validates the result, and resolves any newly discovered cross-entity refs. Subsequent rounds may depend on data loaded in earlier rounds. Validation between rounds ensures unvalidated data never drives subsequent loads.
+This document describes the `store` layer's multi-round load orchestration. Each round fetches one asset (or one field group), validates the result, and resolves any newly discovered cross-entity refs. Subsequent rounds may depend on data loaded in earlier rounds. Validation between rounds ensures unvalidated data never drives subsequent loads.
 
 ---
 
@@ -81,4 +81,4 @@ entity.content().await  // transparent load on first access
 
 ## Relation to ensure_mutable
 
-`ensure_mutable` (see [59](ensure-mutable.md)) calls into this same load machinery before a mutation. The difference: `ensure_mutable` ensures the asset containing the field is loaded, whereas the progressive load loop is the implementation that actually executes the load rounds.
+A workspace-layer setter uses `ensure_mutable` (see [59](ensure-mutable.md)) to call into this same load machinery before a mutation. The difference: `ensure_mutable` ensures the asset containing the field is loaded, whereas the progressive load loop is the `store`-owned implementation that actually executes the load rounds.

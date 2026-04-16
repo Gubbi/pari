@@ -1,6 +1,6 @@
 # entity-change-iterator
 
-**Store Layer → `store_layer/change-tracking/`**
+**Owning layer: `store`**
 
 ---
 

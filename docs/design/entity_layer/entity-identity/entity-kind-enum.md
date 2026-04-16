@@ -1,6 +1,6 @@
 # entity-kind-enum
 
-**Entity Layer → `entity_layer/entity-identity/`**
+**Owning layer: `entity`**
 
 ---
 

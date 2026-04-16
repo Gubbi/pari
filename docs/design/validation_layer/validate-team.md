@@ -1,6 +1,6 @@
 # validate-team
 
-**Validation Layer → `validation_layer/`**
+**Owning layer: `validation`**
 
 ---
 

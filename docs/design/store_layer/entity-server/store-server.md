@@ -1,6 +1,6 @@
 # store-server
 
-**Store Layer → `store_layer/entity-server/`**
+**Owning layer: `store`**
 
 ---
 

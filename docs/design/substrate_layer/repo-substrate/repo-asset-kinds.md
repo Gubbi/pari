@@ -1,6 +1,6 @@
 # repo-asset-kinds
 
-**Substrate Layer → `substrate_layer/repo-substrate/`**
+**Owning layer: `substrate`**
 
 ---
 

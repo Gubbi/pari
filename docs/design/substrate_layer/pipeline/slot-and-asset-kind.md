@@ -1,6 +1,6 @@
 # slot-and-asset-kind
 
-**Substrate Layer → `substrate_layer/pipeline/`**
+**Owning layer: `substrate`**
 
 ---
 

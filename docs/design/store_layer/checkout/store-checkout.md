@@ -1,6 +1,6 @@
 # store-checkout
 
-**Store Layer → `store_layer/checkout/`**
+**Owning layer: `store`**
 
 ---
 

@@ -1,6 +1,6 @@
 # asset-op-vocabulary
 
-**Substrate Layer → `substrate_layer/pipeline/`**
+**Owning layer: `substrate`**
 
 ---
 

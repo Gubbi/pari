@@ -1,12 +1,12 @@
 # store-load-internal
 
-**Workspace Layer → `workspace_layer/load/`**
+**Owning layer: `store`**
 
 ---
 
 ## Purpose
 
-`EntityServer::load(any_ref, fields)` is the internal method that fetches fields from the substrate and merges them into the cached entity. Called by field accessors on first access — when an accessor finds its `OnceLock` uninitialized, it sends a `StoreRequest::Load` via `EntityServer::sender()`. There is no explicit load API on tracked entities.
+`EntityServer::load(any_ref, fields)` is `store`-owned load orchestration that fetches fields from the substrate and merges them into the cached entity. Workspace-layer field accessors trigger it on first access — when an accessor finds its `OnceLock` uninitialized, it sends a `StoreRequest::Load` via `EntityServer::sender()`. There is no explicit load API on tracked entities.
 
 ---
 

@@ -1,6 +1,6 @@
 # cow-field-convention
 
-**Entity Layer → `entity_layer/field-primitives/`**
+**Owning layer: `entity`**
 
 ---
 

@@ -1,6 +1,6 @@
 # tracked-field
 
-**Entity Layer → `entity_layer/field-primitives/`**
+**Owning layer: `entity`**
 
 ---
 

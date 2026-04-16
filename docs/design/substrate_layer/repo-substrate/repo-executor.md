@@ -1,6 +1,6 @@
 # repo-executor-lca-atomic-swap
 
-**Substrate Layer → `substrate_layer/repo-substrate/`**
+**Owning layer: `substrate`**
 
 ---
 

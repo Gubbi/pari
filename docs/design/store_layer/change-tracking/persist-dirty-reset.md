@@ -1,6 +1,6 @@
 # persist-dirty-reset
 
-**Store Layer → `store_layer/change-tracking/`**
+**Owning layer: `store`**
 
 ---
 

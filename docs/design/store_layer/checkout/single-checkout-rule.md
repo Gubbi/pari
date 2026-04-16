@@ -1,6 +1,6 @@
 # single-checkout-rule
 
-**Store Layer → `store_layer/checkout/`**
+**Owning layer: `store`**
 
 ---
 

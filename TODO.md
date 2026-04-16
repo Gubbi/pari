@@ -19,11 +19,12 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Done looks like: there is one authoritative design reference that clearly defines the project layers, what each layer owns, and how they compose.
    Completion note: `docs/design/architecture/layer-model.md` is now the authoritative architecture reference. It defines the formal layers, their ownership boundaries, dependency expectations, and how the existing design-tree buckets map onto that model without forcing the broader doc rewrite into this task.
 
-2. [ ] Rewrite design docs to use the formal layer model
+2. [x] Rewrite design docs to use the formal layer model
    Context: many design docs still carry older mixed or legacy language from before the current layer boundaries were clarified. Once the layer model is formalized, the rest of the design set should leverage that model consistently.
    Goal: update design docs across the design set to use the new layer vocabulary consistently, remove legacy design language, and relocate concepts to the right layer descriptions.
    Scope: design docs only for this task. This is a docs-set consistency pass, not a code change task.
    Done looks like: the design docs consistently describe the architecture in terms of the formal layers and no longer reintroduce outdated mixed-layer language.
+   Completion note: the design tree now labels docs by formal owning layer instead of historical bucket names, the index explains how current buckets map to the formal model, and the formerly ambiguous `workspace_layer/load` plus `codegen/` docs now explicitly describe their real ownership boundaries.
 
 3. [ ] Align module docs and AGENTS/local guidance to the layer model
    Context: even when code is correct, stale module docs and local guidance can reintroduce drift by teaching the wrong ownership boundaries. After the design docs are aligned, module-local docs should reinforce the same model.

@@ -1,6 +1,6 @@
 # field-mapping-and-asset-defs
 
-**Substrate Layer → `substrate_layer/pipeline/`**
+**Owning layer: `substrate`**
 
 ---
 

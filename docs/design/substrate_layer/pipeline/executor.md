@@ -1,6 +1,6 @@
 # executor
 
-**Substrate Layer → `substrate_layer/pipeline/`**
+**Owning layer: `substrate`**
 
 ---
 

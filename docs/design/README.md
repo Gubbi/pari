@@ -1,20 +1,20 @@
 # Pari — Design Docs
 
-The authoritative architecture reference for this tree is [architecture/layer-model](architecture/layer-model.md). The directory buckets below are the current document organization, aligned where practical to the canonical layer vocabulary.
+The authoritative architecture reference for this tree is [architecture/layer-model](architecture/layer-model.md). The directory buckets below are the current document organization, while the formal layer vocabulary remains `entity`, `workspace`, `store`, `substrate`, `validation`, `error`, and `test`.
 
 ## Structure
 
-| Layer | Contents |
-|---|---|
-| `architecture/` | Formal architectural model, layer ownership, dependency expectations |
-| `entity_layer/` | Field primitives, entity identity, value types, plain entities, tracked entities |
-| `store_layer/` | Store structure, checkout/commit lifecycle, change tracking, persist phases |
-| `workspace_layer/` | EntityClient API, field accessors/setters, loading |
-| `substrate_layer/` | Substrate trait, asset pipeline, RepoSubstrate implementation |
-| `validation_layer/` | Validation API and per-entity implementations |
-| `error_layer/` | Error taxonomy, composition, observability, batch errors, primitive-error design |
-| `test_layer/` | Test-layer design docs and verification guidance |
-| `codegen/` | Derive macros, schema codegen |
+| Current docs area | Formal layer focus | Contents |
+|---|---|---|
+| `architecture/` | architecture reference | Formal architectural model, layer ownership, dependency expectations |
+| `entity_layer/` | `entity` | Field primitives, entity identity, value types, plain entities, tracked entities |
+| `store_layer/` | `store` | Store structure, checkout/commit lifecycle, change tracking, persist phases |
+| `workspace_layer/` | mostly `workspace` | Caller-facing API docs plus a historical `load/` bucket whose docs describe `store`-owned load orchestration triggered by workspace accessors |
+| `substrate_layer/` | `substrate` | Substrate trait, asset pipeline, RepoSubstrate implementation |
+| `validation_layer/` | `validation` | Validation API and per-entity implementations |
+| `error_layer/` | `error` | Error taxonomy, composition, observability, batch errors, primitive-error design |
+| `test_layer/` | `test` | Test-layer design docs and verification guidance |
+| `codegen/` | not a formal layer | Implementation-support docs for generated behavior; each doc names its owning formal layer |
 
 ---
 
@@ -24,7 +24,7 @@ The authoritative architecture reference for this tree is [architecture/layer-mo
 
 ---
 
-## entity_layer
+## entity
 
 ### field-primitives
 - [tracked-field](entity_layer/field-primitives/tracked-field.md) — `TrackedField<T>`: `OnceLock<T>`, dirty flag, optional fields, Arc COW wrapping
@@ -69,7 +69,7 @@ The authoritative architecture reference for this tree is [architecture/layer-mo
 
 ---
 
-## store_layer
+## store
 
 ### checkout
 - [store-checkout](store_layer/checkout/store-checkout.md) — `EntityClient::checkout()`: clone entity, mark checked_out
@@ -93,19 +93,21 @@ The authoritative architecture reference for this tree is [architecture/layer-mo
 
 ---
 
-## workspace_layer
+## workspace
+
+`workspace_layer/` holds the caller-facing API docs. Its `load/` subdirectory remains a historical bucket, but those docs now describe `store`-owned load orchestration that workspace accessors and setters trigger.
 
 ### entity-client
-- [entity-client-api](workspace_layer/entity-client/entity-client-api.md) — `EntityClient`: `request`/`send` helpers; all typed async methods; thread safety
+- [entity-client-api](workspace_layer/entity-client/entity-client-api.md) — `EntityClient`: caller-facing async API over the store message boundary
 
 ### load
-- [store-load-internal](workspace_layer/load/store-load-internal.md) — internal load handler inside EntityServer
-- [ensure-mutable](workspace_layer/load/ensure-mutable.md) — pre-mutation asset load; mutable_without_load; multi-asset entities
-- [progressive-loading-loop](workspace_layer/load/progressive-loading-loop.md) — multi-round load: prerequisites → fields → validate → merge
+- [store-load-internal](workspace_layer/load/store-load-internal.md) — `store`-owned load handler inside `EntityServer`, invoked by workspace accessors
+- [ensure-mutable](workspace_layer/load/ensure-mutable.md) — `store`-owned pre-mutation preparation flow invoked by workspace setters
+- [progressive-loading-loop](workspace_layer/load/progressive-loading-loop.md) — `store`-owned multi-round load orchestration: prerequisites → fields → validate → merge
 
 ---
 
-## substrate_layer
+## substrate
 
 ### substrate-trait
 - [load-strategy](substrate_layer/substrate-trait/load-strategy.md) — `LoadStrategy`: prerequisites, mutable_without_load; static per (EntityKind, field)
@@ -137,7 +139,7 @@ The authoritative architecture reference for this tree is [architecture/layer-mo
 
 ---
 
-## validation_layer
+## validation
 - [validation-api](validation_layer/validation-api.md)
 - [validate-shared](validation_layer/validate-shared.md)
 - [validate-role](validation_layer/validate-role.md)
@@ -151,7 +153,9 @@ The authoritative architecture reference for this tree is [architecture/layer-mo
 
 ---
 
-## codegen
+## codegen support
+
+`codegen/` is not a formal architecture layer. These docs explain how generation supports behavior owned by the formal layers, and each document names that ownership explicitly.
 - [entity-kind-naming](codegen/entity-kind-naming.md)
 - [entity-registry](codegen/entity-registry.md) — `entity_registry!` macro; generates `EntityKind`, `AnyEntityRef`, `TrackedEntity` enums, `load_strategy`
 
@@ -163,13 +167,13 @@ The authoritative architecture reference for this tree is [architecture/layer-mo
 
 ---
 
-## error_layer
+## error
 - [error-handling](error_layer/error-handling.md) — error taxonomy, `ErrorCompose`, `OTelEmit`, batch errors, client usage
 - [primitive-errors](error_layer/primitive-errors.md) — Primitive Error design: derive-driven contract, auto-captured diagnostics, and standardized observability
 
 ---
 
-## test_layer
+## test
 
 This layer currently has no dedicated design docs.
 
