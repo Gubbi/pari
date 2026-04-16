@@ -1,9 +1,12 @@
 # Pari — Design Docs
 
+The authoritative architecture reference for this tree is [architecture/layer-model](architecture/layer-model.md). The directory buckets below are the current document organization, not the canonical layer vocabulary.
+
 ## Structure
 
 | Layer | Contents |
 |---|---|
+| `architecture/` | Formal architectural model, layer ownership, dependency expectations |
 | `data_model/` | Field primitives, entity identity, value types, plain entities, tracked entities |
 | `store_layer/` | Store structure, checkout/commit lifecycle, change tracking, persist phases |
 | `workspace_layer/` | EntityClient API, field accessors/setters, loading |
@@ -11,6 +14,12 @@
 | `validation/` | Validation API and per-entity implementations |
 | `codegen/` | Derive macros, schema codegen |
 | `error-handling/` | Error taxonomy, composition, observability, batch errors, primitive-error design |
+
+---
+
+## architecture
+
+- [layer-model](architecture/layer-model.md) — authoritative definition of the formal `entity`, `workspace`, `store`, `substrate`, `validation`, `error`, and `test` layers; also maps the older doc directories onto that model
 
 ---
 

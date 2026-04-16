@@ -12,11 +12,12 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
 
 ## Code Tasks
 
-1. [ ] Formalize architectural layers in design
+1. [x] Formalize architectural layers in design
    Context: the project has now converged on an explicit layer model: `entity`, `workspace`, `store`, `substrate`, `validation`, `test`, and `error`. We have already been refactoring code and codegen in that direction, but the design docs do not yet declare this model as the authoritative architecture.
    Goal: create or update the authoritative design doc so these layers, their ownership, and their dependency expectations are explicitly defined as the project’s architectural model.
    Scope: design docs only for this task. Do not restructure code or local module docs in this commit.
    Done looks like: there is one authoritative design reference that clearly defines the project layers, what each layer owns, and how they compose.
+   Completion note: `docs/design/architecture/layer-model.md` is now the authoritative architecture reference. It defines the formal layers, their ownership boundaries, dependency expectations, and how the existing design-tree buckets map onto that model without forcing the broader doc rewrite into this task.
 
 2. [ ] Rewrite design docs to use the formal layer model
    Context: many design docs still carry older mixed or legacy language from before the current layer boundaries were clarified. Once the layer model is formalized, the rest of the design set should leverage that model consistently.
