@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 
 use tokio::sync::mpsc;
 
-use crate::store::message::{StoreCommand, StoreMessage, StoreRequest, StoreResponse};
+use crate::store::message::{StoreMessage, StoreRequest, StoreResponse};
 use crate::store::state::Store;
 use crate::store_error::StoreError;
 use crate::substrate::schema_registry::SchemaBackedSubstrate;
@@ -53,13 +53,6 @@ impl EntityServer {
             .await
             .map_err(|_| StoreError::Unavailable)?;
         rx.await.map_err(|_| StoreError::Unavailable)?
-    }
-
-    pub(crate) async fn send(command: StoreCommand) -> Result<(), StoreError> {
-        Self::sender()
-            .send(StoreMessage::Command(command))
-            .await
-            .map_err(|_| StoreError::Unavailable)
     }
 
     pub async fn with<S, F, Fut>(substrate: S, f: F)

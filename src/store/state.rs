@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 
 use crate::entity::{AnyEntityRef, TrackedEntity};
 use crate::error::BatchError;
-use crate::store::message::{StoreCommand, StoreMessage, StoreRequest, StoreResponse};
+use crate::store::message::{StoreMessage, StoreRequest, StoreResponse};
 use crate::store_error::StoreError;
 use crate::substrate::schema_registry::SchemaBackedSubstrate;
 use crate::validation::{run_validations_for_entity, ValidationKind};
@@ -47,13 +47,9 @@ where
 
     pub(super) async fn run(mut self, mut rx: mpsc::Receiver<StoreMessage>) {
         while let Some(msg) = rx.recv().await {
-            match msg {
-                StoreMessage::Request { request, reply } => {
-                    let result = self.handle(request).await;
-                    let _ = reply.send(result);
-                }
-                StoreMessage::Command(cmd) => self.execute(cmd),
-            }
+            let StoreMessage::Request { request, reply } = msg;
+            let result = self.handle(request).await;
+            let _ = reply.send(result);
         }
     }
 
@@ -93,6 +89,10 @@ where
                     Err(e) => Ok(StoreResponse::LoadErr(e)),
                 }
             }
+            StoreRequest::UndoCheckout { any_ref } => {
+                self.undo_checkout(&any_ref);
+                Ok(StoreResponse::Unit)
+            }
             StoreRequest::UndoCommit { any_ref } => match self.undo_commit(&any_ref) {
                 Ok(()) => Ok(StoreResponse::Unit),
                 Err(StoreOpError::WrongState | StoreOpError::CheckedOut | StoreOpError::NotFound) => {
@@ -108,12 +108,8 @@ where
         }
     }
 
-    fn execute(&mut self, cmd: StoreCommand) {
-        match cmd {
-            StoreCommand::UndoCheckout { any_ref } => {
-                self.checked_out.remove(&any_ref);
-            }
-        }
+    fn undo_checkout(&mut self, any_ref: &AnyEntityRef) {
+        self.checked_out.remove(any_ref);
     }
 
     async fn insert(&mut self, entity: TrackedEntity) -> Result<(), CommitError> {

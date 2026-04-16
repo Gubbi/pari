@@ -6,5 +6,5 @@ mod server;
 mod state;
 
 pub use change::EntityChange;
-pub(crate) use message::{StoreCommand, StoreRequest, StoreResponse};
+pub(crate) use message::{StoreRequest, StoreResponse};
 pub use server::EntityServer;

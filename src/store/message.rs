@@ -11,12 +11,9 @@ pub(crate) enum StoreRequest {
     Persist,
     Load { any_ref: AnyEntityRef, field: String },
     EnsureMutable { any_ref: AnyEntityRef, field: String },
+    UndoCheckout { any_ref: AnyEntityRef },
     UndoCommit { any_ref: AnyEntityRef },
     Unload { any_ref: AnyEntityRef },
-}
-
-pub(crate) enum StoreCommand {
-    UndoCheckout { any_ref: AnyEntityRef },
 }
 
 pub(crate) enum StoreResponse {
@@ -35,5 +32,4 @@ pub(super) enum StoreMessage {
         request: StoreRequest,
         reply: tokio::sync::oneshot::Sender<Result<StoreResponse, StoreError>>,
     },
-    Command(StoreCommand),
 }
