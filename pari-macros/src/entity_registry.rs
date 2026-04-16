@@ -44,6 +44,14 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         })
         .collect();
 
+    let from_str_arms: Vec<TokenStream2> = variants
+        .iter()
+        .map(|v| {
+            let v_str = v.to_string();
+            quote! { #v_str => Some(EntityKind::#v), }
+        })
+        .collect();
+
     let entity_kind = quote! {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         pub enum EntityKind {
@@ -54,6 +62,13 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
             pub fn as_str(&self) -> &'static str {
                 match self {
                     #(#as_str_arms)*
+                }
+            }
+
+            pub fn from_str(value: &str) -> Option<Self> {
+                match value {
+                    #(#from_str_arms)*
+                    _ => None,
                 }
             }
         }
@@ -90,6 +105,16 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         })
         .collect();
 
+    let any_ref_to_json_arms: Vec<TokenStream2> = entries
+        .iter()
+        .map(|e| {
+            let name = &e.name;
+            quote! {
+                AnyEntityRef::#name(r) => ::serde_json::to_value(r),
+            }
+        })
+        .collect();
+
     let any_entity_ref = quote! {
         #[derive(Debug, Clone, PartialEq, Eq, Hash)]
         pub enum AnyEntityRef {
@@ -108,6 +133,12 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
             pub fn parent(&self) -> Option<AnyEntityRef> {
                 match self { #(#parent_arms)* }
             }
+
+            pub fn to_json_value(&self) -> ::serde_json::Result<::serde_json::Value> {
+                match self {
+                    #(#any_ref_to_json_arms)*
+                }
+            }
         }
     };
 
@@ -121,7 +152,7 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
                 vname.span(),
             );
             quote! {
-                pub fn #fn_name(e: #tname) -> Self { StoreEntity::#vname(e) }
+                pub fn #fn_name(e: #tname) -> Self { TrackedEntity::#vname(e) }
             }
         })
         .collect();
@@ -131,7 +162,28 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         .map(|e| {
             let vname = &e.name;
             quote! {
-                StoreEntity::#vname(e) => AnyEntityRef::#vname(e.entity_ref().clone()),
+                TrackedEntity::#vname(e) => AnyEntityRef::#vname(e.entity_ref().clone()),
+            }
+        })
+        .collect();
+
+    let tracked_to_json_arms: Vec<TokenStream2> = entries
+        .iter()
+        .map(|e| {
+            let vname = &e.name;
+            quote! {
+                TrackedEntity::#vname(e) => ::serde_json::to_value(e),
+            }
+        })
+        .collect();
+
+    let tracked_from_json_arms: Vec<TokenStream2> = entries
+        .iter()
+        .zip(tracked_names.iter())
+        .map(|(e, tname)| {
+            let vname = &e.name;
+            quote! {
+                AnyEntityRef::#vname(_) => ::serde_json::from_value::<#tname>(value).map(TrackedEntity::#vname),
             }
         })
         .collect();
@@ -142,7 +194,7 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         .map(|(e, tname)| {
             let vname = &e.name;
             quote! {
-                AnyEntityRef::#vname(r) => StoreEntity::#vname(#tname::make_stub(r.clone())),
+                AnyEntityRef::#vname(r) => TrackedEntity::#vname(#tname::make_stub(r.clone())),
             }
         })
         .collect();
@@ -152,7 +204,7 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         .map(|e| {
             let vname = &e.name;
             quote! {
-                StoreEntity::#vname(e) => e.all_refs(),
+                TrackedEntity::#vname(e) => e.all_refs(),
             }
         })
         .collect();
@@ -162,7 +214,7 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         .map(|e| {
             let vname = &e.name;
             quote! {
-                (StoreEntity::#vname(src), StoreEntity::#vname(dst)) => src.initialize_into(dst),
+                (TrackedEntity::#vname(src), TrackedEntity::#vname(dst)) => src.initialize_into(dst),
             }
         })
         .collect();
@@ -172,7 +224,7 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         .map(|e| {
             let vname = &e.name;
             quote! {
-                (StoreEntity::#vname(src), StoreEntity::#vname(dst)) => src.merge_dirty_into(dst),
+                (TrackedEntity::#vname(src), TrackedEntity::#vname(dst)) => src.merge_dirty_into(dst),
             }
         })
         .collect();
@@ -182,7 +234,7 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         .map(|e| {
             let vname = &e.name;
             quote! {
-                StoreEntity::#vname(e) => e.has_dirty_fields(),
+                TrackedEntity::#vname(e) => e.has_dirty_fields(),
             }
         })
         .collect();
@@ -192,7 +244,7 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         .map(|e| {
             let vname = &e.name;
             quote! {
-                StoreEntity::#vname(e) => e.dirty_fields(),
+                TrackedEntity::#vname(e) => e.dirty_fields(),
             }
         })
         .collect();
@@ -202,7 +254,7 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         .map(|e| {
             let vname = &e.name;
             quote! {
-                StoreEntity::#vname(e) => e.reset_dirty(),
+                TrackedEntity::#vname(e) => e.reset_dirty(),
             }
         })
         .collect();
@@ -212,23 +264,59 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         .map(|e| {
             let vname = &e.name;
             quote! {
-                StoreEntity::#vname(e) => e.is_stub(),
+                TrackedEntity::#vname(e) => e.is_stub(),
             }
         })
         .collect();
 
-    let store_entity = quote! {
+    let is_field_loaded_arms: Vec<TokenStream2> = entries
+        .iter()
+        .map(|e| {
+            let vname = &e.name;
+            quote! {
+                TrackedEntity::#vname(e) => e.is_field_loaded(field),
+            }
+        })
+        .collect();
+
+    let run_validations_arms: Vec<TokenStream2> = entries
+        .iter()
+        .map(|e| {
+            let vname = &e.name;
+            let ty = &e.name;
+            quote! {
+                TrackedEntity::#vname(e) => ::pari::validation::run_validations::<#ty>(e, fields, kinds).await,
+            }
+        })
+        .collect();
+
+    let tracked_entity = quote! {
         #[derive(Clone)]
-        pub enum StoreEntity {
+        pub enum TrackedEntity {
             #(#variants(#tracked_names),)*
         }
 
-        impl StoreEntity {
+        impl TrackedEntity {
             #(#from_methods)*
 
             pub fn any_ref(&self) -> AnyEntityRef {
                 match self {
                     #(#any_ref_arms)*
+                }
+            }
+
+            pub fn to_json_value(&self) -> ::serde_json::Result<::serde_json::Value> {
+                match self {
+                    #(#tracked_to_json_arms)*
+                }
+            }
+
+            pub fn from_json_value(
+                any_ref: &AnyEntityRef,
+                value: ::serde_json::Value,
+            ) -> ::serde_json::Result<Self> {
+                match any_ref {
+                    #(#tracked_from_json_arms)*
                 }
             }
 
@@ -244,14 +332,14 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
                 }
             }
 
-            pub fn initialize_into(&self, target: &mut StoreEntity) {
+            pub fn initialize_into(&self, target: &mut TrackedEntity) {
                 match (self, target) {
                     #(#initialize_into_arms)*
                     _ => {}
                 }
             }
 
-            pub fn merge_dirty_into(&self, target: &mut StoreEntity) {
+            pub fn merge_dirty_into(&self, target: &mut TrackedEntity) {
                 match (self, target) {
                     #(#merge_dirty_into_arms)*
                     _ => {}
@@ -279,6 +367,22 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
             pub fn is_stub(&self) -> bool {
                 match self {
                     #(#is_stub_arms)*
+                }
+            }
+
+            pub fn is_field_loaded(&self, field: &str) -> bool {
+                match self {
+                    #(#is_field_loaded_arms)*
+                }
+            }
+
+            pub async fn run_validations(
+                &self,
+                fields: &[&str],
+                kinds: &[::pari::validation::ValidationKind],
+            ) -> ::pari::validation::ValidationErrors {
+                match self {
+                    #(#run_validations_arms)*
                 }
             }
         }
@@ -322,7 +426,7 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
     quote! {
         #entity_kind
         #any_entity_ref
-        #store_entity
+        #tracked_entity
         #substrate_schema
         #load_strategy
     }

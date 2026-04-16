@@ -21,16 +21,17 @@ use std::collections::HashMap;
 use tempfile::TempDir;
 
 use pari::entities::role::{Role, TrackedRole};
-use pari::entity::{AnyEntityRef, EntityRef, StoreEntity};
-use pari::store::{EntityClient, EntityServer};
+use pari::entity::{AnyEntityRef, EntityRef, TrackedEntity};
+use pari::store::EntityServer;
+use pari::workspace::EntityClient;
 use pari::substrate::repo::RepoSubstrate;
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn a_role(id: &str, name: &str) -> StoreEntity {
-    StoreEntity::from_role(TrackedRole::from(Role {
+fn a_role(id: &str, name: &str) -> TrackedEntity {
+    TrackedEntity::from_role(TrackedRole::from(Role {
         entity_ref:  EntityRef::new(id),
         name:        name.to_string(),
         description: None,
@@ -60,15 +61,15 @@ async fn job_1_read_entity() {
     let dir = TempDir::new().unwrap();
 
     // Setup: persist a role to disk via one server session.
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         EntityClient::insert(a_role("eng-lead", "Engineering Lead")).await.unwrap();
         EntityClient::persist().await.unwrap();
     }).await;
 
     // Job: fresh server — resolve reads the entity from the substrate.
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         let entity = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let StoreEntity::Role(role) = entity else { panic!("expected Role") };
+        let TrackedEntity::Role(role) = entity else { panic!("expected Role") };
         assert_eq!(role.name().await.unwrap(), "Engineering Lead");
     }).await;
 }
@@ -84,7 +85,7 @@ async fn job_2_define_new_entity() {
     let dir = TempDir::new().unwrap();
     let role_file = dir.path().join("roles/designer.md");
 
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         EntityClient::insert(a_role("designer", "Designer")).await.unwrap();
         EntityClient::persist().await.unwrap();
     }).await;
@@ -104,16 +105,16 @@ async fn job_3_update_entity() {
     let dir = TempDir::new().unwrap();
 
     // Setup: persist initial state.
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         EntityClient::insert(a_role("eng-lead", "Original Name")).await.unwrap();
         EntityClient::persist().await.unwrap();
     }).await;
 
     // Job: load → checkout → mutate → commit → persist.
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
         let mut entity = EntityClient::checkout(role_ref("eng-lead")).await.unwrap();
-        if let StoreEntity::Role(ref mut r) = entity {
+        if let TrackedEntity::Role(ref mut r) = entity {
             r.set_name("Updated Name".to_string()).await.unwrap();
         }
         entity.commit().await.unwrap();
@@ -121,9 +122,9 @@ async fn job_3_update_entity() {
     }).await;
 
     // Verify: fresh server sees the updated value.
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         let entity = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let StoreEntity::Role(role) = entity else { panic!("expected Role") };
+        let TrackedEntity::Role(role) = entity else { panic!("expected Role") };
         assert_eq!(role.name().await.unwrap(), "Updated Name");
     }).await;
 }
@@ -140,7 +141,7 @@ async fn job_4_remove_entity() {
     let role_file = dir.path().join("roles/eng-lead.md");
 
     // Setup: create the file.
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         EntityClient::insert(a_role("eng-lead", "Engineering Lead")).await.unwrap();
         EntityClient::persist().await.unwrap();
     }).await;
@@ -148,7 +149,7 @@ async fn job_4_remove_entity() {
     assert!(role_file.exists(), "file must exist before removal");
 
     // Job: load → remove → persist.
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
         EntityClient::remove(role_ref("eng-lead")).await.unwrap();
         EntityClient::persist().await.unwrap();
@@ -169,20 +170,20 @@ async fn job_5_save_all_pending_changes() {
     let dir = TempDir::new().unwrap();
 
     // Setup: write role-b to disk so it can be updated.
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         EntityClient::insert(a_role("role-b", "Role B Original")).await.unwrap();
         EntityClient::persist().await.unwrap();
     }).await;
 
     // Job: stage an add, an update, and a remove — then persist once.
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         // Add
         EntityClient::insert(a_role("role-a", "Role A")).await.unwrap();
 
         // Update role-b
         EntityClient::resolve(role_ref("role-b")).await.unwrap();
         let mut entity = EntityClient::checkout(role_ref("role-b")).await.unwrap();
-        if let StoreEntity::Role(ref mut r) = entity { r.set_name("Role B Updated".to_string()).await.unwrap(); }
+        if let TrackedEntity::Role(ref mut r) = entity { r.set_name("Role B Updated".to_string()).await.unwrap(); }
         entity.commit().await.unwrap();
 
         // Remove role-b (after committing the checkout we can remove it)
@@ -207,15 +208,15 @@ async fn job_5_save_all_pending_changes() {
 async fn job_6_abandon_in_progress_edit() {
     let dir = TempDir::new().unwrap();
 
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         EntityClient::insert(a_role("eng-lead", "Original")).await.unwrap();
         EntityClient::persist().await.unwrap();
     }).await;
 
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
         let mut entity = EntityClient::checkout(role_ref("eng-lead")).await.unwrap();
-        if let StoreEntity::Role(ref mut r) = entity {
+        if let TrackedEntity::Role(ref mut r) = entity {
             r.set_name("Abandoned".to_string()).await.unwrap();
         }
         // Abandon: discard changes and release the lock.
@@ -223,7 +224,7 @@ async fn job_6_abandon_in_progress_edit() {
 
         // The entity in the store is back to its pre-checkout state.
         let entity = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let StoreEntity::Role(role) = entity else { panic!("expected Role") };
+        let TrackedEntity::Role(role) = entity else { panic!("expected Role") };
         assert_eq!(role.name().await.unwrap(), "Original");
 
         // A second checkout is now possible (lock was released).
@@ -244,15 +245,15 @@ async fn job_6_abandon_in_progress_edit() {
 async fn job_7_rollback_staged_change() {
     let dir = TempDir::new().unwrap();
 
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         EntityClient::insert(a_role("eng-lead", "Original")).await.unwrap();
         EntityClient::persist().await.unwrap();
     }).await;
 
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
         let mut entity = EntityClient::checkout(role_ref("eng-lead")).await.unwrap();
-        if let StoreEntity::Role(ref mut r) = entity {
+        if let TrackedEntity::Role(ref mut r) = entity {
             r.set_name("Staged".to_string()).await.unwrap();
         }
         entity.commit().await.unwrap(); // staged, not yet persisted
@@ -262,14 +263,14 @@ async fn job_7_rollback_staged_change() {
 
         // Re-resolving reloads from the substrate — still "Original".
         let entity = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let StoreEntity::Role(role) = entity else { panic!("expected Role") };
+        let TrackedEntity::Role(role) = entity else { panic!("expected Role") };
         assert_eq!(role.name().await.unwrap(), "Original");
     }).await;
 
     // Disk is also unchanged.
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         let entity = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let StoreEntity::Role(role) = entity else { panic!("expected Role") };
+        let TrackedEntity::Role(role) = entity else { panic!("expected Role") };
         assert_eq!(role.name().await.unwrap(), "Original");
     }).await;
 }
@@ -287,7 +288,7 @@ async fn job_8_refresh_from_substrate() {
     let dir = TempDir::new().unwrap();
 
     // Block 1: persist "v1" to disk.
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         EntityClient::insert(a_role("eng-lead", "v1")).await.unwrap();
         EntityClient::persist().await.unwrap();
     }).await;
@@ -295,10 +296,10 @@ async fn job_8_refresh_from_substrate() {
     // Block 2: resolve loads "v1" into memory (clean, unloadable).
     // While the session is live, overwrite the file on disk with "v2" to
     // simulate an external writer changing the substrate.
-    EntityServer::with_test(repo(&dir), || async {
+    EntityServer::with(repo(&dir), || async {
         // Load "v1" from disk — entity is now clean in the store (not in added/modified).
         let resolved = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let StoreEntity::Role(ref role) = resolved else { panic!("expected Role") };
+        let TrackedEntity::Role(ref role) = resolved else { panic!("expected Role") };
         assert_eq!(role.name().await.unwrap(), "v1", "should see v1 before external write");
 
         // Simulate external write: another writer updates the substrate file.
@@ -310,7 +311,7 @@ async fn job_8_refresh_from_substrate() {
 
         // The in-memory entity is still stale — resolve returns the cached copy.
         let stale = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let StoreEntity::Role(ref role) = stale else { panic!("expected Role") };
+        let TrackedEntity::Role(ref role) = stale else { panic!("expected Role") };
         assert_eq!(role.name().await.unwrap(), "v1", "should see stale v1 before refresh");
 
         // Unload evicts the stale in-memory copy.
@@ -318,7 +319,7 @@ async fn job_8_refresh_from_substrate() {
 
         // Re-resolve now loads fresh from the substrate — gets "v2".
         let refreshed = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let StoreEntity::Role(role) = refreshed else { panic!("expected Role") };
+        let TrackedEntity::Role(role) = refreshed else { panic!("expected Role") };
         assert_eq!(role.name().await.unwrap(), "v2", "should see fresh v2 after refresh");
     }).await;
 }

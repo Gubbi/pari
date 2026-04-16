@@ -69,7 +69,7 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Goal: make the source code consistently treat `src/substrate/mod.rs` as the only substrate boundary and remove any remaining architectural assumptions from source modules.
    Scope: source modules only. This task is about boundary cleanup, not yet implementing a concrete backend.
    Done looks like: the source no longer has meaningful architectural drift around substrate boundaries.
-   Completion note: the remaining concrete substrate helper `InMemorySubstrate` was moved out of `src/store/mod.rs` into `src/substrate/in_memory.rs`, and the substrate module now re-exports it. That leaves `store/` depending on the substrate boundary instead of defining one concrete backend inside the store layer.
+   Completion note: the remaining concrete substrate helper `InMemorySubstrate` was moved out of `src/store/mod.rs` into `src/substrate/in_memory/`, and the substrate module now re-exports it. That leaves `store/` depending on the substrate boundary instead of defining one concrete backend inside the store layer.
 
 10. [x] Substrate trait contract cleanup
    Context: the substrate traits and implementations still need consistency around async style and call shape. Now that legacy backends are removed, that contract can be cleaned up without compatibility baggage.
@@ -78,11 +78,14 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Done looks like: the substrate contract is internally consistent and no stale signature style remains.
    Completion note: `EntityChange` was moved out of `src/substrate/mod.rs` and into the store layer as a store-owned persistence boundary type. `InMemorySubstrate` now has its own in-memory slot/resolver/codec/executor types rather than reusing the `Void*` stack, and its `persist()` path now applies added/modified/removed changes into in-memory state.
 
-11. [ ] Concrete substrate replacement
+11. [x] Concrete substrate replacement
    Context: removing the legacy repo substrate intentionally left the project without a real filesystem-backed substrate. This is now the biggest functional gap rather than a drift-hiding problem.
    Goal: design and implement a new design-aligned concrete substrate that can replace the removed repo backend without reintroducing legacy architecture.
    Scope: new source implementation plus the minimal integration points needed to make it usable from the store.
    Done looks like: the project has a real concrete substrate again, built on the current design rather than on the deleted schema/repo stack.
+   Completion note: the substrate layer now has a schema-driven concrete backend again. `RepoSubstrate` lives under `src/substrate/repo/`, `InMemorySubstrate` lives under `src/substrate/in_memory/`, and both are split into focused resolver/codec/executor/schema pieces. The default schema-driven `exists` / `load` / `persist` flow now lives outside `src/substrate/mod.rs`, which is back to being mostly plumbing.
+   Follow-up queue: after the current pipeline pass is flushed, revisit how template asset filenames and placement are modeled across substrates so that raw/template assets are fully design-driven rather than hard-coded as `template.*`.
+   Follow-up queue: revisit schema field-to-asset indexing so lookups are direct and cached rather than rebuilt per call. The fail-fast unknown-field behavior is now in place, but the indexing optimization still needs a const-friendly design that works cleanly with the substrate schema registry.
 
 12. [ ] Store internals alignment
     Context: `src/store/mod.rs` still contains pockets of design drift in request/response handling, loading flow, ensure-mutable behavior, naming, and persist orchestration. Earlier cleanup removed legacy distractions so this can now be addressed directly.

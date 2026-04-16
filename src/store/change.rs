@@ -1,8 +1,8 @@
-use crate::entity::{AnyEntityRef, StoreEntity};
+use crate::entity::{AnyEntityRef, TrackedEntity};
 
 /// A single tracked-entity change emitted by the store for persistence.
 pub enum EntityChange<'a> {
-    Added(&'a StoreEntity),
-    Modified(&'a StoreEntity, &'a [&'a str]),
+    Added(&'a TrackedEntity),
+    Modified(&'a TrackedEntity, Vec<&'static str>),
     Removed(&'a AnyEntityRef),
 }

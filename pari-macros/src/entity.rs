@@ -206,7 +206,7 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
         }
     } else {
         quote! {
-            if let ::pari::entity::StoreEntity::#variant_name(ref t) = entity {
+            if let ::pari::entity::TrackedEntity::#variant_name(ref t) = entity {
                 ::std::option::Option::Some(t)
             } else {
                 ::std::option::Option::None
@@ -493,6 +493,24 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
         }
     };
 
+    let field_loaded_arms: Vec<TokenStream2> = domain_fields
+        .iter()
+        .map(|f| {
+            let fname = &f.ident;
+            let fname_str = fname.as_ref().unwrap().to_string();
+            quote! { #fname_str => self.#fname.get().is_some(), }
+        })
+        .collect();
+
+    let is_field_loaded_method = quote! {
+        pub fn is_field_loaded(&self, field: &str) -> bool {
+            match field {
+                #(#field_loaded_arms)*
+                _ => false,
+            }
+        }
+    };
+
     quote! {
         #[derive(Clone)]
         #vis struct #tracked_name {
@@ -536,6 +554,7 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
             #make_stub_body
             #all_refs_method
             #initialize_into_method
+            #is_field_loaded_method
         }
 
         impl ::pari::entity::Entity for #name {
@@ -557,7 +576,7 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
             }
 
             fn extract(
-                entity: &::pari::entity::StoreEntity,
+                entity: &::pari::entity::TrackedEntity,
             ) -> ::std::option::Option<&Self::Tracked> {
                 #extract_body
             }

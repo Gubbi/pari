@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 use std::hash::Hash;
-use crate::entity::Entity;
+use crate::entity::{Entity, TrackedEntity};
 
 pub mod cross_entity;
 pub mod error;
@@ -194,6 +194,14 @@ where
     }
 
     result
+}
+
+pub async fn run_validations_for_entity(
+    entity: &TrackedEntity,
+    fields: &[&str],
+    kinds: &[ValidationKind],
+) -> ValidationErrors {
+    entity.run_validations(fields, kinds).await
 }
 
 pub fn build_path(field: &str, sub_path: &Option<String>) -> String {

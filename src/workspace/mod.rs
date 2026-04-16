@@ -1,6 +1,6 @@
 //! Workspace layer — caller-facing entity operations over the store actor.
 
-use crate::entity::{AnyEntityRef, StoreEntity};
+use crate::entity::{AnyEntityRef, TrackedEntity};
 use crate::store::{EntityServer, StoreCommand, StoreRequest, StoreResponse};
 use crate::store_error::StoreError;
 
@@ -19,7 +19,7 @@ pub(crate) async fn send(cmd: StoreCommand) -> Result<(), StoreError> {
 }
 
 impl EntityClient {
-    pub async fn resolve(any_ref: AnyEntityRef) -> Result<StoreEntity, ResolveError> {
+    pub async fn resolve(any_ref: AnyEntityRef) -> Result<TrackedEntity, ResolveError> {
         match request(StoreRequest::Resolve { any_ref }).await.map_err(ResolveError::StoreUnavailable)? {
             StoreResponse::Entity(e) => Ok(e),
             StoreResponse::ResolveErr(e) => Err(e),
@@ -27,18 +27,25 @@ impl EntityClient {
         }
     }
 
-    pub async fn insert(entity: StoreEntity) -> Result<(), StoreError> {
-        send(StoreCommand::Insert(entity)).await
+    pub async fn insert(entity: TrackedEntity) -> Result<(), CommitError> {
+        match request(StoreRequest::Insert { entity })
+            .await
+            .map_err(CommitError::StoreUnavailable)?
+        {
+            StoreResponse::Unit => Ok(()),
+            StoreResponse::CommitErr(e) => Err(e),
+            _ => unreachable!(),
+        }
     }
 
-    pub async fn remove(any_ref: AnyEntityRef) -> Result<StoreEntity, StoreError> {
+    pub async fn remove(any_ref: AnyEntityRef) -> Result<TrackedEntity, StoreError> {
         match request(StoreRequest::Remove { any_ref }).await? {
             StoreResponse::Entity(e) => Ok(e),
             _ => unreachable!(),
         }
     }
 
-    pub async fn checkout(any_ref: AnyEntityRef) -> Result<StoreEntity, CheckoutError> {
+    pub async fn checkout(any_ref: AnyEntityRef) -> Result<TrackedEntity, CheckoutError> {
         match request(StoreRequest::Checkout { any_ref })
             .await
             .map_err(CheckoutError::StoreUnavailable)?
@@ -83,29 +90,37 @@ impl EntityClient {
     }
 
     pub async fn undo_commit(any_ref: AnyEntityRef) -> Result<(), UndoError> {
-        match request(StoreRequest::UndoCommit { any_ref }).await {
-            Ok(StoreResponse::Unit) => Ok(()),
-            Ok(_) => unreachable!(),
-            Err(e) => Err(UndoError::StoreUnavailable(e)),
+        match request(StoreRequest::UndoCommit { any_ref })
+            .await
+            .map_err(UndoError::StoreUnavailable)?
+        {
+            StoreResponse::Unit => Ok(()),
+            StoreResponse::UndoErr(e) => Err(e),
+            _ => unreachable!(),
         }
     }
 
     pub async fn unload(any_ref: AnyEntityRef) -> Result<(), UndoError> {
-        match request(StoreRequest::Unload { any_ref }).await {
-            Ok(StoreResponse::Unit) => Ok(()),
-            Ok(_) => unreachable!(),
-            Err(e) => Err(UndoError::StoreUnavailable(e)),
+        match request(StoreRequest::Unload { any_ref })
+            .await
+            .map_err(UndoError::StoreUnavailable)?
+        {
+            StoreResponse::Unit => Ok(()),
+            StoreResponse::UndoErr(e) => Err(e),
+            _ => unreachable!(),
         }
     }
 }
 
-impl StoreEntity {
+impl TrackedEntity {
     pub async fn commit(self) -> Result<(), CommitError> {
-        let any_ref = self.any_ref();
-        match request(StoreRequest::Commit { entity: self, any_ref }).await {
-            Ok(StoreResponse::Unit) => Ok(()),
-            Ok(_) => unreachable!(),
-            Err(e) => Err(CommitError::StoreUnavailable(e)),
+        match request(StoreRequest::Commit { entity: self })
+            .await
+            .map_err(CommitError::StoreUnavailable)?
+        {
+            StoreResponse::Unit => Ok(()),
+            StoreResponse::CommitErr(e) => Err(e),
+            _ => unreachable!(),
         }
     }
 
