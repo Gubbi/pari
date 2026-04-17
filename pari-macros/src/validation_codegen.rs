@@ -4,7 +4,7 @@ use syn::Ident;
 
 use crate::entity_registry::RegistryEntry;
 
-pub fn generate_registry_validation_dispatch(entries: &[RegistryEntry]) -> Vec<TokenStream2> {
+fn generate_registry_validation_dispatch(entries: &[RegistryEntry]) -> Vec<TokenStream2> {
     entries
         .iter()
         .map(|e| {
@@ -15,6 +15,23 @@ pub fn generate_registry_validation_dispatch(entries: &[RegistryEntry]) -> Vec<T
             }
         })
         .collect()
+}
+
+pub fn generate_tracked_entity_validation_impl(entries: &[RegistryEntry]) -> TokenStream2 {
+    let run_validations_arms = generate_registry_validation_dispatch(entries);
+    quote! {
+        impl TrackedEntity {
+            pub async fn run_validations(
+                &self,
+                fields: &[&str],
+                kinds: &[::pari::validation::ValidationKind],
+            ) -> ::pari::validation::ValidationErrors {
+                match self {
+                    #(#run_validations_arms)*
+                }
+            }
+        }
+    }
 }
 
 pub fn generate_validation_schema_access(

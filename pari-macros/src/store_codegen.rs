@@ -4,15 +4,7 @@ use quote::quote;
 use crate::entity_registry::RegistryEntry;
 
 pub struct StoreRegistryParts {
-    pub make_stub_arms: Vec<TokenStream2>,
-    pub all_refs_arms: Vec<TokenStream2>,
-    pub initialize_into_arms: Vec<TokenStream2>,
-    pub merge_dirty_into_arms: Vec<TokenStream2>,
-    pub has_dirty_arms: Vec<TokenStream2>,
-    pub dirty_fields_arms: Vec<TokenStream2>,
-    pub reset_dirty_arms: Vec<TokenStream2>,
-    pub is_stub_arms: Vec<TokenStream2>,
-    pub is_field_loaded_arms: Vec<TokenStream2>,
+    pub tracked_entity_impl: TokenStream2,
 }
 
 pub fn generate_store_registry_parts(
@@ -28,7 +20,7 @@ pub fn generate_store_registry_parts(
                 AnyEntityRef::#vname(r) => TrackedEntity::#vname(#tname::make_stub(r.clone())),
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
 
     let all_refs_arms = entries
         .iter()
@@ -38,7 +30,7 @@ pub fn generate_store_registry_parts(
                 TrackedEntity::#vname(e) => e.all_refs(),
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
 
     let initialize_into_arms = entries
         .iter()
@@ -48,7 +40,7 @@ pub fn generate_store_registry_parts(
                 (TrackedEntity::#vname(src), TrackedEntity::#vname(dst)) => src.initialize_into(dst),
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
 
     let merge_dirty_into_arms = entries
         .iter()
@@ -58,7 +50,7 @@ pub fn generate_store_registry_parts(
                 (TrackedEntity::#vname(src), TrackedEntity::#vname(dst)) => src.merge_dirty_into(dst),
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
 
     let has_dirty_arms = entries
         .iter()
@@ -68,7 +60,7 @@ pub fn generate_store_registry_parts(
                 TrackedEntity::#vname(e) => e.has_dirty_fields(),
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
 
     let dirty_fields_arms = entries
         .iter()
@@ -78,7 +70,7 @@ pub fn generate_store_registry_parts(
                 TrackedEntity::#vname(e) => e.dirty_fields(),
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
 
     let reset_dirty_arms = entries
         .iter()
@@ -88,7 +80,7 @@ pub fn generate_store_registry_parts(
                 TrackedEntity::#vname(e) => e.reset_dirty(),
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
 
     let is_stub_arms = entries
         .iter()
@@ -98,7 +90,7 @@ pub fn generate_store_registry_parts(
                 TrackedEntity::#vname(e) => e.is_stub(),
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
 
     let is_field_loaded_arms = entries
         .iter()
@@ -108,17 +100,69 @@ pub fn generate_store_registry_parts(
                 TrackedEntity::#vname(e) => e.is_field_loaded(field),
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
+
+    let tracked_entity_impl = quote! {
+        impl TrackedEntity {
+            pub fn make_stub(any_ref: &AnyEntityRef) -> Self {
+                match any_ref {
+                    #(#make_stub_arms)*
+                }
+            }
+
+            pub fn all_refs(&self) -> ::std::vec::Vec<AnyEntityRef> {
+                match self {
+                    #(#all_refs_arms)*
+                }
+            }
+
+            pub fn initialize_into(&self, target: &mut TrackedEntity) {
+                match (self, target) {
+                    #(#initialize_into_arms)*
+                    _ => {}
+                }
+            }
+
+            pub fn merge_dirty_into(&self, target: &mut TrackedEntity) {
+                match (self, target) {
+                    #(#merge_dirty_into_arms)*
+                    _ => {}
+                }
+            }
+
+            pub fn has_dirty_fields(&self) -> bool {
+                match self {
+                    #(#has_dirty_arms)*
+                }
+            }
+
+            pub fn dirty_fields(&self) -> ::std::vec::Vec<&'static str> {
+                match self {
+                    #(#dirty_fields_arms)*
+                }
+            }
+
+            pub fn reset_dirty(&mut self) {
+                match self {
+                    #(#reset_dirty_arms)*
+                }
+            }
+
+            pub fn is_stub(&self) -> bool {
+                match self {
+                    #(#is_stub_arms)*
+                }
+            }
+
+            pub fn is_field_loaded(&self, field: &str) -> bool {
+                match self {
+                    #(#is_field_loaded_arms)*
+                }
+            }
+        }
+    };
 
     StoreRegistryParts {
-        make_stub_arms,
-        all_refs_arms,
-        initialize_into_arms,
-        merge_dirty_into_arms,
-        has_dirty_arms,
-        dirty_fields_arms,
-        reset_dirty_arms,
-        is_stub_arms,
-        is_field_loaded_arms,
+        tracked_entity_impl,
     }
 }
