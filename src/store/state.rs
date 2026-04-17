@@ -6,13 +6,13 @@ use std::{
 
 use tokio::sync::mpsc;
 
-use super::EntityChange;
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
     error::{store::StoreError, BatchError},
     store::{
         message::{StoreMessage, StoreRequest, StoreResponse},
-        CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError,
+        CheckoutError, CommitError, LoadError, PersistChanges, PersistError, ResolveError,
+        UndoError,
     },
     substrate::schema_registry::SchemaBackedSubstrate,
     validation::{run_validations_for_entity, ValidationKind},
@@ -238,19 +238,19 @@ where
     }
 
     async fn persist(&mut self) -> Result<(), PersistError> {
-        if !self.checked_out.is_empty() {
-            return Err(PersistError::PendingCheckouts {
-                checked_out_count: self.checked_out.len(),
-            });
+        self.ensure_persistable()?;
+
+        {
+            let changes =
+                PersistChanges::new(&self.entities, &self.added, &self.modified, &self.removed);
+            self.substrate
+                .persist(changes.iter())
+                .await
+                .map_err(|errs| PersistError::SubstrateErrors(BatchError::new(errs)))?;
         }
 
-        self.substrate
-            .persist(self.changes())
-            .await
-            .map_err(|errs| PersistError::SubstrateErrors(BatchError::new(errs)))?;
-
-        for any_ref in &self.modified {
-            if let Some(entity) = self.entities.get_mut(any_ref) {
+        for any_ref in self.modified.iter().cloned().collect::<Vec<_>>() {
+            if let Some(entity) = self.entities.get_mut(&any_ref) {
                 entity.reset_dirty();
             }
         }
@@ -262,17 +262,14 @@ where
         Ok(())
     }
 
-    fn changes(&self) -> impl Iterator<Item = EntityChange<'_>> + Send + '_ {
-        self.added
-            .iter()
-            .filter_map(|any_ref| self.entities.get(any_ref))
-            .map(EntityChange::Added)
-            .chain(self.modified.iter().filter_map(|any_ref| {
-                self.entities
-                    .get(any_ref)
-                    .map(|entity| EntityChange::Modified(entity, entity.dirty_fields()))
-            }))
-            .chain(self.removed.iter().map(EntityChange::Removed))
+    fn ensure_persistable(&self) -> Result<(), PersistError> {
+        if self.checked_out.is_empty() {
+            return Ok(());
+        }
+
+        Err(PersistError::PendingCheckouts {
+            checked_out_count: self.checked_out.len(),
+        })
     }
 
     async fn load_field(&mut self, any_ref: &AnyEntityRef, field: &str) -> Result<(), LoadError> {

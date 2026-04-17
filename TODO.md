@@ -129,11 +129,12 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
     Note: this task includes eliminating `StoreEntity` naming/abstraction drift. The design already uses `TrackedEntity` for the type-erased tracked wrapper role, so the code should align to that design concept instead of keeping `StoreEntity` as a parallel abstraction.
     Completion note: the store now exposes its persist set via a dedicated lazy `changes()` iterator, handles remove-then-reinsert transitions as store-level modifications, clears dirty flags for added entities at commit time, and enforces `checked_out` / wrong-state behavior consistently across `undo_checkout`, `undo_commit`, and `unload`. `TrackedEntity` remains the store-facing type-erased wrapper throughout the flow.
 
-18. [ ] Persist-path implementation cleanup
+18. [x] Persist-path implementation cleanup
     Context: even after API cleanup, the persist path may still have real Rust borrowing/lifetime friction because it needs to walk store-owned entity state while interacting with the substrate. This may be pure code cleanup, or it may expose a real design gap.
     Goal: refactor the persist path so the current design is implemented cleanly without brittle borrow workarounds. If a real constraint remains, stop and queue a focused design amendment instead of smuggling a workaround into code.
     Scope: only the persist-path implementation and the minimal source files needed to make it clean.
     Done looks like: either the persist path cleanly matches the current design, or a clearly scoped design-gap item is queued with the code left in a deliberately understandable state.
+    Completion note: the store persist flow now has explicit pre-check / execute / reset phases, and the lazy `EntityChange` handoff moved into a dedicated store-owned `PersistChanges` view in `src/store/change.rs`. That keeps the substrate contract unchanged while removing the lifetime-heavy iterator construction from `state.rs` and making the post-persist reset path easier to reason about.
 
 19. [ ] Code-local docs cleanup
     Context: several local guidance files still describe removed architecture such as schema, repo substrate, and the old tracked macro behavior. They now drift from both code and design.
