@@ -136,11 +136,12 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
     Done looks like: either the persist path cleanly matches the current design, or a clearly scoped design-gap item is queued with the code left in a deliberately understandable state.
     Completion note: the store persist flow now has explicit pre-check / execute / reset phases, and the lazy `EntityChange` handoff moved into a dedicated store-owned `PersistChanges` view in `src/store/change.rs`. That keeps the substrate contract unchanged while removing the lifetime-heavy iterator construction from `state.rs` and making the post-persist reset path easier to reason about.
 
-19. [ ] Code-local docs cleanup
+19. [x] Code-local docs cleanup
     Context: several local guidance files still describe removed architecture such as schema, repo substrate, and the old tracked macro behavior. They now drift from both code and design.
     Goal: update the code-local guidance files so they reflect the corrected source state and stop teaching stale patterns.
     Scope: local context docs only, such as `src/store/CLAUDE.md`, `src/entities/CLAUDE.md`, `src/error/CLAUDE.md`, `src/substrate/CLAUDE.md`, `pari-macros/CLAUDE.md`, `tests/CLAUDE.md`, and similar module guidance files.
     Done looks like: local docs match the code/design state after the code-cleanup tasks above.
+    Completion note: the root guidance and entity-layer local docs now describe the current `src/entity/`-based layout, the `src/error/store.rs` boundary, generated `schemas/` outputs as artifacts rather than architecture, and the post-cleanup tracking/codegen model without reviving removed `Tracked`-framework concepts.
 
 ## Test Tasks
 

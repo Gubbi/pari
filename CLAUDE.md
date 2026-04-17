@@ -18,16 +18,13 @@ The authoritative architecture reference is [docs/design/architecture/layer-mode
 
 ```text
 src/
-  entities/      entity-layer plain entity definitions          -> see src/entities/CLAUDE.md
-  entity.rs      entity-layer identity and tracked registry
-  tracked/       entity-layer change-tracking primitives
-  types.rs       entity-layer shared value types
+  entity/        entity-layer identity, plain entities, refs,
+                 and tracked-field primitives                  -> see src/entity/CLAUDE.md
   workspace/     workspace-layer caller-facing async API        -> see src/workspace/CLAUDE.md
   store/         store-layer actor/state/orchestration          -> see src/store/CLAUDE.md
   substrate/     substrate-layer persistence contracts/backends -> see src/substrate/CLAUDE.md
   validation/    validation-layer rules and schemas             -> see src/validation/CLAUDE.md
   error/         error-layer shared error infrastructure        -> see src/error/CLAUDE.md
-  store_error.rs error at the store channel boundary
   lib.rs         crate module wiring
 
 pari-macros/
@@ -37,14 +34,15 @@ tests/
   test-layer integration coverage                              -> see tests/CLAUDE.md
 ```
 
-`schema/` is legacy and should not be treated as the architectural center of the crate.
+`schemas/` contains generated JSON Schema outputs for plain entity types. It is an output directory, not an architectural layer.
 
 When working in a subtree, also look for a `CLAUDE.md` file in that directory or an ancestor within the repo. Treat nested guidance as additional local context.
 
 ## Current Naming And Ownership
 
-- Use `TrackedEntity`, not `StoreEntity`, for the type-erased tracked wrapper enum in `src/entity.rs`.
+- Use `TrackedEntity`, not `StoreEntity`, for the type-erased tracked wrapper enum in `src/entity/mod.rs`.
 - Use `EntityChange` from `src/store/change.rs` for the store-to-substrate persist handoff.
+- The lazy persist-set helper is `PersistChanges` in `src/store/change.rs`; it remains store-owned plumbing behind the `EntityChange<'_>` contract.
 - `workspace` owns caller-facing async operations and operation error types.
 - `store` owns actor message flow, in-memory state, checkout lifecycle, and persist orchestration.
 - `substrate` owns the persistence trait, pipeline, schema-backed defaults, and concrete backends.
@@ -59,6 +57,7 @@ When working in a subtree, also look for a `CLAUDE.md` file in that directory or
 - Embedded refs use `EntityRef::with_parent(id, parent)`.
 - Parent identity is part of semantic identity. Do not reintroduce workflow-id-only constructor helpers.
 - `TrackedField<T>` uses `initialize(value)` for write-once load/deserializer paths and `TrackedField::mutated(value)` for setter-side COW replacement.
+- There is no separate `#[derive(Tracked)]`, `TrackedMap`, or generic tracked framework in the current design.
 
 ## Key Boundaries
 

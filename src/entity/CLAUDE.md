@@ -1,4 +1,4 @@
-# src/entities — Entity Layer Plain Definitions
+# src/entity — Entity Layer Identity And Plain Definitions
 
 ## Ownership
 
@@ -21,10 +21,13 @@ The authoritative design docs for this area live under [docs/design/entity_layer
 
 ## What Lives Here
 
-- Plain Rust structs and enums for domain entities.
+- Entity identity and typed refs in [src/entity/mod.rs](/Users/vinuth/code/pari/src/entity/mod.rs), [src/entity/entity_ref.rs](/Users/vinuth/code/pari/src/entity/entity_ref.rs), and [src/entity/parent_kind.rs](/Users/vinuth/code/pari/src/entity/parent_kind.rs).
+- Plain Rust structs and enums for domain entities under [src/entity/entities/](/Users/vinuth/code/pari/src/entity/entities).
 - `#[derive(pari_macros::Entity)]` on those plain structs.
 - Entity-local field declarations and entity-local default derives.
-- Embedded workflow step entity definitions in [src/entities/workflow.rs](/Users/vinuth/code/pari/src/entities/workflow.rs), [src/entities/task.rs](/Users/vinuth/code/pari/src/entities/task.rs), and [src/entities/relay.rs](/Users/vinuth/code/pari/src/entities/relay.rs).
+- Shared entity-layer value types in [src/entity/types.rs](/Users/vinuth/code/pari/src/entity/types.rs).
+- Tracked-field primitives in [src/entity/tracked/](/Users/vinuth/code/pari/src/entity/tracked).
+- Embedded workflow entity definitions in [src/entity/entities/workflow.rs](/Users/vinuth/code/pari/src/entity/entities/workflow.rs), [src/entity/entities/task.rs](/Users/vinuth/code/pari/src/entity/entities/task.rs), and [src/entity/entities/relay.rs](/Users/vinuth/code/pari/src/entity/entities/relay.rs).
 
 ## What Does Not Live Here
 
@@ -63,4 +66,4 @@ Generated tracked companions wrap fields in `Arc<TrackedField<T>>`.
 - load/deserializer path: `TrackedField::initialize(value)`
 - mutation path: replace the field with `Arc::new(TrackedField::mutated(value))`
 
-Do not document or reintroduce older helper names such as `with_value`.
+Do not document or reintroduce removed generic tracking concepts such as `#[derive(Tracked)]`, `TrackedMap`, or older helpers such as `with_value`.
