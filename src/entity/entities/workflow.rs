@@ -2,14 +2,15 @@ use std::collections::HashMap;
 
 use indexmap::IndexMap;
 
-use crate::{
+use crate::entity::{
     entities::{relay::Relay, role::Role, task::Task},
-    entity::{EntityKind, EntityRef, WorkflowParent},
     types::{Extensions, HookCall, Raci, WorkflowStateEntry, WorkflowTrigger},
+    EntityKind, EntityRef, WorkflowParent,
 };
 
 /// A step inside a workflow. Not an entity — no EntityRef, no derive(Entity).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub enum Step {
     Task {
         entity_ref: EntityRef<Task, WorkflowParent>,
@@ -29,7 +30,10 @@ pub enum Step {
     },
 }
 
-#[derive(pari_macros::Entity)]
+#[derive(
+    Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema, pari_macros::Entity,
+)]
+#[schemars(deny_unknown_fields)]
 #[entity(kind = EntityKind::Workflow, schema = crate::validation::workflow::workflow_validation_schema)]
 pub struct Workflow {
     pub entity_ref: EntityRef<Workflow>,
@@ -37,14 +41,20 @@ pub struct Workflow {
     pub description: Option<String>,
     pub purpose: String,
     pub raci: Raci,
+    #[schemars(length(min = 2))]
     pub states: Vec<WorkflowStateEntry>,
+    #[schemars(length(min = 1))]
     pub steps: IndexMap<String, Step>,
     pub intercepts: Option<HashMap<WorkflowTrigger, HookCall>>,
     pub guidance: Option<String>,
+    #[serde(flatten)]
     pub extensions: Extensions,
 }
 
-#[derive(pari_macros::Entity)]
+#[derive(
+    Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema, pari_macros::Entity,
+)]
+#[schemars(deny_unknown_fields)]
 #[entity(kind = EntityKind::ReusableWorkflow, schema = crate::validation::workflow::reusable_workflow_validation_schema)]
 pub struct ReusableWorkflow {
     pub entity_ref: EntityRef<ReusableWorkflow>,
@@ -52,14 +62,20 @@ pub struct ReusableWorkflow {
     pub description: Option<String>,
     pub purpose: String,
     pub raci: Raci,
+    #[schemars(length(min = 2))]
     pub states: Vec<WorkflowStateEntry>,
+    #[schemars(length(min = 1))]
     pub steps: IndexMap<String, Step>,
     pub intercepts: Option<HashMap<WorkflowTrigger, HookCall>>,
     pub guidance: Option<String>,
+    #[serde(flatten)]
     pub extensions: Extensions,
 }
 
-#[derive(pari_macros::Entity)]
+#[derive(
+    Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema, pari_macros::Entity,
+)]
+#[schemars(deny_unknown_fields)]
 #[entity(kind = EntityKind::EmbeddedWorkflow, parent = WorkflowParent, schema = crate::validation::workflow::embedded_workflow_validation_schema)]
 pub struct EmbeddedWorkflow {
     pub entity_ref: EntityRef<EmbeddedWorkflow, WorkflowParent>,
@@ -67,9 +83,12 @@ pub struct EmbeddedWorkflow {
     pub description: Option<String>,
     pub purpose: String,
     pub raci: Option<Raci>,
+    #[schemars(length(min = 2))]
     pub states: Vec<WorkflowStateEntry>,
+    #[schemars(length(min = 1))]
     pub steps: IndexMap<String, Step>,
     pub intercepts: Option<HashMap<WorkflowTrigger, HookCall>>,
     pub guidance: Option<String>,
+    #[serde(flatten)]
     pub extensions: Extensions,
 }

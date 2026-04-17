@@ -9,14 +9,13 @@ use tokio::sync::mpsc;
 use super::EntityChange;
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
-    error::BatchError,
-    store::message::{StoreMessage, StoreRequest, StoreResponse},
-    store_error::StoreError,
-    substrate::schema_registry::SchemaBackedSubstrate,
-    validation::{run_validations_for_entity, ValidationKind},
-    workspace::error::{
+    error::{store::StoreError, BatchError},
+    store::{
+        message::{StoreMessage, StoreRequest, StoreResponse},
         CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError,
     },
+    substrate::schema_registry::SchemaBackedSubstrate,
+    validation::{run_validations_for_entity, ValidationKind},
 };
 
 #[derive(Debug)]

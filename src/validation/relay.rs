@@ -6,7 +6,7 @@ use super::{
     camel_case, camel_case_id, non_empty_str, x_prefix_keys, AnyCrossEntityRule, AnyStructuralRule,
     RuleViolation, ValidationSchema,
 };
-use crate::entities::relay::{Relay, TrackedRelay};
+use crate::entity::entities::relay::{Relay, TrackedRelay};
 
 fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
     match value {
@@ -16,7 +16,7 @@ fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
 }
 
 fn non_empty_map_state_map(
-    value: &HashMap<String, crate::entities::relay::StateMapEntry>,
+    value: &HashMap<String, crate::entity::entities::relay::StateMapEntry>,
 ) -> Vec<RuleViolation> {
     if value.is_empty() {
         vec![RuleViolation::field("state_map must not be empty")]
@@ -26,7 +26,7 @@ fn non_empty_map_state_map(
 }
 
 fn camel_case_state_keys(
-    value: &HashMap<String, crate::entities::relay::StateMapEntry>,
+    value: &HashMap<String, crate::entity::entities::relay::StateMapEntry>,
 ) -> Vec<RuleViolation> {
     value
         .keys()

@@ -399,7 +399,7 @@
       ]
     },
     "entity_ref": {
-      "$ref": "#/definitions/WorkflowEntityRef"
+      "$ref": "#/definitions/EmbeddedWorkflowEntityRef"
     },
     "guidance": {
       "type": [
@@ -423,7 +423,14 @@
       "type": "string"
     },
     "raci": {
-      "$ref": "#/definitions/Raci"
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Raci"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "states": {
       "items": {
@@ -443,10 +450,9 @@
     "entity_ref",
     "name",
     "purpose",
-    "raci",
     "states",
     "steps"
   ],
-  "title": "Workflow",
+  "title": "EmbeddedWorkflow",
   "type": "object"
 }

@@ -38,7 +38,7 @@ fn a_role(id: &str, name: &str) -> TrackedEntity {
         description: None,
         purpose: "test purpose".to_string(),
         traits: None,
-        extensions: HashMap::new(),
+        extensions: Default::default(),
     }))
 }
 

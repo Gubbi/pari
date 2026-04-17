@@ -11,9 +11,12 @@ license = "MIT"
 name = "pari"
 path = "src/lib.rs"
 
+[features]
+skip-schema-build = []
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-schemars = "0.8"
+schemars = { version = "0.8", features = ["indexmap2"] }
 serde_json = "1"
 serde_yaml = "0.9"
 thiserror = "2"

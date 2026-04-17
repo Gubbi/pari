@@ -148,7 +148,7 @@ fn tracked_role_from_plain_role() {
         description: None,
         purpose: "Leads engineering".to_string(),
         traits: Some(vec!["reviewer".to_string()]),
-        extensions: HashMap::new(),
+        extensions: Default::default(),
     };
     let tracked = TrackedRole::from(plain);
     assert_eq!(tracked.entity_ref().id(), "eng-lead");
@@ -165,7 +165,7 @@ fn tracked_hook_from_plain_hook() {
         description: None,
         instructions: vec!["Post a message".to_string()],
         inputs: None,
-        extensions: HashMap::new(),
+        extensions: Default::default(),
     };
     let tracked = TrackedHook::from(plain);
     assert_eq!(tracked.entity_ref().id(), "notify-slack");
@@ -190,7 +190,7 @@ fn tracked_task_from_plain_task() {
         states: vec![task_done_state()],
         intercepts: None,
         guidance: None,
-        extensions: HashMap::new(),
+        extensions: Default::default(),
     };
     let tracked = TrackedTask::from(plain);
     assert_eq!(tracked.entity_ref().id(), "WriteProposal");
@@ -244,7 +244,7 @@ fn relay_to_any_ref_has_workflow_parent() {
 
 #[test]
 fn extensions_is_hashmap() {
-    let mut ext: Extensions = HashMap::new();
+    let mut ext = Extensions::new();
     ext.insert("x-owner".to_string(), serde_json::json!("alice"));
     assert_eq!(ext.len(), 1);
 }

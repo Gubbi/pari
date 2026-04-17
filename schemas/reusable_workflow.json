@@ -399,7 +399,7 @@
       ]
     },
     "entity_ref": {
-      "$ref": "#/definitions/WorkflowEntityRef"
+      "$ref": "#/definitions/ReusableWorkflowEntityRef"
     },
     "guidance": {
       "type": [
@@ -447,6 +447,6 @@
     "states",
     "steps"
   ],
-  "title": "Workflow",
+  "title": "ReusableWorkflow",
   "type": "object"
 }

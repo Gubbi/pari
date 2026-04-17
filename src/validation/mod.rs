@@ -225,9 +225,9 @@ pub fn build_path(field: &str, sub_path: &Option<String>) -> String {
 // Structural primitives
 // ---------------------------------------------------------------------------
 
-use crate::{
-    entity::{EntityRef, ParentKind},
+use crate::entity::{
     types::{Extensions, Raci, TaskStateEntry, WorkflowStateEntry},
+    EntityRef, ParentKind,
 };
 
 /// Id must match `[a-z0-9]+(-[a-z0-9]+)*`
@@ -344,12 +344,18 @@ pub fn states_valid_workflow(value: &[WorkflowStateEntry]) -> Vec<RuleViolation>
                 ..viol
             }),
     );
-    let has_done = value
-        .iter()
-        .any(|s| matches!(s.semantic, Some(crate::types::WorkflowSemantic::Done)));
-    let has_non_done = value
-        .iter()
-        .any(|s| !matches!(s.semantic, Some(crate::types::WorkflowSemantic::Done)));
+    let has_done = value.iter().any(|s| {
+        matches!(
+            s.semantic,
+            Some(crate::entity::types::WorkflowSemantic::Done)
+        )
+    });
+    let has_non_done = value.iter().any(|s| {
+        !matches!(
+            s.semantic,
+            Some(crate::entity::types::WorkflowSemantic::Done)
+        )
+    });
     if !has_done {
         v.push(RuleViolation::field("must include at least one Done state"));
     }
@@ -382,10 +388,10 @@ pub fn states_valid_task(value: &[TaskStateEntry]) -> Vec<RuleViolation> {
     );
     let has_done = value
         .iter()
-        .any(|s| matches!(s.semantic, Some(crate::types::TaskSemantic::Done)));
+        .any(|s| matches!(s.semantic, Some(crate::entity::types::TaskSemantic::Done)));
     let has_non_done = value
         .iter()
-        .any(|s| !matches!(s.semantic, Some(crate::types::TaskSemantic::Done)));
+        .any(|s| !matches!(s.semantic, Some(crate::entity::types::TaskSemantic::Done)));
     if !has_done {
         v.push(RuleViolation::field("must include at least one Done state"));
     }
@@ -553,14 +559,14 @@ mod tests {
 
     #[test]
     fn x_prefix_keys_valid() {
-        let mut ext = std::collections::HashMap::new();
+        let mut ext = Extensions::new();
         ext.insert("x-owner".to_string(), serde_json::json!("alice"));
         assert!(x_prefix_keys(&ext).is_empty());
     }
 
     #[test]
     fn x_prefix_keys_rejects_non_x_keys() {
-        let mut ext = std::collections::HashMap::new();
+        let mut ext = Extensions::new();
         ext.insert("owner".to_string(), serde_json::json!("alice"));
         let v = x_prefix_keys(&ext);
         assert_eq!(v.len(), 1);
@@ -571,9 +577,9 @@ mod tests {
 
     fn make_workflow_state(
         id: &str,
-        semantic: Option<crate::types::WorkflowSemantic>,
-    ) -> crate::types::WorkflowStateEntry {
-        crate::types::WorkflowStateEntry {
+        semantic: Option<crate::entity::types::WorkflowSemantic>,
+    ) -> crate::entity::types::WorkflowStateEntry {
+        crate::entity::types::WorkflowStateEntry {
             id: id.to_string(),
             description: "d".to_string(),
             semantic,
@@ -584,7 +590,7 @@ mod tests {
     fn states_valid_workflow_valid_states() {
         let states = vec![
             make_workflow_state("Draft", None),
-            make_workflow_state("Done", Some(crate::types::WorkflowSemantic::Done)),
+            make_workflow_state("Done", Some(crate::entity::types::WorkflowSemantic::Done)),
         ];
         assert!(states_valid_workflow(&states).is_empty());
     }
@@ -593,7 +599,7 @@ mod tests {
     fn states_valid_workflow_requires_min_2() {
         let states = vec![make_workflow_state(
             "Done",
-            Some(crate::types::WorkflowSemantic::Done),
+            Some(crate::entity::types::WorkflowSemantic::Done),
         )];
         let v = states_valid_workflow(&states);
         assert!(!v.is_empty());
@@ -613,7 +619,7 @@ mod tests {
     fn states_valid_workflow_rejects_duplicate_ids() {
         let states = vec![
             make_workflow_state("Draft", None),
-            make_workflow_state("Draft", Some(crate::types::WorkflowSemantic::Done)),
+            make_workflow_state("Draft", Some(crate::entity::types::WorkflowSemantic::Done)),
         ];
         let v = states_valid_workflow(&states);
         assert!(v.iter().any(|e| e.message.contains("duplicate")));
@@ -623,7 +629,7 @@ mod tests {
     fn states_valid_workflow_rejects_lowercase_id() {
         let states = vec![
             make_workflow_state("draft", None),
-            make_workflow_state("Done", Some(crate::types::WorkflowSemantic::Done)),
+            make_workflow_state("Done", Some(crate::entity::types::WorkflowSemantic::Done)),
         ];
         let v = states_valid_workflow(&states);
         assert!(v.iter().any(|e| e
@@ -638,7 +644,7 @@ mod tests {
     #[test]
     fn raci_structural_valid_when_responsible_non_empty() {
         use crate::{entities::role::Role, entity::EntityRef};
-        let raci = crate::types::Raci {
+        let raci = crate::entity::types::Raci {
             responsible: vec![EntityRef::<Role>::new("eng-lead")],
             accountable: EntityRef::new("pm"),
             consulted: None,
@@ -650,7 +656,7 @@ mod tests {
     #[test]
     fn raci_structural_rejects_empty_responsible() {
         use crate::{entities::role::Role, entity::EntityRef};
-        let raci = crate::types::Raci {
+        let raci = crate::entity::types::Raci {
             responsible: vec![],
             accountable: EntityRef::<Role>::new("pm"),
             consulted: None,

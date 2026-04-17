@@ -3,6 +3,7 @@
 //! Classification enums, `ErrorCompose` trait, `OTelEmit` trait, and `BatchError<E>`.
 
 pub mod pari_error;
+pub mod store;
 
 // ---------------------------------------------------------------------------
 // Classification types

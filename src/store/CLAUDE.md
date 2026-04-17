@@ -19,20 +19,22 @@ The authoritative design docs for this area live under [docs/design/store_layer/
 - [src/store/server.rs](/Users/vinuth/code/pari/src/store/server.rs): `EntityServer`, sender management, `init()`, and test-scoped `with()`
 - [src/store/state.rs](/Users/vinuth/code/pari/src/store/state.rs): `Store<S>` state machine and orchestration
 - [src/store/message.rs](/Users/vinuth/code/pari/src/store/message.rs): internal request/response message types
+- [src/store/op_error.rs](/Users/vinuth/code/pari/src/store/op_error.rs): store-owned operation error enums
 - [src/store/change.rs](/Users/vinuth/code/pari/src/store/change.rs): `EntityChange<'a>` persistence handoff enum
 
 ## Current Core Types
 
 - Type-erased entity wrapper: `TrackedEntity`
 - Persist handoff type: `EntityChange<'a>`
-- Channel boundary failure type: `StoreError` in [src/store_error.rs](/Users/vinuth/code/pari/src/store_error.rs)
+- Operation error types: `CheckoutError`, `CommitError`, `LoadError`, `PersistError`, `ResolveError`, `UndoError`
+- Channel boundary failure type: `StoreError` in [src/error/store.rs](/Users/vinuth/code/pari/src/error/store.rs)
 
 Do not reintroduce stale names such as `StoreEntity` or `StoreEntityChange`.
 
 ## Boundary Rules
 
-- `workspace` owns the public async API and operation-level error types.
-- `store` owns the internal `StoreRequest` / `StoreResponse` protocol and actor execution.
+- `workspace` owns the public async API and caller ergonomics.
+- `store` owns the internal `StoreRequest` / `StoreResponse` protocol, actor execution, and the corresponding operation error types.
 - `substrate` owns persistence contracts and storage details.
 - `validation` owns rule execution logic, but the store decides when validations run.
 

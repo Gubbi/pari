@@ -4,7 +4,7 @@ use super::{
     camel_case_id, non_empty_list, non_empty_str, states_valid_task, x_prefix_keys,
     AnyCrossEntityRule, AnyStructuralRule, RuleViolation, ValidationSchema,
 };
-use crate::entities::task::{Task, TrackedTask};
+use crate::entity::entities::task::{Task, TrackedTask};
 
 fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
     match value {

@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 
-use crate::{
+use crate::entity::{
     entities::workflow::ReusableWorkflow,
-    entity::{EntityKind, EntityRef, WorkflowParent},
     types::{Extensions, HookCall, Raci, TaskTrigger},
+    EntityKind, EntityRef, WorkflowParent,
 };
 
-#[derive(pari_macros::Entity)]
+#[derive(
+    Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema, pari_macros::Entity,
+)]
+#[schemars(deny_unknown_fields)]
 #[entity(kind = EntityKind::Relay, parent = WorkflowParent, schema = crate::validation::relay::relay_validation_schema)]
 pub struct Relay {
     pub entity_ref: EntityRef<Relay, WorkflowParent>,
@@ -17,20 +20,26 @@ pub struct Relay {
     pub delegates_to: EntityRef<ReusableWorkflow>,
     pub briefing: Option<String>,
     pub debriefing: Option<String>,
+    #[schemars(length(min = 1))]
     pub state_map: HashMap<String, StateMapEntry>,
     pub intercepts: Option<HashMap<TaskTrigger, HookCall>>,
     pub guidance: Option<String>,
+    #[serde(flatten)]
     pub extensions: Extensions,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct StateMapEntry {
     pub maps_to: String,
     pub description: Option<String>,
     pub semantic: Option<StateMapSemantic>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
 pub enum StateMapSemantic {
     Done,
     Blocked,

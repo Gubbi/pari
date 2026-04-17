@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use pari::{
     entities::role::{Role, TrackedRole},
     entity::{AnyEntityRef, EntityRef, TrackedEntity},
@@ -15,7 +13,7 @@ fn make_role(id: &str) -> Role {
         description: None,
         purpose: "Purpose".to_string(),
         traits: None,
-        extensions: HashMap::new(),
+        extensions: Default::default(),
     }
 }
 

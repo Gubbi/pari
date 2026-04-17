@@ -4,7 +4,7 @@ use super::{
     camel_case_id, non_empty_str, raci_structural, states_valid_workflow, x_prefix_keys,
     AnyCrossEntityRule, AnySemanticRule, AnyStructuralRule, RuleViolation, ValidationSchema,
 };
-use crate::entities::workflow::{
+use crate::entity::entities::workflow::{
     EmbeddedWorkflow, ReusableWorkflow, Step, TrackedEmbeddedWorkflow, TrackedReusableWorkflow,
     TrackedWorkflow, Workflow,
 };
@@ -92,9 +92,12 @@ async fn reviewing_state_required(e: &TrackedWorkflow) -> Vec<RuleViolation> {
         Some(s) => s,
         None => return vec![],
     };
-    let has_reviewing = states
-        .iter()
-        .any(|s| matches!(s.semantic, Some(crate::types::WorkflowSemantic::Reviewing)));
+    let has_reviewing = states.iter().any(|s| {
+        matches!(
+            s.semantic,
+            Some(crate::entity::types::WorkflowSemantic::Reviewing)
+        )
+    });
     if !has_reviewing {
         vec![RuleViolation::field(
             "workflow has Review steps but no state with Reviewing semantic",
@@ -141,9 +144,12 @@ async fn reviewing_state_required_reusable(e: &TrackedReusableWorkflow) -> Vec<R
         Some(s) => s,
         None => return vec![],
     };
-    let has_reviewing = states
-        .iter()
-        .any(|s| matches!(s.semantic, Some(crate::types::WorkflowSemantic::Reviewing)));
+    let has_reviewing = states.iter().any(|s| {
+        matches!(
+            s.semantic,
+            Some(crate::entity::types::WorkflowSemantic::Reviewing)
+        )
+    });
     if !has_reviewing {
         vec![RuleViolation::field(
             "workflow has Review steps but no state with Reviewing semantic",
@@ -226,9 +232,12 @@ async fn reviewing_state_required_embedded(e: &TrackedEmbeddedWorkflow) -> Vec<R
         Some(s) => s,
         None => return vec![],
     };
-    let has_reviewing = states
-        .iter()
-        .any(|s| matches!(s.semantic, Some(crate::types::WorkflowSemantic::Reviewing)));
+    let has_reviewing = states.iter().any(|s| {
+        matches!(
+            s.semantic,
+            Some(crate::entity::types::WorkflowSemantic::Reviewing)
+        )
+    });
     if !has_reviewing {
         vec![RuleViolation::field(
             "workflow has Review steps but no state with Reviewing semantic",

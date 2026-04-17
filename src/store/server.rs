@@ -3,11 +3,11 @@ use std::{cell::RefCell, future::Future, sync::OnceLock};
 use tokio::sync::mpsc;
 
 use crate::{
+    error::store::StoreError,
     store::{
         message::{StoreMessage, StoreRequest, StoreResponse},
         state::Store,
     },
-    store_error::StoreError,
     substrate::schema_registry::SchemaBackedSubstrate,
 };
 

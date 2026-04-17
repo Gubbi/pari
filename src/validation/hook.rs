@@ -4,7 +4,7 @@ use super::{
     kebab_case_id, non_empty_list, non_empty_str, unique_by, x_prefix_keys, AnyStructuralRule,
     RuleViolation, ValidationSchema,
 };
-use crate::entities::hook::{Hook, HookInput, TrackedHook};
+use crate::entity::entities::hook::{Hook, HookInput, TrackedHook};
 
 fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
     match value {

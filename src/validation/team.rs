@@ -4,7 +4,7 @@ use super::{
     kebab_case_id, non_empty_str, unique_by, x_prefix_keys, AnyCrossEntityRule, AnyStructuralRule,
     RuleViolation, ValidationSchema,
 };
-use crate::entities::team::{Team, TeamMember, TrackedTeam};
+use crate::entity::entities::team::{Team, TeamMember, TrackedTeam};
 
 fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
     match value {

@@ -2,18 +2,55 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "definitions": {
-    "TeamId": {
-      "pattern": "^[a-z][a-z0-9-]*$",
-      "type": "string"
+    "RoleEntityRef": {
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "Role"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "title": "RoleEntityRef",
+      "type": "object"
+    },
+    "TeamEntityRef": {
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "Team"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "title": "TeamEntityRef",
+      "type": "object"
     },
     "TeamMember": {
+      "additionalProperties": false,
       "properties": {
         "handle": {
           "pattern": "^@[a-z0-9._-]+$",
           "type": "string"
         },
         "role": {
-          "type": "string"
+          "$ref": "#/definitions/RoleEntityRef"
         }
       },
       "required": [
@@ -33,13 +70,12 @@
         "null"
       ]
     },
-    "id": {
-      "$ref": "#/definitions/TeamId"
+    "entity_ref": {
+      "$ref": "#/definitions/TeamEntityRef"
     },
     "import": {
-      "description": "List of `team_ids` whose members carry their own roles from the source team.",
       "items": {
-        "type": "string"
+        "$ref": "#/definitions/TeamEntityRef"
       },
       "type": [
         "array",
@@ -48,9 +84,8 @@
     },
     "include": {
       "additionalProperties": {
-        "type": "string"
+        "$ref": "#/definitions/RoleEntityRef"
       },
-      "description": "Map of `team_id` → `role_id`: all members of the referenced team are assigned this role.",
       "type": [
         "object",
         "null"
@@ -70,7 +105,7 @@
     }
   },
   "required": [
-    "id",
+    "entity_ref",
     "name"
   ],
   "title": "Team",

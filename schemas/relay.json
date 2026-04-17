@@ -170,152 +170,41 @@
       "title": "RoleEntityRef",
       "type": "object"
     },
-    "Step": {
-      "description": "A step inside a workflow. Not an entity — no EntityRef, no derive(Entity).",
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Task": {
-              "additionalProperties": false,
-              "properties": {
-                "depends_on": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": [
-                    "array",
-                    "null"
-                  ]
-                },
-                "entity_ref": {
-                  "$ref": "#/definitions/TaskEntityRef"
-                }
-              },
-              "required": [
-                "entity_ref"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "Task"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Relay": {
-              "additionalProperties": false,
-              "properties": {
-                "depends_on": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": [
-                    "array",
-                    "null"
-                  ]
-                },
-                "entity_ref": {
-                  "$ref": "#/definitions/RelayEntityRef"
-                }
-              },
-              "required": [
-                "entity_ref"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "Relay"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "EmbeddedWorkflow": {
-              "additionalProperties": false,
-              "properties": {
-                "depends_on": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": [
-                    "array",
-                    "null"
-                  ]
-                },
-                "entity_ref": {
-                  "$ref": "#/definitions/EmbeddedWorkflowEntityRef"
-                }
-              },
-              "required": [
-                "entity_ref"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "EmbeddedWorkflow"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Review": {
-              "additionalProperties": false,
-              "properties": {
-                "approver": {
-                  "items": {
-                    "$ref": "#/definitions/RoleEntityRef"
-                  },
-                  "type": "array"
-                },
-                "on_reject": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "approver",
-                "on_reject"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "Review"
-          ],
-          "type": "object"
-        }
-      ]
-    },
-    "TaskEntityRef": {
+    "StateMapEntry": {
+      "additionalProperties": false,
       "properties": {
-        "id": {
-          "pattern": "^[A-Z][A-Za-z0-9]*$",
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "maps_to": {
           "type": "string"
         },
-        "kind": {
-          "enum": [
-            "Task"
-          ],
-          "type": "string"
-        },
-        "parent": {
-          "$ref": "#/definitions/WorkflowParent"
+        "semantic": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/StateMapSemantic"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
-        "id",
-        "kind",
-        "parent"
+        "maps_to"
       ],
-      "title": "TaskEntityRef",
       "type": "object"
+    },
+    "StateMapSemantic": {
+      "enum": [
+        "done",
+        "blocked",
+        "failed"
+      ],
+      "type": "string"
     },
     "WorkflowEntityRef": {
       "properties": {
@@ -350,48 +239,27 @@
         }
       ],
       "description": "Closed parent hierarchy for embedded entities in the workflow tree."
-    },
-    "WorkflowSemantic": {
-      "enum": [
-        "reviewing",
-        "done",
-        "blocked",
-        "failed"
-      ],
-      "type": "string"
-    },
-    "WorkflowStateEntry": {
-      "additionalProperties": false,
-      "properties": {
-        "description": {
-          "type": "string"
-        },
-        "id": {
-          "pattern": "^[A-Z][A-Za-z0-9]*$",
-          "type": "string"
-        },
-        "semantic": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/WorkflowSemantic"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "required": [
-        "description",
-        "id"
-      ],
-      "type": "object"
     }
   },
   "patternProperties": {
     "^x-": true
   },
   "properties": {
+    "briefing": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "debriefing": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "delegates_to": {
+      "$ref": "#/definitions/ReusableWorkflowEntityRef"
+    },
     "description": {
       "type": [
         "string",
@@ -399,7 +267,7 @@
       ]
     },
     "entity_ref": {
-      "$ref": "#/definitions/WorkflowEntityRef"
+      "$ref": "#/definitions/RelayEntityRef"
     },
     "guidance": {
       "type": [
@@ -423,30 +291,29 @@
       "type": "string"
     },
     "raci": {
-      "$ref": "#/definitions/Raci"
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Raci"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
-    "states": {
-      "items": {
-        "$ref": "#/definitions/WorkflowStateEntry"
-      },
-      "minItems": 2,
-      "type": "array"
-    },
-    "steps": {
+    "state_map": {
       "additionalProperties": {
-        "$ref": "#/definitions/Step"
+        "$ref": "#/definitions/StateMapEntry"
       },
       "type": "object"
     }
   },
   "required": [
+    "delegates_to",
     "entity_ref",
     "name",
     "purpose",
-    "raci",
-    "states",
-    "steps"
+    "state_map"
   ],
-  "title": "Workflow",
+  "title": "Relay",
   "type": "object"
 }

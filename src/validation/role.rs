@@ -3,7 +3,7 @@
 use super::{
     kebab_case_id, non_empty_str, x_prefix_keys, AnyStructuralRule, RuleViolation, ValidationSchema,
 };
-use crate::entities::role::{Role, TrackedRole};
+use crate::entity::entities::role::{Role, TrackedRole};
 
 fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
     match value {

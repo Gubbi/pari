@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "definitions": {
-    "RoleEntityRef": {
+    "ArtifactKindEntityRef": {
       "properties": {
         "id": {
           "pattern": "^[a-z][a-z0-9-]*$",
@@ -10,7 +10,7 @@
         },
         "kind": {
           "enum": [
-            "Role"
+            "ArtifactKind"
           ],
           "type": "string"
         }
@@ -19,7 +19,7 @@
         "id",
         "kind"
       ],
-      "title": "RoleEntityRef",
+      "title": "ArtifactKindEntityRef",
       "type": "object"
     }
   },
@@ -27,6 +27,12 @@
     "^x-": true
   },
   "properties": {
+    "access": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "description": {
       "type": [
         "string",
@@ -34,29 +40,26 @@
       ]
     },
     "entity_ref": {
-      "$ref": "#/definitions/RoleEntityRef"
+      "$ref": "#/definitions/ArtifactKindEntityRef"
+    },
+    "guidance": {
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "name": {
       "type": "string"
     },
-    "purpose": {
+    "service": {
       "type": "string"
-    },
-    "traits": {
-      "items": {
-        "type": "string"
-      },
-      "type": [
-        "array",
-        "null"
-      ]
     }
   },
   "required": [
     "entity_ref",
     "name",
-    "purpose"
+    "service"
   ],
-  "title": "Role",
+  "title": "ArtifactKind",
   "type": "object"
 }

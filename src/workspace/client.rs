@@ -1,7 +1,7 @@
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
+    error::store::StoreError,
     store::{StoreRequest, StoreResponse},
-    store_error::StoreError,
     workspace::{
         error::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError},
         protocol::request,

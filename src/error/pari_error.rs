@@ -3,8 +3,8 @@
 use pari_macros::{ErrorCompose, OTelEmit};
 
 use crate::{
+    store::{CheckoutError, CommitError, LoadError, PersistError, ResolveError},
     validation::error::SetterError,
-    workspace::error::{CheckoutError, CommitError, LoadError, PersistError, ResolveError},
 };
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]

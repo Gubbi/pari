@@ -1,9 +1,7 @@
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
-    store_error::StoreError,
-    workspace::error::{
-        CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError,
-    },
+    error::store::StoreError,
+    store::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError},
 };
 
 pub(crate) enum StoreRequest {

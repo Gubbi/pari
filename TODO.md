@@ -33,11 +33,12 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Done looks like: local guidance consistently teaches the same layer ownership rules as the design docs.
    Completion note: the root guidance, module-local `CLAUDE.md` files, and test/proc-macro docs now describe the formal layer owners, current API names such as `TrackedEntity` and `EntityChange`, and the actual `workspace` / `store` / `substrate` split present in source. A new `src/workspace/CLAUDE.md` now covers the workspace layer locally.
 
-4. [ ] Restructure code to match the formal layer model
+4. [x] Restructure code to match the formal layer model
    Context: the runtime has already been moving toward the layer model, but some code placement and ownership details may still not line up fully with the formalized architecture once the docs are cleaned up.
    Goal: restructure runtime code so it reflects the formal layer model cleanly, including moving any remaining misplaced concerns into the right layer homes.
    Scope: runtime/source restructuring only. This task is about code placement and layer ownership, not another broad docs sweep.
    Done looks like: the runtime layout and module ownership align cleanly with the formal layer model from the design docs.
+   Completion note: `src/` now contains only `lib.rs` plus formal layer directories. The loose entity-layer files and folders were consolidated under `src/entity/`, the store channel error moved into `src/error/store.rs`, legacy empty top-level `schema/` and `fixtures/` directories were removed, and the crate root now provides compatibility re-exports while the source itself follows layer-native module paths. Store-owned actor/request failures also now live in `src/store/op_error.rs`, with `workspace` translating them back into caller-facing operation errors.
 
 5. [ ] Finish pending codegen restructuring to match the layer model
    Context: most codegen ownership is now split across entity/workspace/store/substrate/validation, but once the architectural model is formalized we need a final verification pass to make sure nothing is still generated from the wrong layer.

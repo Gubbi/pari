@@ -1,0 +1,210 @@
+use std::marker::PhantomData;
+
+use super::{Entity, EntityKind, NoParent, ParentKind};
+
+/// A typed reference to an entity: its string id and optional parent context.
+///
+/// `T: Entity` ensures only declared entity types can form refs.
+/// `P = NoParent` default covers top-level entities.
+///
+/// Hash and Eq incorporate `T::KIND` so refs of different entity types with
+/// the same id do not collide as HashMap keys.
+pub struct EntityRef<T: Entity, P: ParentKind = NoParent> {
+    pub(crate) id: String,
+    pub(crate) parent: P,
+    _marker: PhantomData<fn() -> T>,
+}
+
+impl<T: Entity> EntityRef<T, NoParent> {
+    /// Construct a top-level entity reference.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self::with_parent(id, NoParent)
+    }
+}
+
+impl<T: Entity, P: ParentKind> EntityRef<T, P> {
+    /// Construct an entity reference with an explicit parent value.
+    pub fn with_parent(id: impl Into<String>, parent: P) -> Self {
+        Self {
+            id: id.into(),
+            parent,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    pub fn parent(&self) -> Option<&P> {
+        self.parent.value()
+    }
+}
+
+impl<T: Entity, P: ParentKind + PartialEq> PartialEq for EntityRef<T, P> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.parent == other.parent
+    }
+}
+
+impl<T: Entity, P: ParentKind + Eq> Eq for EntityRef<T, P> {}
+
+impl<T: Entity, P: ParentKind + std::hash::Hash> std::hash::Hash for EntityRef<T, P> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        T::KIND.hash(state);
+        self.id.hash(state);
+        self.parent.hash(state);
+    }
+}
+
+impl<T: Entity, P: ParentKind + Clone> Clone for EntityRef<T, P> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            parent: self.parent.clone(),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T: Entity, P: ParentKind + std::fmt::Debug> std::fmt::Debug for EntityRef<T, P> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EntityRef")
+            .field("kind", &T::KIND)
+            .field("id", &self.id)
+            .field("parent", &self.parent)
+            .finish()
+    }
+}
+
+impl<T: Entity, P: ParentKind> serde::Serialize for EntityRef<T, P> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+
+        let mut map = s.serialize_map(None)?;
+        map.serialize_entry("id", &self.id)?;
+        map.serialize_entry("kind", T::KIND.as_str())?;
+        self.parent.serialize_parent(&mut map)?;
+        map.end()
+    }
+}
+
+impl<'de, T: Entity, P: ParentKind> serde::Deserialize<'de> for EntityRef<T, P> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        use std::fmt;
+
+        use serde::de::{MapAccess, Visitor};
+
+        struct V<T, P>(std::marker::PhantomData<(T, P)>);
+
+        impl<'de, T: Entity, P: ParentKind> Visitor<'de> for V<T, P> {
+            type Value = EntityRef<T, P>;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "an entity ref object")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<EntityRef<T, P>, A::Error> {
+                let mut id: Option<String> = None;
+                let mut kind: Option<String> = None;
+                let mut parent: Option<serde_json::Value> = None;
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "id" => id = Some(map.next_value()?),
+                        "kind" => kind = Some(map.next_value()?),
+                        "parent" => parent = Some(map.next_value()?),
+                        _ => {
+                            let _: serde_json::Value = map.next_value()?;
+                        }
+                    }
+                }
+                let id = id.ok_or_else(|| serde::de::Error::missing_field("id"))?;
+                let kind = kind.ok_or_else(|| serde::de::Error::missing_field("kind"))?;
+                if kind != T::KIND.as_str() {
+                    return Err(serde::de::Error::custom(format!(
+                        "entity kind mismatch: expected {}, got {}",
+                        T::KIND.as_str(),
+                        kind,
+                    )));
+                }
+                let parent = P::deserialize_parent(parent)?;
+                Ok(EntityRef::with_parent(id, parent))
+            }
+        }
+
+        d.deserialize_map(V::<T, P>(std::marker::PhantomData))
+    }
+}
+
+impl<T, P> schemars::JsonSchema for EntityRef<T, P>
+where
+    T: Entity,
+    P: ParentKind + schemars::JsonSchema + 'static,
+{
+    fn schema_name() -> String {
+        format!("{}EntityRef", T::KIND.as_str())
+    }
+
+    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        use schemars::schema::{
+            InstanceType, Metadata, ObjectValidation, Schema, SchemaObject, SingleOrVec,
+            StringValidation,
+        };
+
+        let mut properties = schemars::Map::new();
+        let id_pattern = match T::KIND {
+            EntityKind::Role | EntityKind::Hook | EntityKind::Team | EntityKind::ArtifactKind => {
+                "^[a-z][a-z0-9-]*$"
+            }
+            EntityKind::Workflow
+            | EntityKind::ReusableWorkflow
+            | EntityKind::Task
+            | EntityKind::Relay
+            | EntityKind::EmbeddedWorkflow => "^[A-Z][A-Za-z0-9]*$",
+        };
+        properties.insert(
+            "id".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::String))),
+                string: Some(Box::new(StringValidation {
+                    pattern: Some(id_pattern.to_string()),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }),
+        );
+        properties.insert(
+            "kind".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::String))),
+                enum_values: Some(vec![serde_json::Value::String(
+                    T::KIND.as_str().to_string(),
+                )]),
+                ..Default::default()
+            }),
+        );
+
+        let mut required = schemars::Set::new();
+        required.insert("id".to_string());
+        required.insert("kind".to_string());
+
+        if std::any::TypeId::of::<P>() != std::any::TypeId::of::<NoParent>() {
+            properties.insert("parent".to_string(), gen.subschema_for::<P>());
+            required.insert("parent".to_string());
+        }
+
+        Schema::Object(SchemaObject {
+            metadata: Some(Box::new(Metadata {
+                title: Some(Self::schema_name()),
+                ..Default::default()
+            })),
+            instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+            object: Some(Box::new(ObjectValidation {
+                properties,
+                required,
+                ..Default::default()
+            })),
+            ..Default::default()
+        })
+    }
+}

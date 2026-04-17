@@ -302,7 +302,7 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
         .collect();
 
     let extensions_init_call = if has_extensions_field {
-        quote! { if let Some(v) = extensions { tracked.extensions.initialize(v); } }
+        quote! { if let Some(v) = extensions { tracked.extensions.initialize(v.into()); } }
     } else {
         quote! {}
     };

@@ -1,7 +1,7 @@
 //! Pari — workflow runtime for hybrid human-agent teams.
 //!
-//! Exposes two top-level modules: [`schema`] for entity types and validation,
-//! and [`substrate`] for persistence backends.
+//! The runtime is organized around the formal `entity`, `workspace`, `store`,
+//! `substrate`, `validation`, and `error` layers.
 
 #![feature(error_generic_member_access)]
 #![warn(clippy::pedantic)]
@@ -11,14 +11,11 @@
 // this crate itself (needed when #[derive(Entity)] is applied inside `pari`).
 extern crate self as pari;
 
-pub mod entities;
 pub mod entity;
 pub mod error;
-pub use error::pari_error::PariError;
+pub use entity::{entities, tracked, types};
+pub use error::{pari_error::PariError, store as store_error};
 pub mod store;
-pub mod store_error;
 pub mod substrate;
-pub mod tracked;
-pub mod types;
 pub mod validation;
 pub mod workspace;
