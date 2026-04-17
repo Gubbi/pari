@@ -1,153 +1,66 @@
-# src/entities — Entity Type Definitions
+# src/entities — Entity Layer Plain Definitions
 
-Each entity is a plain Rust struct with `#[derive(pari_macros::Entity)]`. The macro generates:
-- A `Tracked*` companion struct (all fields wrapped in `Arc<TrackedField<T>>`)
-- `From<Plain>` impl for the tracked struct
-- `has_dirty_fields()`, `dirty_fields() -> Vec<&'static str>`, `merge_dirty_into()`, `reset_dirty()`
-- Async accessor: `async fn name(&self) -> Result<&str, LoadError>`
-- Async setter: `async fn set_name(&mut self, v: String) -> Result<(), SetterError>`
+## Ownership
 
-Entity structs are registered in `src/entity.rs` via `entity_registry!`.
+This directory belongs to the formal `entity` layer.
 
----
+It owns plain domain entity shapes only:
 
-## Top-Level Entities (parent = NoParent)
+- `Role`
+- `Hook`
+- `Team`
+- `ArtifactKind`
+- `Workflow`
+- `ReusableWorkflow`
+- `Task`
+- `Relay`
+- `EmbeddedWorkflow`
+- supporting plain value enums/structs that live with those entities
 
-### Role
-```rust
-pub struct Role {
-    pub entity_ref:  EntityRef<Role>,
-    pub name:        String,
-    pub description: Option<String>,
-    pub purpose:     String,
-    pub traits:      Option<Vec<String>>,
-    pub extensions:  Extensions,
-}
-```
+The authoritative design docs for this area live under [docs/design/entity_layer/](/Users/vinuth/code/pari/docs/design/entity_layer/).
 
-### Hook
-```rust
-pub struct Hook {
-    pub entity_ref:   EntityRef<Hook>,
-    pub name:         String,
-    pub description:  Option<String>,
-    pub instructions: Vec<String>,
-    pub inputs:       Vec<HookInput>,
-    pub extensions:   Extensions,
-}
-pub struct HookInput { pub name: String, pub description: String, pub required: bool }
-```
+## What Lives Here
 
-### Team
-```rust
-pub struct Team {
-    pub entity_ref:  EntityRef<Team>,
-    pub name:        String,
-    pub description: Option<String>,
-    pub members:     Vec<TeamMember>,
-    pub include:     HashMap<EntityRef<Team>, EntityRef<Role>>,
-    pub import:      Vec<EntityRef<Team>>,
-    pub extensions:  Extensions,
-}
-pub struct TeamMember { pub handle: String, pub role: EntityRef<Role> }
-```
+- Plain Rust structs and enums for domain entities.
+- `#[derive(pari_macros::Entity)]` on those plain structs.
+- Entity-local field declarations and entity-local default derives.
+- Embedded workflow step entity definitions in [src/entities/workflow.rs](/Users/vinuth/code/pari/src/entities/workflow.rs), [src/entities/task.rs](/Users/vinuth/code/pari/src/entities/task.rs), and [src/entities/relay.rs](/Users/vinuth/code/pari/src/entities/relay.rs).
 
-### ArtifactKind
-```rust
-pub struct ArtifactKind {
-    pub entity_ref:  EntityRef<ArtifactKind>,
-    pub name:        String,
-    pub description: Option<String>,
-    pub service:     Option<String>,
-    pub access:      Option<String>,
-    pub guidance:    Option<String>,
-    pub extensions:  Extensions,
-}
-```
+## What Does Not Live Here
 
-### Workflow / ReusableWorkflow
-```rust
-// Both share this shape; differ only in entity_ref type and kind constant.
-pub struct Workflow {
-    pub entity_ref:  EntityRef<Workflow>,   // ReusableWorkflow for the other
-    pub name:        String,
-    pub description: Option<String>,
-    pub purpose:     String,
-    pub raci:        Raci,
-    pub states:      Vec<WorkflowStateEntry>,
-    pub steps:       IndexMap<String, Step>,
-    pub intercepts:  Option<HashMap<WorkflowTrigger, HookCall>>,
-    pub guidance:    Option<String>,
-    pub extensions:  Extensions,
-}
-```
+- Caller-facing API shaping: `workspace`
+- Actor/message flow or checkout lifecycle: `store`
+- Persistence layout, asset schemas, codecs, resolvers, executors: `substrate`
+- Validation orchestration or shared rule runners: `validation`
+- Cross-cutting error classification: `error`
 
----
+If a change starts to discuss actor requests, substrate assets, or validation execution order, it probably belongs outside this directory.
 
-## Embedded Entities (parent = WorkflowParent)
+## Identity Rules
 
-These live inside `Workflow`/`ReusableWorkflow` steps. Their `EntityRef` carries `workflow_id`.
+- Top-level entities use `EntityRef<T>`, which is `EntityRef<T, NoParent>`.
+- Embedded entities use `EntityRef<T, WorkflowParent>`.
+- Construct top-level refs with `EntityRef::new(id)`.
+- Construct embedded refs with `EntityRef::with_parent(id, parent)`.
+- `WorkflowParent` is a real parent hierarchy, not just a workflow-id string.
 
-### Task
-```rust
-pub struct Task {
-    pub entity_ref:  EntityRef<Task, WorkflowParent>,
-    pub name:        String,
-    pub description: Option<String>,
-    pub purpose:     String,
-    pub instructions: Vec<String>,
-    pub criteria:    Vec<String>,
-    pub raci:        Option<Raci>,
-    pub artifact:    Artifact,
-    pub states:      Vec<TaskStateEntry>,
-    pub intercepts:  Option<HashMap<TaskTrigger, HookCall>>,
-    pub guidance:    Option<String>,
-    pub extensions:  Extensions,
-}
-// TaskTrigger = OnStart | OnDone | OnBlocked | OnFailed
-```
+`Step` is not an entity. It references embedded entity refs but does not itself implement `Entity`.
 
-### Relay
-```rust
-pub struct Relay {
-    pub entity_ref:   EntityRef<Relay, WorkflowParent>,
-    pub name:         String,
-    pub description:  Option<String>,
-    pub purpose:      String,
-    pub raci:         Option<Raci>,
-    pub delegates_to: EntityRef<ReusableWorkflow>,
-    pub briefing:     Option<String>,
-    pub debriefing:   Option<String>,
-    pub state_map:    HashMap<String, StateMapEntry>,
-    pub intercepts:   Option<HashMap<WorkflowTrigger, HookCall>>,
-    pub guidance:     Option<String>,
-    pub extensions:   Extensions,
-}
-pub struct StateMapEntry { pub maps_to: String, pub description: Option<String>, pub semantic: StateMapSemantic }
-pub enum StateMapSemantic { Done, Blocked, Failed }
-```
+## Generated Behavior From `#[derive(Entity)]`
 
-### EmbeddedWorkflow
-Same shape as `Workflow` but `raci` is `Option<Raci>` and `entity_ref` is `EntityRef<EmbeddedWorkflow, WorkflowParent>`.
+The derive macro generates behavior used by multiple formal layers:
 
----
+- `entity`: tracked companion struct and entity identity glue
+- `workspace`: async field accessors and setters
+- `validation`: tracked-entity validation dispatch
 
-## Step enum (workflow.rs)
+Keep that ownership split in mind when editing entity definitions. The macro mechanism lives in `pari-macros`, but the generated behavior still belongs to the owning formal layer.
 
-`Step` is not an entity — no `EntityRef`, no `#[derive(Entity)]`:
-```rust
-pub enum Step {
-    Task             { entity_ref: EntityRef<Task, WorkflowParent>,             depends_on: Option<Vec<String>> },
-    Relay            { entity_ref: EntityRef<Relay, WorkflowParent>,            depends_on: Option<Vec<String>> },
-    EmbeddedWorkflow { entity_ref: EntityRef<EmbeddedWorkflow, WorkflowParent>, depends_on: Option<Vec<String>> },
-    Review           { approver: Vec<EntityRef<Role>>, on_reject: String },
-}
-```
+## Change Tracking Expectations
 
----
+Generated tracked companions wrap fields in `Arc<TrackedField<T>>`.
 
-## EntityKind discriminants (generated in src/entity.rs)
+- load/deserializer path: `TrackedField::initialize(value)`
+- mutation path: replace the field with `Arc::new(TrackedField::mutated(value))`
 
-```
-Role | Hook | Team | Workflow | ReusableWorkflow | ArtifactKind | Task | Relay | EmbeddedWorkflow
-```
+Do not document or reintroduce older helper names such as `with_value`.

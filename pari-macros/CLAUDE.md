@@ -1,113 +1,37 @@
-# pari-macros — Proc Macro Crate
+# pari-macros — Proc-Macro Support For Formal Layers
 
-Three derive macros + one declarative macro. All defined in `pari-macros/src/lib.rs` (main body) with helpers in `error_compose.rs` and `otel_emit.rs`.
+## Ownership
 
----
+`pari-macros` is support code, not a formal architecture layer.
 
-## `#[derive(pari_macros::Entity)]`
+Every macro here should be explained in terms of the formal layer that owns the generated behavior:
 
-Used on plain entity structs alongside `#[entity(...)]` attribute.
+- `entity` for tracked entity identity and serde support
+- `workspace` for generated async accessors/setters and operation wiring
+- `store` for tracked-wrapper helper methods used by the actor
+- `validation` for validation dispatch glue
+- `error` for error classification and telemetry derives
 
-```rust
-#[derive(pari_macros::Entity)]
-#[entity(kind = EntityKind::Role, schema = crate::validation::role::role_validation_schema)]
-// For embedded entities add: parent = WorkflowParent
-pub struct Role { ... }
-```
+Do not describe this crate as a separate architectural home for runtime behavior.
 
-**Generates:**
-- `TrackedRole` struct — all non-`entity_ref` fields replaced with `Arc<TrackedField<T>>`
-- `impl From<Role> for TrackedRole` — initializes each field via `TrackedField::with_value(...)`; starts clean
-- `impl TrackedFor for TrackedRole { type Entity = Role; }`
-- `has_dirty_fields() -> bool`, `dirty_fields() -> Vec<&'static str>`, `reset_dirty()`, `merge_dirty_into(&mut self, target: &mut Self)`
-- `entity_ref() -> &EntityRef<Role>` accessor
-- For each field `name: String`:
-  - `async fn name(&self) -> Result<&str, LoadError>` — calls `self.name.get_or_load().await` + type conversion
-  - `async fn set_name(&mut self, v: String) -> Result<(), SetterError>`
-- `impl Entity for Role` with `KIND`, `validation_schema()`, `to_any_ref()`, `extract()`
+## Macro Map
 
-**`no_dispatch` option** — skips `to_any_ref`/`extract` generation (used in test-only structs):
-```rust
-#[entity(kind = EntityKind::Role, no_dispatch)]
-```
+- `#[derive(Entity)]`: multi-layer generation across `entity`, `workspace`, and `validation`
+- `entity_registry!`: generated aggregate types and dispatch used across `entity`, `store`, and `substrate`
+- `#[derive(ErrorCompose)]`: `error`-layer classification derive
+- `#[derive(OTelEmit)]`: `error`-layer telemetry derive
 
-**Accessor return types by field type:**
+## Current Naming
 
-| Field type | Accessor return | Transform |
-|------------|----------------|-----------|
-| `String` | `Result<&str, LoadError>` | `.as_str()` |
-| `Option<String>` | `Result<Option<&str>, LoadError>` | `.as_deref()` |
-| `Option<Vec<T>>` | `Result<Option<&[T]>, LoadError>` | `.as_deref()` |
-| `Vec<T>` | `Result<&[T], LoadError>` | `.as_slice()` |
-| `Option<T>` | `Result<Option<&T>, LoadError>` | `.as_ref()` |
-| `T` (other) | `Result<&T, LoadError>` | (direct ref) |
+- Generated type-erased tracked wrapper: `TrackedEntity`
+- Store persist handoff referenced by generated code: `EntityChange`
+- Setter-side field mutation helper: `TrackedField::mutated`
+- Load/deserializer helper: `TrackedField::initialize`
 
----
+Avoid documenting removed names such as `StoreEntity` or `TrackedField::with_value`.
 
-## `#[derive(Tracked)]` (pari_macros)
+## Editing Guidance
 
-Lower-level macro; `#[derive(Entity)]` calls this internally. Can also be used standalone.
-
-```rust
-#[derive(pari_macros::Tracked)]
-pub struct Foo {
-    pub id: String,
-    pub items: Vec<Item>,    // #[tracked(map_key = "id")] → TrackedMap<String, Item>
-}
-```
-
-**Generates:** `TrackedFoo` struct with `From<Foo>` impl, `dirty_fields()`, `merge_dirty_into()`.
-
----
-
-## `#[derive(ErrorCompose)]`
-
-See `src/error/CLAUDE.md` for usage. Implementation in `pari-macros/src/error_compose.rs`.
-
-Uses `darling` for attribute parsing. Reads `compose` attribute namespace.
-
-**On structs:**
-```rust
-#[derive(ErrorCompose)]
-#[compose(fix = Client, recoverability = UserAction)]
-pub struct MyError { ... }
-```
-
-**On enums:**
-```rust
-#[derive(ErrorCompose)]
-pub enum MyError {
-    #[compose(fix = Client, recoverability = UserAction)]
-    BadInput { ... },
-    #[compose(delegate)]
-    Substrate(SubstrateError),  // delegates fix_domain/recoverability to inner
-}
-```
-
----
-
-## `#[derive(OTelEmit)]`
-
-See `src/error/CLAUDE.md` for usage. Implementation in `pari-macros/src/otel_emit.rs`.
-
-Uses `darling` reading both `compose` and `otel` attribute namespaces. **Never put both `#[compose(delegate)]` and `#[otel(delegate)]` on the same variant** — causes darling "Duplicate field" error. `compose(delegate)` alone is sufficient.
-
----
-
-## `entity_registry! { ... }`
-
-Declarative macro in `pari-macros/src/lib.rs`. Invoked once in `src/entity.rs`.
-
-```rust
-pari_macros::entity_registry! {
-    Role             => NoParent,
-    Task             => WorkflowParent,
-    // ...
-}
-```
-
-**Generates:**
-- `EntityKind` enum with all variants + `as_str()` method + `Copy/Clone/Debug/PartialEq/Eq/Hash`
-- `AnyEntityRef` enum — one variant per entity with typed `EntityRef`; methods: `kind()`, `id()`
-- `StoreEntity` enum — one variant per entity with `Tracked*` type; methods: `any_ref()`, `is_stub()`, `make_stub()`, `has_dirty_fields()`, `dirty_fields()`, `reset_dirty()`, `merge_dirty_into()`, `initialize_into()`, `all_refs()`, `from_role()` etc.
-- `load_strategy(EntityKind) -> LoadStrategy` — dispatches to per-entity `SubstrateSchema::load_strategy()`
+- Keep macro output aligned with the owning layer's design docs.
+- If a generation concern spans multiple formal layers, document that split explicitly instead of inventing a generic "macro layer."
+- Before changing generated API shape, check the relevant design docs under [docs/design/](/Users/vinuth/code/pari/docs/design/README.md).

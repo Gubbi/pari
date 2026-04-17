@@ -1,127 +1,51 @@
-# src/store — Actor-Based Entity Store
+# src/store — Store Layer Actor And State
 
-## Overview
+## Ownership
 
-`EntityServer` spawns a Tokio actor (`Store<S>`) that owns all in-memory entity state.
-`EntityClient` provides a static async API that sends messages to the actor.
-Isolation for tests is via `EntityServer::with_test()`, which installs a thread-local sender override.
+This directory belongs to the formal `store` layer.
 
----
+It owns:
 
-## Store<S> Actor State
+- in-memory tracked entity state
+- actor message flow
+- checkout and undo lifecycle
+- load orchestration inside the actor
+- persist orchestration and the store-to-substrate handoff
 
-```rust
-struct Store<S: Substrate> {
-    entities:    HashMap<AnyEntityRef, StoreEntity>,  // all loaded entities (may be stubs)
-    added:       HashSet<AnyEntityRef>,               // inserted this session, not yet persisted
-    modified:    HashSet<AnyEntityRef>,               // committed with dirty fields, not yet persisted
-    removed:     HashSet<AnyEntityRef>,               // removed this session, not yet persisted
-    checked_out: HashSet<AnyEntityRef>,               // currently checked out (locked)
-    substrate:   S,
-}
-```
+The authoritative design docs for this area live under [docs/design/store_layer/](/Users/vinuth/code/pari/docs/design/store_layer/) plus the store-owned load docs in [docs/design/workspace_layer/load/](/Users/vinuth/code/pari/docs/design/workspace_layer/load/).
 
-**Stub**: a `StoreEntity` variant where all `TrackedField`s are uninitialized. Created by `StoreEntity::make_stub(&any_ref)`. Stubs are placeholders for referenced entities not yet loaded.
+## Module Map
 
----
+- [src/store/server.rs](/Users/vinuth/code/pari/src/store/server.rs): `EntityServer`, sender management, `init()`, and test-scoped `with()`
+- [src/store/state.rs](/Users/vinuth/code/pari/src/store/state.rs): `Store<S>` state machine and orchestration
+- [src/store/message.rs](/Users/vinuth/code/pari/src/store/message.rs): internal request/response message types
+- [src/store/change.rs](/Users/vinuth/code/pari/src/store/change.rs): `EntityChange<'a>` persistence handoff enum
 
-## store::Substrate trait
+## Current Core Types
 
-Separate from `substrate::Substrate`. Used by the actor.
+- Type-erased entity wrapper: `TrackedEntity`
+- Persist handoff type: `EntityChange<'a>`
+- Channel boundary failure type: `StoreError` in [src/store_error.rs](/Users/vinuth/code/pari/src/store_error.rs)
 
-```rust
-pub trait Substrate: Send + Sync + 'static {
-    fn exists(any_ref: AnyEntityRef) -> impl Future<Output = Result<bool, SubstrateError>> + Send;
-    fn load(any_ref: AnyEntityRef, fields: Vec<String>) -> impl Future<Output = Result<StoreEntity, SubstrateError>> + Send;
-    fn atomic_persist(changes: Vec<StoreEntityChange>) -> impl Future<Output = Result<(), Vec<SubstrateError>>> + Send;
-}
+Do not reintroduce stale names such as `StoreEntity` or `StoreEntityChange`.
 
-pub enum StoreEntityChange {
-    Added(StoreEntity),
-    Modified(StoreEntity, Vec<&'static str>),  // dirty field names
-    Removed(AnyEntityRef),
-}
-```
+## Boundary Rules
 
----
+- `workspace` owns the public async API and operation-level error types.
+- `store` owns the internal `StoreRequest` / `StoreResponse` protocol and actor execution.
+- `substrate` owns persistence contracts and storage details.
+- `validation` owns rule execution logic, but the store decides when validations run.
 
-## EntityServer
+That means:
 
-```rust
-EntityServer::init(substrate)                          // global init (production)
-EntityServer::with_test(substrate, || async { ... })   // isolated test scope; installs thread-local override
-```
+- no caller-facing ergonomics should be added here if they belong in `workspace`
+- no file layout, codec, or resolver logic should be added here
+- no new validation rules should be authored here
 
----
+## Test Helper
 
-## EntityClient — Public API
+`EntityServer::with(substrate, || async { ... })` is the current isolated test entry point. Do not document `with_test()` or other removed helpers.
 
-All methods are `async`. Error types are in `store/error.rs`.
+## Persist Path
 
-| Method | Description | Returns |
-|--------|-------------|---------|
-| `insert(StoreEntity)` | Add new entity to store (fire-and-forget command) | `Result<(), StoreError>` |
-| `resolve(AnyEntityRef)` | Get entity; loads from substrate if absent or stub | `Result<StoreEntity, ResolveError>` |
-| `checkout(AnyEntityRef)` | Get mutable copy + acquire lock | `Result<StoreEntity, CheckoutError>` |
-| `remove(AnyEntityRef)` | Remove entity from store | `Result<StoreEntity, StoreError>` |
-| `persist()` | Flush added/modified/removed to substrate | `Result<(), PersistError>` |
-| `undo_commit(AnyEntityRef)` | Revert added entity (removes it) or modified entity (replaces with stub) | `Result<(), UndoError>` |
-| `unload(AnyEntityRef)` | Replace clean entity with stub (enables re-load from substrate) | `Result<(), StoreError>` |
-
-`StoreEntity` also has methods callable on the checked-out copy:
-- `entity.commit().await` — merges dirty fields back into actor store, releases lock → `Result<(), CommitError>`
-- `entity.undo_checkout().await` — discards changes, releases lock → `Result<(), UndoError>`
-
----
-
-## Message Types (internal)
-
-```rust
-StoreRequest  // Resolve | Checkout | Commit | Remove | Persist | Load | UndoCommit | Unload
-StoreCommand  // Insert(StoreEntity) | UndoCheckout { any_ref }
-StoreResponse // Entity(StoreEntity) | Unit | ResolveErr(ResolveError) | CheckoutErr(CheckoutError)
-             //  | PersistErr(PersistError) | LoadErr(LoadError)
-StoreMessage  // Request { request, reply: oneshot::Sender<Result<StoreResponse, StoreError>> }
-             //  | Command(StoreCommand)
-```
-
-Application-level errors (`ResolveError`, `CheckoutError`, `PersistError`, `LoadError`) ride in `Ok(StoreResponse::XxxErr(e))`.
-Channel-level failure is `Err(StoreError::Unavailable)`.
-
----
-
-## Error Types (`store/error.rs`)
-
-```
-StoreError     — Unavailable (channel-level only)
-CheckoutError  — AlreadyCheckedOut { entity_ref } | EntityNotFound { entity_ref } | Substrate(SubstrateError)
-CommitError    — ValidationFailed { error_count, errors } | CrossReferenceCheckFailed(SubstrateError)
-             |  StoreUnavailable(StoreError)
-LoadError      — NotFound { entity_ref } | Substrate(SubstrateError) | ValidationFailed { error_count, errors }
-UndoError      — WrongState | StoreUnavailable(StoreError)
-PersistError   — PendingCheckouts { checked_out_count } | SubstrateErrors(BatchError<SubstrateError>)
-ResolveError   — NotFound { entity_ref } | Substrate(SubstrateError) | StoreUnavailable(StoreError)
-```
-
----
-
-## InMemorySubstrate (test helper)
-
-```rust
-let s = InMemorySubstrate::new();
-s.seed(role_any_ref("pm"), StoreEntity::Role(tracked));   // pre-populate
-EntityServer::with_test(s, || async { ... }).await;
-```
-
----
-
-## Core Jobs (see tests/core_jobs.rs)
-
-1. **Read** — `resolve()` loads from substrate into memory
-2. **Define** — `insert()` then `persist()` creates file on disk
-3. **Update** — `resolve()` → `checkout()` → mutate → `commit()` → `persist()`
-4. **Remove** — `resolve()` → `remove()` → `persist()` deletes file
-5. **Save all pending** — single `persist()` flushes added + modified + removed
-6. **Abandon in-progress** — `checkout()` → mutate → `undo_checkout()` (discards, releases lock)
-7. **Rollback staged** — `checkout()` → `commit()` → `undo_commit()` (reverts to stub)
-8. **Refresh from substrate** — `unload()` + `resolve()` pulls latest from disk
+The store exposes changes lazily via `Store::changes()` as `EntityChange<'_>` values and passes them to the substrate. The substrate may depend on that explicit handoff type, but should not depend on store actor internals.

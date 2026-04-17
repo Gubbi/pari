@@ -1,88 +1,35 @@
-# tests/ — Integration Test Files
+# tests — Test Layer Coverage
 
-All tests use the full public API (`pari::...`). No mocking of store internals.
+## Ownership
 
----
+This directory belongs to the formal `test` layer.
 
-## Test Files
+Tests may exercise any production layer, but production code must not depend on test helpers or test-only assumptions.
 
-### `core_jobs.rs`
-8 end-to-end tests for the core jobs the library supports. Full stack: `EntityClient` → `EntityServer` → `Store<RepoSubstrate>` → filesystem. Uses `TempDir`.
+## Current Active Files
 
-| Test | Job |
-|------|-----|
-| `job_1_read_entity` | Load entity written by a prior session |
-| `job_2_define_new_entity` | Insert + persist creates file on disk |
-| `job_3_update_entity` | checkout → mutate → commit → persist overwrites file |
-| `job_4_remove_entity` | resolve → remove → persist deletes file |
-| `job_5_save_all_pending_changes` | Single persist flushes add + update + remove |
-| `job_6_abandon_in_progress_edit` | undo_checkout discards changes, releases lock |
-| `job_7_rollback_staged_change` | undo_commit reverts committed-but-not-persisted change |
-| `job_8_refresh_from_substrate` | unload + resolve re-reads changed file from disk |
+- [tests/store_operations.rs](/Users/vinuth/code/pari/tests/store_operations.rs): store/workspace integration against `InMemorySubstrate`
+- [tests/entity_definitions.rs](/Users/vinuth/code/pari/tests/entity_definitions.rs): entity identity and parent-shape coverage
+- [tests/error_compose.rs](/Users/vinuth/code/pari/tests/error_compose.rs): error-layer derive behavior
+- [tests/error_hierarchy.rs](/Users/vinuth/code/pari/tests/error_hierarchy.rs): `PariError` and downcast behavior
+- [tests/tracked_serde.rs](/Users/vinuth/code/pari/tests/tracked_serde.rs): tracked/entity serde behavior
+- [tests/validate_entities.rs](/Users/vinuth/code/pari/tests/validate_entities.rs): validation coverage
 
-### `store_operations.rs`
-Unit-level store operations using `InMemorySubstrate`. Tests every `EntityClient` method in isolation: insert, resolve, checkout, commit, double-checkout error, undo_checkout, remove, persist with pending checkouts, undo_commit, unload.
+## Intentionally Disabled Files
 
-### `derive_entity.rs`
-Tests `#[derive(pari_macros::Entity)]` macro output on a minimal `TestRole` struct:
-- `From<plain>` conversion, dirty flags, `merge_dirty_into`, `reset_dirty`
-- `entity_ref()` accessor, async field accessors, async setters
-- `#[should_panic(expected = "field not loaded")]` for uninitialized field access
+These files are currently compiled out with `#![cfg(any())]` and should stay documented as intentionally disabled rather than treated as active coverage:
 
-### `entity_definitions.rs`
-Smoke tests for all 9 entity structs: `EntityKind` values, parent types, `Tracked*` roundtrips.
+- [tests/core_jobs.rs](/Users/vinuth/code/pari/tests/core_jobs.rs)
+- [tests/derive_entity.rs](/Users/vinuth/code/pari/tests/derive_entity.rs)
+- [tests/substrate_pipeline.rs](/Users/vinuth/code/pari/tests/substrate_pipeline.rs)
 
-### `error_compose.rs`
-Tests `#[derive(ErrorCompose)]` macro: `fix_domain()`, `recoverability()`, `severity()`, `BatchError` aggregation, worst-case classification.
+If you touch one of those files, preserve or update its file-level `TODO:` note to explain what blocks re-enabling it.
 
-### `error_hierarchy.rs`
-Tests error hierarchy: `PariError` wrapping, downcasting via `as_error::<T>()`.
+## Test Style
 
-### `tracked_serde.rs`
-Serialization roundtrips for `Tracked<T>` and `EntityRef<T, P>` (both `NoParent` and `WorkflowParent`).
+- Prefer public API coverage over reaching into store internals.
+- Use `EntityServer::with(...)` for isolated actor sessions.
+- Use `InMemorySubstrate` when filesystem behavior is not part of the test's purpose.
+- Keep tests aligned with the current layer model and current API names.
 
-### `validate_entities.rs`
-Runs `run_validations()` against all entity types with valid and invalid fixture data.
-
-### `repo_substrate.rs`
-Tests `RepoSubstrate` directly: file creation, overwrite, deletion, stale `.part/` cleanup on init.
-
-### `storage_integration.rs`
-Integration tests using the legacy `storage::RepoSubstrate`. Tests atomic persist with real filesystem.
-
-### `substrate_pipeline.rs`
-Tests pipeline components (`RepoCodec`, `RepoExecutor`, `RepoLocationResolver`) in isolation.
-
-### `schema_coherence.rs`
-Validates generated JSON schemas in `schemas/` against live entity instances using `jsonschema`.
-
----
-
-## Test Patterns
-
-```rust
-// Isolated store session with real filesystem:
-let dir = TempDir::new().unwrap();
-EntityServer::with_test(RepoSubstrate::new(dir.path().to_path_buf()).unwrap(), || async {
-    EntityClient::insert(...).await.unwrap();
-    EntityClient::persist().await.unwrap();
-}).await;
-
-// In-memory only:
-EntityServer::with_test(InMemorySubstrate::new(), || async { ... }).await;
-
-// Pre-populated in-memory:
-let s = InMemorySubstrate::new();
-s.seed(role_any_ref("pm"), StoreEntity::Role(TrackedRole::from(make_role("pm"))));
-EntityServer::with_test(s, || async { ... }).await;
-```
-
-**Mutation pattern** (checked-out entity):
-```rust
-let mut entity = EntityClient::checkout(role_ref("id")).await.unwrap();
-if let StoreEntity::Role(ref mut r) = entity {
-    r.set_name("New Name".to_string()).await.unwrap();
-    // OR direct Arc replacement: r.name = Arc::new(TrackedField::with_value("New Name".to_string()));
-}
-entity.commit().await.unwrap();
-```
+Do not add new tests that defend removed architecture or stale helper APIs.

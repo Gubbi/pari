@@ -26,11 +26,12 @@ Persistent queue for design-to-code drift cleanup. Work through these one task a
    Done looks like: the design docs consistently describe the architecture in terms of the formal layers and no longer reintroduce outdated mixed-layer language.
    Completion note: the design tree now labels docs by formal owning layer instead of historical bucket names, the index explains how current buckets map to the formal model, and the formerly ambiguous `workspace_layer/load` plus `codegen/` docs now explicitly describe their real ownership boundaries.
 
-3. [ ] Align module docs and AGENTS/local guidance to the layer model
+3. [x] Align module docs and AGENTS/local guidance to the layer model
    Context: even when code is correct, stale module docs and local guidance can reintroduce drift by teaching the wrong ownership boundaries. After the design docs are aligned, module-local docs should reinforce the same model.
    Goal: update `AGENTS.md`, module guidance files, and local context docs so they reflect the formal layer model and the current intended ownership boundaries.
    Scope: documentation/guidance files only for this task. Do not restructure runtime code in this commit.
    Done looks like: local guidance consistently teaches the same layer ownership rules as the design docs.
+   Completion note: the root guidance, module-local `CLAUDE.md` files, and test/proc-macro docs now describe the formal layer owners, current API names such as `TrackedEntity` and `EntityChange`, and the actual `workspace` / `store` / `substrate` split present in source. A new `src/workspace/CLAUDE.md` now covers the workspace layer locally.
 
 4. [ ] Restructure code to match the formal layer model
    Context: the runtime has already been moving toward the layer model, but some code placement and ownership details may still not line up fully with the formalized architecture once the docs are cleaned up.

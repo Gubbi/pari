@@ -1,128 +1,52 @@
-# src/substrate — Persistence Backend
+# src/substrate — Substrate Layer Persistence Contracts
 
-## Substrate Trait
+## Ownership
 
-**`substrate::Substrate`** (`src/substrate/mod.rs`) — the single persistence backend trait, used by both the EntityServer and the pipeline:
-```rust
-pub trait Substrate: Sized + Send + Sync + 'static {
-    type Slot: pipeline::Slot;
-    type Location: Send;
-    type Encoded: Send;
-    type Resolver: pipeline::LocationResolver<Location = Self::Location>;
-    type Codec:    pipeline::Codec<Slot = Self::Slot, Encoded = Self::Encoded>;
-    type Executor: pipeline::Executor<Location = Self::Location, Encoded = Self::Encoded>;
+This directory belongs to the formal `substrate` layer.
 
-    fn resolver(&self) -> &Self::Resolver;
-    fn codec(&self) -> &Self::Codec;
-    fn executor(&self) -> &Self::Executor;
-    fn load_strategy(entity_kind: EntityKind, field: &str) -> pipeline::LoadStrategy;
+It owns:
 
-    async fn exists(&self, refs: &[AnyEntityRef]) -> Result<Vec<bool>, SubstrateError>;
-    async fn load(&self, entity: &TrackedEntity, fields: &[&str]) -> Result<TrackedEntity, SubstrateError>;
-    async fn persist(&self, changes: impl Iterator<Item = EntityChange<'_>>) -> Result<(), Vec<SubstrateError>>;
-}
-```
+- the persistence contract trait
+- schema-backed default load/persist behavior
+- asset pipeline traits and vocabulary
+- concrete backends such as `RepoSubstrate`, `InMemorySubstrate`, and `VoidSubstrate`
 
-`Store<S>` in the EntityServer is generic over `S: Substrate`. `InMemorySubstrate` implements `Substrate` with void/unit associated types, overriding `exists`, `load`, and `persist` directly.
+The authoritative design docs for this area live under [docs/design/substrate_layer/](/Users/vinuth/code/pari/docs/design/substrate_layer/).
 
----
+## Primary Entry Points
 
-## EntityChange (`src/substrate/mod.rs`)
+- [src/substrate/contract.rs](/Users/vinuth/code/pari/src/substrate/contract.rs): `Substrate` trait
+- [src/substrate/defaults.rs](/Users/vinuth/code/pari/src/substrate/defaults.rs): default schema-driven `load_strategy`, `exists`, `load`, and `persist`
+- [src/substrate/schema_registry.rs](/Users/vinuth/code/pari/src/substrate/schema_registry.rs): schema lookup across entity kinds
+- [src/substrate/pipeline/](/Users/vinuth/code/pari/src/substrate/pipeline): pipeline traits and schema vocabulary
+- [src/substrate/repo/](/Users/vinuth/code/pari/src/substrate/repo): filesystem-backed backend
+- [src/substrate/in_memory/](/Users/vinuth/code/pari/src/substrate/in_memory): in-memory backend
+- [src/substrate/void.rs](/Users/vinuth/code/pari/src/substrate/void.rs): no-op backend
 
-```rust
-pub enum EntityChange<'a> {
-    Added(&'a StoreEntity),
-    Modified(&'a StoreEntity, &'a [&'a str]),   // dirty field names
-    Removed(&'a AnyEntityRef),
-}
-```
+## Current Contract
 
----
+The crate-wide substrate trait is `crate::substrate::Substrate`.
 
-## SubstrateError (`src/substrate/error.rs`)
+Key points:
 
-```rust
-pub enum SubstrateError {
-    Codec(CodecError),       // from CodecError
-    Executor(ExecutorError), // from ExecutorError
-}
-```
+- `load_strategy(entity_kind, field)` returns `Result<LoadStrategy, SubstrateError>`
+- `exists(&[AnyEntityRef])` is batched
+- `load(&TrackedEntity, &[&str])` returns a tracked entity payload
+- `persist(iterator_of_EntityChange)` consumes the explicit store-owned handoff type
 
----
+The substrate layer may depend on `EntityChange` from `store`, but not on store actor internals.
 
-## Pipeline Vocabulary (`src/substrate/pipeline/`)
+## Boundary Rules
 
-Traits composing a complete persistence pipeline:
+- Do not move actor flow, request handling, or checkout lifecycle into this layer.
+- Do not add caller-facing async API helpers here; that belongs to `workspace`.
+- Do not author validation policy here.
+- Keep storage layout, schema mapping, codec behavior, resolver behavior, and executor behavior here.
 
-```
-Slot           — marker trait for substrate-specific encoding targets (e.g. FrontmatterSlot, BodySlot)
-LocationResolver — fn resolve(entity_id: &str, data: &Value) -> Location
-Codec          — encode(fields, mappings) -> Result<Encoded, CodecError>
-               — decode(encoded, mappings) -> Result<HashMap<&str, Value>, CodecError>
-Executor       — put/post/patch/delete/get/head operations on Location
-AssetMapper    — determines which assets to write for a given ChangeOp
-```
+## Concrete Backends
 
-**Primitive error types:**
-```rust
-// pipeline/codec/error.rs
-CodecError { field: String, message: String }    // constructor: CodecError::new(field, msg)
+- `RepoSubstrate`: schema-driven filesystem backend in `src/substrate/repo/`
+- `InMemorySubstrate`: schema-driven in-memory backend in `src/substrate/in_memory/`
+- `VoidSubstrate`: minimal no-op backend for tests that only need the contract surface
 
-// pipeline/executor/error.rs
-ExecutorError { location: String, message: String }   // constructor: ExecutorError::new(loc, msg)
-```
-
-Both implement `ErrorCompose` + `OTelEmit`. Both carry `SpanTrace` + `Backtrace`.
-
----
-
-## RepoSubstrate (`src/substrate/repo/`)
-
-Filesystem-backed implementation. Uses atomic swap via `.part/`/`.old/` dirs.
-
-```rust
-pub struct RepoSubstrate {
-    pub resolver: RepoLocationResolver,
-    pub codec:    RepoCodec,
-    pub executor: RepoExecutor,
-}
-
-RepoSubstrate::new(root: PathBuf) -> Result<Self, SubstrateError>
-// Cleans up stale .part/ and .old/ dirs on construction
-```
-
-**Persistence strategy:**
-1. Compute LCA of all changed file paths (`lca.rs`)
-2. Stage changes in `<lca>.part/` — hard-link unchanged siblings
-3. Atomic swap via `fs::rename`
-
-**File layout on disk:**
-```
-roles/<id>.md
-hooks/<id>.md
-teams/<id>.md
-artifact-kinds/<id>.md
-workflows/<id>/README.md
-reusable-workflows/<id>/README.md
-```
-
-**Markdown format:** YAML frontmatter (metadata fields) + Markdown body (`# <name>` heading for name field).
-
-### Sub-modules
-
-| File | Purpose |
-|------|---------|
-| `codec.rs` | `RepoCodec` — encode/decode YAML frontmatter + Markdown body |
-| `executor.rs` | `RepoExecutor` — fs read/write via `RepoSlot` |
-| `resolver.rs` | `RepoLocationResolver` — maps entity kind + id → file path |
-| `slot.rs` | `RepoSlot` — frontmatter vs body slot markers |
-| `schemas.rs` | Per-entity `SubstrateSchema` impls (field→slot mappings) |
-| `render.rs` | Markdown+YAML renderers per entity type |
-| `lca.rs` | LCA computation over file paths for atomic persistence scope |
-| `storage.rs` | Legacy `RepoSubstrate` implementation (used by `storage_integration` tests) |
-
----
-
-## VoidSubstrate
-
-No-op substrate for tests that don't need persistence. Both `VoidSubstrate` and `InMemorySubstrate` implement `substrate::Substrate` — `VoidSubstrate` with void/unit associated types and no-op method bodies; `InMemorySubstrate` with void associated types overriding `exists`, `load`, and `persist` with in-memory implementations.
+Avoid documenting removed legacy storage modules or schema-era backend structure.

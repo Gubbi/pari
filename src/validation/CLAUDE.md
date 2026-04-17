@@ -1,84 +1,46 @@
-# src/validation — Validation Framework
+# src/validation — Validation Layer Rules And Schemas
 
-## ValidationSchema<E>
+## Ownership
 
-Each entity has a `&'static ValidationSchema<E>` returned by `Entity::validation_schema()`.
-Built with three rule maps — rules run in order, all violations accumulated before returning.
+This directory belongs to the formal `validation` layer.
 
-```rust
-ValidationSchema<E> {
-    structural:   IndexMap<&'static str, Box<dyn Fn(&E) -> Vec<RuleViolation> + Send + Sync>>,
-    semantic:     IndexMap<&'static str, Box<dyn Fn(&E, &ValidationContext) -> BoxFuture<Vec<RuleViolation>> + Send + Sync>>,
-    cross_entity: IndexMap<&'static str, Box<dyn Fn(&E, &ValidationContext) -> BoxFuture<Vec<RuleViolation>> + Send + Sync>>,
-}
-```
+It owns:
 
-**Rule kinds:**
-- **Structural** — sync, no context needed; field format checks (kebab-case, non-empty, etc.)
-- **Semantic** — async, requires `ValidationContext`; business logic checks
-- **Cross-entity** — async, requires `ValidationContext`; referential integrity across entities
+- per-entity `ValidationSchema<T>`
+- structural, semantic, and cross-entity rules
+- validation error data
+- the shared validation runner over tracked entities
 
----
+The authoritative design docs for this area live under [docs/design/validation_layer/](/Users/vinuth/code/pari/docs/design/validation_layer/).
 
-## Validation Entry Point
+## Current Model
 
-```rust
-// src/validation/mod.rs
-pub async fn run_validations<E: Entity>(
-    entity: &E,
-    context: &ValidationContext,
-) -> Result<(), ValidationErrors>
-```
+- `Entity::validation_schema()` returns `&'static ValidationSchema<T>`
+- rules operate on tracked entities, not plain entities
+- `run_validations<T>(entity, fields, kinds)` accumulates `ValidationErrors`
+- `run_validations_for_entity(&TrackedEntity, ...)` dispatches through the tracked wrapper
 
-Runs all three rule kinds in sequence. Returns `Err(ValidationErrors)` if any violation found.
+There is no `ValidationContext` type in the current source. Do not document one unless it is reintroduced in code.
 
----
+## Rule Kinds
 
-## RuleViolation
+- `Structural`
+- `Semantic`
+- `CrossEntity`
 
-```rust
-pub struct RuleViolation {
-    pub message:  String,
-    pub sub_path: Option<String>,  // e.g. "steps[0].id"
-}
-```
+Each kind is represented in [src/validation/error.rs](/Users/vinuth/code/pari/src/validation/error.rs) as `ValidationKind`.
 
----
+## Boundary Rules
 
-## Structural Primitives (`src/validation/mod.rs`)
+- Validation defines what is valid; it does not own when validations are triggered.
+- The `store` layer decides when load-time, commit-time, and other validation runs happen.
+- The `workspace` layer owns caller-facing error transport around those operations.
+- The `substrate` layer must not absorb validation policy.
 
-```rust
-kebab_case(val: &str)              -> Vec<RuleViolation>   // id format check
-camel_case(val: &str)              -> Vec<RuleViolation>
-non_empty_str(field: &str, val: &str)  -> Vec<RuleViolation>
-non_empty_list(field: &str, list: &[T])  -> Vec<RuleViolation>
-min_length(field: &str, val: &str, n: usize)  -> Vec<RuleViolation>
-unique_by<T, K>(field: &str, items: &[T], key_fn: fn(&T) -> K)  -> Vec<RuleViolation>
-x_prefix_keys(extensions: &Extensions)  -> Vec<RuleViolation>
-states_valid_workflow(states: &[WorkflowStateEntry])  -> Vec<RuleViolation>
-states_valid_task(states: &[TaskStateEntry])           -> Vec<RuleViolation>
-raci_structural(raci: &Raci)       -> Vec<RuleViolation>
-```
+## Error Types
 
----
+- `ValidationErrors`: aggregated plain data
+- `FieldValidationError`
+- `SetterError`: mutation-time failure returned by generated setters
 
-## Per-Entity Validation Modules
-
-Each entity has a module (`role.rs`, `team.rs`, `hook.rs`, `artifact_kind.rs`, `task.rs`, `relay.rs`, `workflow.rs`) exporting a `*_validation_schema()` function:
-
-```rust
-// example from role.rs:
-pub fn role_validation_schema() -> &'static ValidationSchema<Role> { ... }
-```
-
-`cross_entity.rs` holds cross-entity rules shared across modules.
-
----
-
-## Error Types (`src/validation/error.rs`)
-
-```rust
-ValidationErrors   // Vec<FieldValidationError>; implements Display
-FieldValidationError { field: String, violations: Vec<RuleViolation> }
-SetterError        // returned by generated async setters when validation fails
-```
+`ValidationErrors` is plain data, not `ErrorCompose`.
