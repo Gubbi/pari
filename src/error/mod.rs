@@ -5,6 +5,7 @@
 mod error_layer;
 mod error_location;
 pub mod pari_error;
+pub mod primitive;
 mod primitive_detail;
 pub mod store;
 pub use error_layer::ErrorLayer;

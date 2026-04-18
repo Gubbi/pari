@@ -42,3 +42,13 @@ pub fn derive_otel_emit(input: TokenStream) -> TokenStream {
 pub fn primitive_error(args: TokenStream, input: TokenStream) -> TokenStream {
     primitive_error::primitive_error(args, input)
 }
+
+#[proc_macro_attribute]
+pub fn primitive_with_fields(args: TokenStream, input: TokenStream) -> TokenStream {
+    primitive_error::primitive_with_fields(args, input)
+}
+
+#[proc_macro_attribute]
+pub fn primitive_message_only(args: TokenStream, input: TokenStream) -> TokenStream {
+    primitive_error::primitive_message_only(args, input)
+}

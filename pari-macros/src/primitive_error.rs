@@ -4,8 +4,8 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
     parse::Parser,
-    parse_macro_input, punctuated::Punctuated, Expr, Fields, FieldsNamed, ItemStruct, Lit, MetaNameValue,
-    Token,
+    parse_macro_input, punctuated::Punctuated, Expr, Field, Fields, FieldsNamed, ItemStruct, Lit,
+    MetaNameValue, Token, Visibility,
 };
 
 #[derive(Default)]
@@ -19,6 +19,47 @@ pub fn primitive_error(args: TokenStream, input: TokenStream) -> TokenStream {
         Err(e) => return e.to_compile_error().into(),
     };
     let item = parse_macro_input!(input as ItemStruct);
+    expand_primitive_error(args, item).into()
+}
+
+pub fn primitive_with_fields(args: TokenStream, input: TokenStream) -> TokenStream {
+    let args = match parse_args(args) {
+        Ok(v) => v,
+        Err(e) => return e.to_compile_error().into(),
+    };
+    let mut item = parse_macro_input!(input as ItemStruct);
+
+    match &mut item.fields {
+        Fields::Named(fields) => {
+            for field in &mut fields.named {
+                field.vis = Visibility::Public(syn::token::Pub::default());
+            }
+        }
+        other => {
+            return syn::Error::new_spanned(
+                other,
+                "#[primitive_with_fields] requires a struct with named fields",
+            )
+            .to_compile_error()
+            .into()
+        }
+    }
+
+    expand_primitive_error(args, item).into()
+}
+
+pub fn primitive_message_only(args: TokenStream, input: TokenStream) -> TokenStream {
+    let args = match parse_args(args) {
+        Ok(v) => v,
+        Err(e) => return e.to_compile_error().into(),
+    };
+    let mut item = parse_macro_input!(input as ItemStruct);
+
+    item.fields = Fields::Named(FieldsNamed {
+        brace_token: syn::token::Brace::default(),
+        named: Punctuated::<Field, Token![,]>::new(),
+    });
+
     expand_primitive_error(args, item).into()
 }
 
