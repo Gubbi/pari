@@ -5,6 +5,7 @@
 //! shared primitive family rather than by the current owning layer's module
 //! layout.
 
+pub mod aggregation;
 pub mod document;
 pub mod identity;
 pub mod io;
@@ -13,8 +14,10 @@ pub mod payload;
 pub mod schema;
 pub mod state;
 pub mod substrate;
+pub mod transport;
 pub mod validation;
 
+pub use aggregation::*;
 pub use document::*;
 pub use identity::*;
 pub use io::*;
@@ -23,4 +26,5 @@ pub use payload::*;
 pub use schema::*;
 pub use state::*;
 pub use substrate::*;
+pub use transport::*;
 pub use validation::*;
