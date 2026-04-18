@@ -2,8 +2,14 @@
 //!
 //! Classification enums, `ErrorCompose` trait, `OTelEmit` trait, and `BatchError<E>`.
 
+mod error_layer;
+mod error_location;
 pub mod pari_error;
+mod primitive_detail;
 pub mod store;
+pub use error_layer::ErrorLayer;
+pub use error_location::ErrorLocation;
+pub use primitive_detail::PrimitiveDetail;
 
 // ---------------------------------------------------------------------------
 // Classification types

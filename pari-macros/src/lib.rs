@@ -8,6 +8,7 @@ mod entity_codegen;
 mod entity_registry;
 mod error_compose;
 mod otel_emit;
+mod primitive_error;
 mod store_codegen;
 mod substrate_codegen;
 mod validation_codegen;
@@ -35,4 +36,9 @@ pub fn derive_error_compose(input: TokenStream) -> TokenStream {
 pub fn derive_otel_emit(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     otel_emit::derive_otel_emit(input).into()
+}
+
+#[proc_macro_attribute]
+pub fn primitive_error(args: TokenStream, input: TokenStream) -> TokenStream {
+    primitive_error::primitive_error(args, input)
 }
