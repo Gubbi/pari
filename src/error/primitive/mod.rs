@@ -6,17 +6,21 @@
 //! layout.
 
 pub mod document;
+pub mod identity;
 pub mod io;
 pub mod path;
 pub mod payload;
 pub mod schema;
 pub mod state;
 pub mod substrate;
+pub mod validation;
 
 pub use document::*;
+pub use identity::*;
 pub use io::*;
 pub use path::*;
 pub use payload::*;
 pub use schema::*;
 pub use state::*;
 pub use substrate::*;
+pub use validation::*;
