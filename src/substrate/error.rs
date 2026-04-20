@@ -1,8 +1,6 @@
 //! `SubstrateError` — substrate boundary error enum.
 
-use crate::{
-    error::{primitive::PrimitiveError, ErrorCompose, FixDomain, OTelEmit, Recoverability},
-};
+use crate::error::{primitive::PrimitiveError, ErrorCompose, FixDomain, OTelEmit, Recoverability};
 
 #[derive(Debug)]
 pub enum SubstrateError {

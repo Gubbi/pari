@@ -19,10 +19,7 @@ impl Executor for InMemoryExecutor {
     type Location = String;
     type Encoded = String;
 
-    fn execute<I>(
-        &self,
-        ops: I,
-    ) -> Result<Vec<AssetResponse<Self::Encoded>>, Vec<PrimitiveError>>
+    fn execute<I>(&self, ops: I) -> Result<Vec<AssetResponse<Self::Encoded>>, Vec<PrimitiveError>>
     where
         I: IntoIterator<Item = AssetRequest<Self::Location, Self::Encoded>>,
     {

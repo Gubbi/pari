@@ -1,4 +1,7 @@
-use crate::{error::primitive::PrimitiveError, substrate::pipeline::{EntitySchema, SchemaAsset, Slot}};
+use crate::{
+    error::primitive::PrimitiveError,
+    substrate::pipeline::{EntitySchema, SchemaAsset, Slot},
+};
 
 pub struct AssetMapper;
 

@@ -3,9 +3,8 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    parse::Parser,
-    parse_macro_input, punctuated::Punctuated, Expr, Field, Fields, FieldsNamed, ItemStruct, Lit,
-    MetaNameValue, Token, Visibility,
+    parse::Parser, parse_macro_input, punctuated::Punctuated, Expr, Field, Fields, FieldsNamed,
+    ItemStruct, Lit, MetaNameValue, Token, Visibility,
 };
 
 #[derive(Default)]
@@ -122,7 +121,10 @@ fn expand_primitive_error(args: PrimitiveErrorArgs, item: ItemStruct) -> proc_ma
         .iter()
         .map(|field| field.ident.as_ref().expect("named field"))
         .collect::<Vec<_>>();
-    let user_field_types = user_fields.iter().map(|field| &field.ty).collect::<Vec<_>>();
+    let user_field_types = user_fields
+        .iter()
+        .map(|field| &field.ty)
+        .collect::<Vec<_>>();
 
     let detail_pushes = user_field_idents.iter().map(|ident| {
         let field_name = ident.to_string();

@@ -18,10 +18,7 @@ pub use void::VoidSubstrate;
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        error::primitive,
-        substrate::SubstrateError,
-    };
+    use crate::{error::primitive, substrate::SubstrateError};
 
     #[test]
     fn substrate_error_display_format() {

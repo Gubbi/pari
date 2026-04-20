@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
-use crate::error::primitive::PrimitiveError;
-
-use crate::substrate::pipeline::{FieldMapping, Slot};
+use crate::{
+    error::primitive::PrimitiveError,
+    substrate::pipeline::{FieldMapping, Slot},
+};
 
 pub trait Codec {
     type Slot: Slot;

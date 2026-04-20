@@ -1,8 +1,9 @@
-use pari::error::{primitive::PrimitiveError, ErrorLayer, ErrorLocation, OTelEmit};
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},
 };
+
+use pari::error::{primitive::PrimitiveError, ErrorLayer, ErrorLocation, OTelEmit};
 use tracing::{
     field::{Field, Visit},
     span::{Attributes, Id, Record},
@@ -70,7 +71,10 @@ fn primitive_error_emit_contains_expected_payload() {
 
     let event = &events[0];
     assert_eq!(event.level, "ERROR");
-    assert_eq!(event.fields.get("exception.type"), Some(&"unknown_schema_field".to_string()));
+    assert_eq!(
+        event.fields.get("exception.type"),
+        Some(&"unknown_schema_field".to_string())
+    );
     assert_eq!(
         event.fields.get("exception.message"),
         Some(&"unknown schema field".to_string())

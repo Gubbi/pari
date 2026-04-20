@@ -1,6 +1,6 @@
 use crate::{
-    error::primitive::PrimitiveError,
     entity::{AnyEntityRef, EntityKind, TrackedEntity},
+    error::primitive::PrimitiveError,
     store::EntityChange,
     substrate::{
         pipeline::{self},
@@ -58,10 +58,7 @@ impl pipeline::Executor for VoidExecutor {
     type Location = String;
     type Encoded = String;
 
-    fn execute<I>(
-        &self,
-        _: I,
-    ) -> Result<Vec<pipeline::AssetResponse<String>>, Vec<PrimitiveError>>
+    fn execute<I>(&self, _: I) -> Result<Vec<pipeline::AssetResponse<String>>, Vec<PrimitiveError>>
     where
         I: IntoIterator<Item = pipeline::AssetRequest<String, String>>,
     {

@@ -17,10 +17,7 @@ impl Executor for RepoExecutor {
     type Location = PathBuf;
     type Encoded = String;
 
-    fn execute<I>(
-        &self,
-        ops: I,
-    ) -> Result<Vec<AssetResponse<Self::Encoded>>, Vec<PrimitiveError>>
+    fn execute<I>(&self, ops: I) -> Result<Vec<AssetResponse<Self::Encoded>>, Vec<PrimitiveError>>
     where
         I: IntoIterator<Item = AssetRequest<Self::Location, Self::Encoded>>,
     {
@@ -60,7 +57,9 @@ impl Executor for RepoExecutor {
                                 });
                             } else {
                                 errors.push(PrimitiveError::ParentDirectoryCreation {
-                                    context: PrimitiveError::context("parent directory creation failed"),
+                                    context: PrimitiveError::context(
+                                        "parent directory creation failed",
+                                    ),
                                     directory_path: path.clone(),
                                 });
                             }

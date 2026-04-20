@@ -29,16 +29,13 @@ impl Codec for RepoCodec {
                 });
             };
 
-            return value
-                .as_str()
-                .map(str::to_string)
-                .ok_or_else(|| {
-                    PrimitiveError::ExpectedScalarValue {
-                        context: PrimitiveError::context("expected scalar value"),
-                        field: schema[0].key.to_string(),
-                        actual_type: json_type_name(value),
-                    }
-                });
+            return value.as_str().map(str::to_string).ok_or_else(|| {
+                PrimitiveError::ExpectedScalarValue {
+                    context: PrimitiveError::context("expected scalar value"),
+                    field: schema[0].key.to_string(),
+                    actual_type: json_type_name(value),
+                }
+            });
         }
 
         let mut frontmatter = serde_yaml::Mapping::new();
@@ -70,35 +67,32 @@ impl Codec for RepoCodec {
                 RepoSlot::FrontmatterKey(key) => {
                     frontmatter.insert(
                         serde_yaml::Value::String(key.to_string()),
-                        serde_yaml::to_value(value)
-                            .map_err(|e| {
+                        serde_yaml::to_value(value).map_err(|e| PrimitiveError::JsonEncoding {
+                            context: PrimitiveError::context("json encoding failed"),
+                            field: field.key.to_string(),
+                            reason: e.to_string(),
+                        })?,
+                    );
+                }
+                RepoSlot::FrontmatterFlattened => {
+                    let obj =
+                        value
+                            .as_object()
+                            .ok_or_else(|| PrimitiveError::ExpectedObjectValue {
+                                context: PrimitiveError::context("expected object value"),
+                                field: field.key.to_string(),
+                                actual_type: json_type_name(value),
+                            })?;
+                    for (key, value) in obj {
+                        frontmatter.insert(
+                            serde_yaml::Value::String(key.clone()),
+                            serde_yaml::to_value(value).map_err(|e| {
                                 PrimitiveError::JsonEncoding {
                                     context: PrimitiveError::context("json encoding failed"),
                                     field: field.key.to_string(),
                                     reason: e.to_string(),
                                 }
                             })?,
-                    );
-                }
-                RepoSlot::FrontmatterFlattened => {
-                    let obj = value.as_object().ok_or_else(|| {
-                        PrimitiveError::ExpectedObjectValue {
-                            context: PrimitiveError::context("expected object value"),
-                            field: field.key.to_string(),
-                            actual_type: json_type_name(value),
-                        }
-                    })?;
-                    for (key, value) in obj {
-                        frontmatter.insert(
-                            serde_yaml::Value::String(key.clone()),
-                            serde_yaml::to_value(value)
-                                .map_err(|e| {
-                                    PrimitiveError::JsonEncoding {
-                                        context: PrimitiveError::context("json encoding failed"),
-                                        field: field.key.to_string(),
-                                        reason: e.to_string(),
-                                    }
-                                })?,
                         );
                     }
                 }
@@ -108,24 +102,23 @@ impl Codec for RepoCodec {
                     }
                 }
                 RepoSlot::Section(heading, SectionContent::BulletList) => {
-                    let items = value.as_array().ok_or_else(|| {
-                        PrimitiveError::ExpectedArrayValue {
-                            context: PrimitiveError::context("expected array value"),
-                            field: field.key.to_string(),
-                            actual_type: json_type_name(value),
-                        }
-                    })?;
+                    let items =
+                        value
+                            .as_array()
+                            .ok_or_else(|| PrimitiveError::ExpectedArrayValue {
+                                context: PrimitiveError::context("expected array value"),
+                                field: field.key.to_string(),
+                                actual_type: json_type_name(value),
+                            })?;
                     let body = items
                         .iter()
                         .map(|item| {
                             item.as_str()
                                 .map(|text| format!("- {text}"))
-                                .ok_or_else(|| {
-                                    PrimitiveError::ExpectedScalarValue {
-                                        context: PrimitiveError::context("expected scalar value"),
-                                        field: field.key.to_string(),
-                                        actual_type: json_type_name(item),
-                                    }
+                                .ok_or_else(|| PrimitiveError::ExpectedScalarValue {
+                                    context: PrimitiveError::context("expected scalar value"),
+                                    field: field.key.to_string(),
+                                    actual_type: json_type_name(item),
                                 })
                         })
                         .collect::<Result<Vec<_>, _>>()?
@@ -145,16 +138,13 @@ impl Codec for RepoCodec {
         let mut rendered = String::new();
         if !frontmatter.is_empty() {
             rendered.push_str("---\n");
-            rendered.push_str(
-                &serde_yaml::to_string(&frontmatter)
-                    .map_err(|e| {
-                        PrimitiveError::FrontmatterSerialization {
-                            context: PrimitiveError::context("frontmatter serialization failed"),
-                            field: "frontmatter".to_string(),
-                            reason: e.to_string(),
-                        }
-                    })?,
-            );
+            rendered.push_str(&serde_yaml::to_string(&frontmatter).map_err(|e| {
+                PrimitiveError::FrontmatterSerialization {
+                    context: PrimitiveError::context("frontmatter serialization failed"),
+                    field: "frontmatter".to_string(),
+                    reason: e.to_string(),
+                }
+            })?);
             rendered.push_str("---\n\n");
         }
         if let Some(title) = title {
@@ -189,12 +179,11 @@ impl Codec for RepoCodec {
             )]));
         }
 
-        let (frontmatter, body) = split_frontmatter(raw).map_err(|_| {
-            PrimitiveError::MalformedFrontmatter {
+        let (frontmatter, body) =
+            split_frontmatter(raw).map_err(|_| PrimitiveError::MalformedFrontmatter {
                 context: PrimitiveError::context("malformed frontmatter"),
                 raw_snippet: raw.clone(),
-            }
-        })?;
+            })?;
         let title = find_h1(body);
         let description = find_description(body);
         let sections = parse_sections(body);

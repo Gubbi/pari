@@ -1,12 +1,16 @@
-use pari::store::EntityChange;
-use pari::substrate::{Substrate, VoidSubstrate};
 #![cfg(any())]
 // TODO: Re-enable after the substrate API settles around the current exists()/persist() contract and we decide the long-term pipeline test shape.
 
-use pari::entity::{AnyEntityRef, EntityRef};
-use pari::entities::role::Role;
-use pari::substrate::pipeline::{
-    AssetDef, EntitySchema, FieldMapping, RefAssetDef, Slot, MARKDOWN_FILE, RAW_FILE,
+use pari::{
+    entities::role::Role,
+    entity::{AnyEntityRef, EntityRef},
+    store::EntityChange,
+    substrate::{
+        pipeline::{
+            AssetDef, EntitySchema, FieldMapping, RefAssetDef, Slot, MARKDOWN_FILE, RAW_FILE,
+        },
+        Substrate, VoidSubstrate,
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -47,15 +51,24 @@ fn load_strategy_for_ref_asset_field() {
             path_template: "roles/{id}.md",
             kind: &MARKDOWN_FILE,
             fields: &[
-                FieldMapping { key: "name", slot: TestSlot::H1 },
-                FieldMapping { key: "purpose", slot: TestSlot::FrontmatterKey("purpose") },
+                FieldMapping {
+                    key: "name",
+                    slot: TestSlot::H1,
+                },
+                FieldMapping {
+                    key: "purpose",
+                    slot: TestSlot::FrontmatterKey("purpose"),
+                },
             ],
         },
         assets: &[],
     };
     let strategy = schema.load_strategy_for("name");
     assert!(strategy.prerequisites.is_empty());
-    assert!(!strategy.mutable_without_load, "ref_asset field must load first");
+    assert!(
+        !strategy.mutable_without_load,
+        "ref_asset field must load first"
+    );
 }
 
 #[test]
@@ -64,17 +77,26 @@ fn load_strategy_for_single_field_asset() {
         ref_asset: RefAssetDef {
             path_template: "tasks/{id}/README.md",
             kind: &MARKDOWN_FILE,
-            fields: &[FieldMapping { key: "name", slot: TestSlot::H1 }],
+            fields: &[FieldMapping {
+                key: "name",
+                slot: TestSlot::H1,
+            }],
         },
         assets: &[AssetDef {
             path_template: "tasks/{id}/template.md",
             kind: &RAW_FILE,
-            fields: &[FieldMapping { key: "template_content", slot: TestSlot::FileContent }],
+            fields: &[FieldMapping {
+                key: "template_content",
+                slot: TestSlot::FileContent,
+            }],
             path_deps: &[],
         }],
     };
     let strategy = schema.load_strategy_for("template_content");
-    assert!(strategy.mutable_without_load, "single-field asset should be mutable without load");
+    assert!(
+        strategy.mutable_without_load,
+        "single-field asset should be mutable without load"
+    );
 }
 
 #[test]

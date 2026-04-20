@@ -31,19 +31,19 @@ impl Default for ValidationErrors {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ValidationKind {
+    Structural,
+    Semantic,
+    CrossEntity,
+}
+
 #[derive(Debug, Clone)]
 pub struct FieldValidationError {
     /// Dot-notation path: `"id"`, `"steps.WriteProposal.depends_on"`
     pub path: String,
     pub message: String,
     pub kind: ValidationKind,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ValidationKind {
-    Structural,
-    Semantic,
-    CrossEntity,
 }
 
 // ---------------------------------------------------------------------------

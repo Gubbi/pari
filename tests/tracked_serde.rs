@@ -1,21 +1,23 @@
-use pari::entities::role::{Role, TrackedRole};
-use pari::entity::EntityRef;
-use pari::tracked::TrackedField;
 #![cfg(any())]
 // TODO: Re-enable after rewriting this test against the current TrackedField API and kept serde guarantees.
 
-use std::sync::Arc;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
+
+use pari::{
+    entities::role::{Role, TrackedRole},
+    entity::EntityRef,
+    tracked::TrackedField,
+};
 
 // Helper: build a fully-populated TrackedRole
 fn full_tracked_role() -> TrackedRole {
     let plain = Role {
-        entity_ref:  EntityRef::new("eng-lead"),
-        name:        "Engineering Lead".to_string(),
+        entity_ref: EntityRef::new("eng-lead"),
+        name: "Engineering Lead".to_string(),
         description: Some("Senior tech lead".to_string()),
-        purpose:     "Leads engineering".to_string(),
-        traits:      Some(vec!["reviewer".to_string()]),
-        extensions:  {
+        purpose: "Leads engineering".to_string(),
+        traits: Some(vec!["reviewer".to_string()]),
+        extensions: {
             let mut m = HashMap::new();
             m.insert("x-owner".to_string(), serde_json::json!("alice"));
             m
@@ -27,12 +29,14 @@ fn full_tracked_role() -> TrackedRole {
 // Helper: build a partially-populated TrackedRole (only name initialized)
 fn partial_tracked_role() -> TrackedRole {
     TrackedRole {
-        entity_ref:  EntityRef::new("eng-lead"),
-        name:        Arc::new(TrackedField::new_initialized("Engineering Lead".to_string())),
-        description: Arc::new(TrackedField::new()),  // uninitialized
-        purpose:     Arc::new(TrackedField::new()),  // uninitialized
-        traits:      Arc::new(TrackedField::new()),  // uninitialized
-        extensions:  Arc::new(TrackedField::new()),  // uninitialized
+        entity_ref: EntityRef::new("eng-lead"),
+        name: Arc::new(TrackedField::new_initialized(
+            "Engineering Lead".to_string(),
+        )),
+        description: Arc::new(TrackedField::new()), // uninitialized
+        purpose: Arc::new(TrackedField::new()),     // uninitialized
+        traits: Arc::new(TrackedField::new()),      // uninitialized
+        extensions: Arc::new(TrackedField::new()),  // uninitialized
     }
 }
 
@@ -54,7 +58,10 @@ fn partial_tracked_role_skips_uninitialized_fields() {
     let tracked = partial_tracked_role();
     let json = serde_json::to_value(&tracked).unwrap();
     assert!(json.get("name").is_some());
-    assert!(json.get("description").is_none(), "uninitialized field must be absent");
+    assert!(
+        json.get("description").is_none(),
+        "uninitialized field must be absent"
+    );
     assert!(json.get("purpose").is_none());
 }
 
@@ -81,8 +88,14 @@ fn deserialize_full_json_initializes_all_fields() {
     });
     let tracked: TrackedRole = serde_json::from_value(json).unwrap();
     assert_eq!(tracked.name.get(), Some(&"Engineering Lead".to_string()));
-    assert_eq!(tracked.description.get(), Some(&Some("Senior tech lead".to_string())));
-    assert_eq!(tracked.purpose.get(), Some(&"Leads engineering".to_string()));
+    assert_eq!(
+        tracked.description.get(),
+        Some(&Some("Senior tech lead".to_string()))
+    );
+    assert_eq!(
+        tracked.purpose.get(),
+        Some(&"Leads engineering".to_string())
+    );
     assert!(tracked.extensions.get().is_some());
     assert_eq!(
         tracked.extensions.get().unwrap().get("x-owner"),
@@ -98,7 +111,10 @@ fn deserialize_partial_json_leaves_missing_fields_uninitialized() {
     });
     let tracked: TrackedRole = serde_json::from_value(json).unwrap();
     assert_eq!(tracked.name.get(), Some(&"Engineering Lead".to_string()));
-    assert!(tracked.purpose.get().is_none(), "absent field must remain uninitialized");
+    assert!(
+        tracked.purpose.get().is_none(),
+        "absent field must remain uninitialized"
+    );
     assert!(tracked.description.get().is_none());
 }
 
@@ -144,7 +160,10 @@ fn partial_serialize_deserialize_roundtrip_preserves_partial_state() {
     let restored: TrackedRole = serde_json::from_value(json).unwrap();
 
     assert_eq!(restored.name.get(), Some(&"Engineering Lead".to_string()));
-    assert!(restored.purpose.get().is_none(), "uninitialized field stays uninitialized");
+    assert!(
+        restored.purpose.get().is_none(),
+        "uninitialized field stays uninitialized"
+    );
 }
 
 // --- EntityRef serde ---

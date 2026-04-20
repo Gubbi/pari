@@ -45,8 +45,7 @@ impl Parse for PrimitiveVariant {
         };
         let content;
         syn::braced!(content in input);
-        let punctuated =
-            content.parse_terminated(PrimitiveField::parse, Token![,])?;
+        let punctuated = content.parse_terminated(PrimitiveField::parse, Token![,])?;
         Ok(Self {
             attrs,
             ident,
@@ -103,7 +102,11 @@ fn expand_primitive_errors(input: PrimitiveErrorsInput) -> proc_macro2::TokenStr
 
     let detail_arms = input.variants.iter().map(|variant| {
         let ident = &variant.ident;
-        let fields = variant.fields.iter().map(|field| &field.ident).collect::<Vec<_>>();
+        let fields = variant
+            .fields
+            .iter()
+            .map(|field| &field.ident)
+            .collect::<Vec<_>>();
         let pushes = fields.iter().map(|field| {
             let field_name = field.to_string();
             quote! {
@@ -127,7 +130,11 @@ fn expand_primitive_errors(input: PrimitiveErrorsInput) -> proc_macro2::TokenStr
 
     let with_location_arms = input.variants.iter().map(|variant| {
         let ident = &variant.ident;
-        let fields = variant.fields.iter().map(|field| &field.ident).collect::<Vec<_>>();
+        let fields = variant
+            .fields
+            .iter()
+            .map(|field| &field.ident)
+            .collect::<Vec<_>>();
         quote! {
             Self::#ident { mut context, #(#fields),* } => {
                 context.location = location;
@@ -138,7 +145,11 @@ fn expand_primitive_errors(input: PrimitiveErrorsInput) -> proc_macro2::TokenStr
 
     let emit_arms = input.variants.iter().map(|variant| {
         let ident = &variant.ident;
-        let fields = variant.fields.iter().map(|field| &field.ident).collect::<Vec<_>>();
+        let fields = variant
+            .fields
+            .iter()
+            .map(|field| &field.ident)
+            .collect::<Vec<_>>();
         let error_type = variant
             .error_type
             .as_ref()

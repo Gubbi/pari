@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    error::primitive::PrimitiveError,
     entity::{AnyEntityRef, TrackedEntity},
+    error::primitive::PrimitiveError,
 };
 
 pub(crate) fn any_ref_to_stub_json(any_ref: &AnyEntityRef) -> serde_json::Value {
@@ -11,16 +11,14 @@ pub(crate) fn any_ref_to_stub_json(any_ref: &AnyEntityRef) -> serde_json::Value 
     })
 }
 
-pub(crate) fn entity_to_json(
-    entity: &TrackedEntity,
-) -> Result<serde_json::Value, PrimitiveError> {
-    entity.to_json_value().map_err(|e| {
-        PrimitiveError::EntityProjection {
+pub(crate) fn entity_to_json(entity: &TrackedEntity) -> Result<serde_json::Value, PrimitiveError> {
+    entity
+        .to_json_value()
+        .map_err(|e| PrimitiveError::EntityProjection {
             context: PrimitiveError::context("entity projection failed"),
             entity_ref: entity.any_ref().id().to_string(),
             reason: e.to_string(),
-        }
-    })
+        })
 }
 
 pub(crate) fn merge_field_map_into(

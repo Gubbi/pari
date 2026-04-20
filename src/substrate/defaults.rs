@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use crate::{
-    error::primitive::PrimitiveError,
     entity::{AnyEntityRef, EntityKind, TrackedEntity},
+    error::primitive::PrimitiveError,
     store::EntityChange,
     substrate::{
         pipeline,
@@ -68,9 +68,8 @@ where
 {
     let schema = Sub::schema_for(entity.any_ref().kind());
     let entity_json = entity_to_json(entity).map_err(SubstrateError::unpersistable_definition)?;
-    let assets_to_fetch =
-        pipeline::AssetMapper::select_for_read(schema, fields)
-            .map_err(SubstrateError::invalid_persistence_layout)?;
+    let assets_to_fetch = pipeline::AssetMapper::select_for_read(schema, fields)
+        .map_err(SubstrateError::invalid_persistence_layout)?;
 
     let requests = assets_to_fetch.iter().map(|asset| {
         let location = substrate
@@ -175,8 +174,8 @@ fn build_write_ops<'a, Sub>(
 where
     Sub: SchemaBackedSubstrate,
 {
-    let entity_json =
-        entity_to_json(entity).map_err(|source| vec![SubstrateError::unpersistable_definition(source)])?;
+    let entity_json = entity_to_json(entity)
+        .map_err(|source| vec![SubstrateError::unpersistable_definition(source)])?;
     let is_create = dirty_fields.is_none();
 
     for asset in pipeline::AssetMapper::select_for_write(schema, dirty_fields)
