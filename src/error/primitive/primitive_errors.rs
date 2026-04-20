@@ -66,7 +66,7 @@ primitive_errors! {
     /// A top-level entity payload incorrectly included parent identity data.
     UnexpectedParentOnTopLevelEntity { entity_kind: String }
     /// A nested parent reference was present but structurally invalid.
-    MalformedNestedParentReference { parent_kind: String, reason: String }
+    MalformedNestedParentReference { parent_ref: String, reason: String }
 
     /// A storage existence check could not be completed for the requested asset path.
     ExistenceCheck { asset_path: String, operation: String }
@@ -271,4 +271,58 @@ primitive_errors! {
     ValidationAggregation { reason: String }
     /// Validation aggregation produced a mix of validation kinds that the contract cannot group.
     IncompatibleValidationKindMix { expected_kind: String, actual_kind: String }
+}
+
+impl PrimitiveError {
+    pub fn missing_required_reference_field(
+        message: impl Into<String>,
+        field: impl Into<String>,
+    ) -> Self {
+        Self::MissingRequiredReferenceField {
+            context: Self::context(message),
+            field: field.into(),
+        }
+    }
+
+    pub fn unknown_entity_kind_tag(
+        message: impl Into<String>,
+        entity_kind: impl Into<String>,
+    ) -> Self {
+        Self::UnknownEntityKindTag {
+            context: Self::context(message),
+            entity_kind: entity_kind.into(),
+        }
+    }
+
+    pub fn missing_required_parent_object(
+        message: impl Into<String>,
+        child_kind: impl Into<String>,
+    ) -> Self {
+        Self::MissingRequiredParentObject {
+            context: Self::context(message),
+            child_kind: child_kind.into(),
+        }
+    }
+
+    pub fn unexpected_parent_on_top_level_entity(
+        message: impl Into<String>,
+        entity_kind: impl Into<String>,
+    ) -> Self {
+        Self::UnexpectedParentOnTopLevelEntity {
+            context: Self::context(message),
+            entity_kind: entity_kind.into(),
+        }
+    }
+
+    pub fn malformed_nested_parent_reference(
+        message: impl Into<String>,
+        parent_ref: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self::MalformedNestedParentReference {
+            context: Self::context(message),
+            parent_ref: parent_ref.into(),
+            reason: reason.into(),
+        }
+    }
 }

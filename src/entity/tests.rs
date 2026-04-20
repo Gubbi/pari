@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use super::{
     entities::workflow::{EmbeddedWorkflow, ReusableWorkflow, Workflow},
-    load_strategy, AnyEntityRef, Entity, EntityKind, EntityRef, NoParent, Tracked, TrackedEntity,
-    TrackedFor, ValidationSchema, WorkflowParent,
+    load_strategy, AnyEntityRef, Entity, EntityKind, EntityRef, NoParent, ParentKind, Tracked,
+    TrackedEntity, TrackedFor, ValidationSchema, WorkflowParent,
 };
+use crate::error::primitive::PrimitiveError;
 
 #[test]
 fn no_parent_instances_are_equal() {
@@ -209,7 +210,7 @@ fn entity_ref_deserialize_rejects_kind_mismatch() {
         "kind": "Role",
     }))
     .unwrap_err();
-    assert!(err.to_string().contains("entity kind mismatch"));
+    assert!(err.to_string().contains("unknown entity kind tag"));
 }
 
 #[test]
@@ -223,7 +224,29 @@ fn entity_ref_deserialize_rejects_parent_for_top_level_refs() {
         }
     }))
     .unwrap_err();
-    assert!(err.to_string().contains("unknown field"));
+    assert!(err
+        .to_string()
+        .contains("unexpected parent on top-level entity"));
+}
+
+#[test]
+fn entity_ref_from_serialized_parts_returns_missing_field_primitive() {
+    let err =
+        EntityRef::<Workflow>::from_serialized_parts(None, Some("Workflow".to_string()), None)
+            .unwrap_err();
+    assert!(matches!(
+        err,
+        PrimitiveError::MissingRequiredReferenceField { field, .. } if field == "id"
+    ));
+}
+
+#[test]
+fn workflow_parent_deserialize_returns_missing_parent_primitive() {
+    let err = WorkflowParent::deserialize_parent(None, EntityKind::Task.as_str()).unwrap_err();
+    assert!(matches!(
+        err,
+        PrimitiveError::MissingRequiredParentObject { child_kind, .. } if child_kind == "Task"
+    ));
 }
 
 #[test]

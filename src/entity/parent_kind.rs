@@ -2,6 +2,7 @@ use super::{
     entities::workflow::{EmbeddedWorkflow, ReusableWorkflow, Workflow},
     AnyEntityRef, EntityRef,
 };
+use crate::error::primitive::PrimitiveError;
 
 pub(crate) mod private {
     pub trait Sealed {}
@@ -12,10 +13,12 @@ pub trait ParentKind:
     private::Sealed + Clone + PartialEq + Eq + std::hash::Hash + std::fmt::Debug
 {
     fn serialize_parent<M: serde::ser::SerializeMap>(&self, map: &mut M) -> Result<(), M::Error>;
-    fn deserialize_parent<E>(parent: Option<serde_json::Value>) -> Result<Self, E>
+    fn deserialize_parent(
+        parent: Option<serde_json::Value>,
+        child_kind: &'static str,
+    ) -> Result<Self, PrimitiveError>
     where
-        Self: Sized,
-        E: serde::de::Error;
+        Self: Sized;
     fn value(&self) -> Option<&Self>;
 }
 
@@ -40,12 +43,15 @@ impl ParentKind for NoParent {
         Ok(())
     }
 
-    fn deserialize_parent<E>(parent: Option<serde_json::Value>) -> Result<Self, E>
-    where
-        E: serde::de::Error,
-    {
+    fn deserialize_parent(
+        parent: Option<serde_json::Value>,
+        child_kind: &'static str,
+    ) -> Result<Self, PrimitiveError> {
         if parent.is_some() {
-            return Err(E::unknown_field("parent", &["id", "kind"]));
+            return Err(PrimitiveError::unexpected_parent_on_top_level_entity(
+                "unexpected parent on top-level entity",
+                child_kind,
+            ));
         }
         Ok(NoParent)
     }
@@ -73,12 +79,23 @@ impl ParentKind for WorkflowParent {
         map.serialize_entry("parent", self)
     }
 
-    fn deserialize_parent<E>(parent: Option<serde_json::Value>) -> Result<Self, E>
-    where
-        E: serde::de::Error,
-    {
-        let parent = parent.ok_or_else(|| E::missing_field("parent"))?;
-        serde_json::from_value(parent).map_err(E::custom)
+    fn deserialize_parent(
+        parent: Option<serde_json::Value>,
+        child_kind: &'static str,
+    ) -> Result<Self, PrimitiveError> {
+        let parent = parent.ok_or_else(|| {
+            PrimitiveError::missing_required_parent_object(
+                "missing required parent object",
+                child_kind,
+            )
+        })?;
+        serde_json::from_value(parent.clone()).map_err(|err| {
+            PrimitiveError::malformed_nested_parent_reference(
+                "malformed nested parent reference",
+                parent.to_string(),
+                err.to_string(),
+            )
+        })
     }
 
     fn value(&self) -> Option<&Self> {

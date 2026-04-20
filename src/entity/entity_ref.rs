@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use super::{Entity, EntityKind, NoParent, ParentKind};
+use crate::error::primitive::PrimitiveError;
 
 /// A typed reference to an entity: its string id and optional parent context.
 ///
@@ -38,6 +39,33 @@ impl<T: Entity, P: ParentKind> EntityRef<T, P> {
 
     pub fn parent(&self) -> Option<&P> {
         self.parent.value()
+    }
+
+    pub(crate) fn from_serialized_parts(
+        id: Option<String>,
+        kind: Option<String>,
+        parent: Option<serde_json::Value>,
+    ) -> Result<Self, PrimitiveError> {
+        let id = id.ok_or_else(|| {
+            PrimitiveError::missing_required_reference_field(
+                "missing required reference field",
+                "id",
+            )
+        })?;
+        let kind = kind.ok_or_else(|| {
+            PrimitiveError::missing_required_reference_field(
+                "missing required reference field",
+                "kind",
+            )
+        })?;
+        if kind != T::KIND.as_str() {
+            return Err(PrimitiveError::unknown_entity_kind_tag(
+                "unknown entity kind tag",
+                kind,
+            ));
+        }
+        let parent = P::deserialize_parent(parent, T::KIND.as_str())?;
+        Ok(EntityRef::with_parent(id, parent))
     }
 }
 
@@ -118,17 +146,7 @@ impl<'de, T: Entity, P: ParentKind> serde::Deserialize<'de> for EntityRef<T, P> 
                         }
                     }
                 }
-                let id = id.ok_or_else(|| serde::de::Error::missing_field("id"))?;
-                let kind = kind.ok_or_else(|| serde::de::Error::missing_field("kind"))?;
-                if kind != T::KIND.as_str() {
-                    return Err(serde::de::Error::custom(format!(
-                        "entity kind mismatch: expected {}, got {}",
-                        T::KIND.as_str(),
-                        kind,
-                    )));
-                }
-                let parent = P::deserialize_parent(parent)?;
-                Ok(EntityRef::with_parent(id, parent))
+                EntityRef::from_serialized_parts(id, kind, parent).map_err(serde::de::Error::custom)
             }
         }
 
