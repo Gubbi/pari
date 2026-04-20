@@ -1,11 +1,12 @@
 //! Structural validation schema for [`ArtifactKind`].
 
 use super::{
-    kebab_case_id, non_empty_str, x_prefix_keys, AnyStructuralRule, RuleViolation, ValidationSchema,
+    kebab_case_id, non_empty_str, x_prefix_keys, AnyStructuralRule, ValidationSchema,
 };
 use crate::entity::entities::artifact_kind::{ArtifactKind, TrackedArtifactKind};
+use crate::error::primitive::PrimitiveError;
 
-fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
+fn opt_non_empty_str(value: &Option<String>) -> Vec<PrimitiveError> {
     match value {
         None => vec![],
         Some(s) => non_empty_str(s),

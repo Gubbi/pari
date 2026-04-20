@@ -28,18 +28,19 @@ fn identity_primitive_captures_reference_details() {
 
 #[test]
 fn validation_primitive_captures_rule_violation_details() {
-    let error = PrimitiveError::StructuralRuleViolation {
-        context: PrimitiveError::context("structural rule rejected candidate state"),
-        field_path: "steps.approval".to_string(),
-        rule_kind: "non_empty".to_string(),
-    };
+    let error = PrimitiveError::naming_format_violation(
+        "structural rule rejected candidate state",
+        Some("[0].id"),
+        "camel_case",
+    );
 
     let details = error.details();
-    assert_eq!(details.len(), 2);
-    assert_eq!(details[0].field_name, "field_path");
-    assert!(details[0].value.contains("steps.approval"));
-    assert_eq!(details[1].field_name, "rule_kind");
-    assert!(details[1].value.contains("non_empty"));
+    let sub_path_detail = details.iter().find(|d| d.field_name == "sub_path");
+    let rule_kind_detail = details.iter().find(|d| d.field_name == "rule_kind");
+    assert!(sub_path_detail.is_some(), "expected sub_path detail");
+    assert!(sub_path_detail.unwrap().value.contains("[0].id"));
+    assert!(rule_kind_detail.is_some(), "expected rule_kind detail");
+    assert!(rule_kind_detail.unwrap().value.contains("camel_case"));
 }
 
 #[test]

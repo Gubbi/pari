@@ -2,18 +2,19 @@
 
 use super::{
     kebab_case_id, non_empty_str, unique_by, x_prefix_keys, AnyCrossEntityRule, AnyStructuralRule,
-    RuleViolation, ValidationSchema,
+    ValidationSchema,
 };
 use crate::entity::entities::team::{Team, TeamMember, TrackedTeam};
+use crate::error::primitive::PrimitiveError;
 
-fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
+fn opt_non_empty_str(value: &Option<String>) -> Vec<PrimitiveError> {
     match value {
         None => vec![],
         Some(s) => non_empty_str(s),
     }
 }
 
-fn unique_member_handles(value: &Option<Vec<TeamMember>>) -> Vec<RuleViolation> {
+fn unique_member_handles(value: &Option<Vec<TeamMember>>) -> Vec<PrimitiveError> {
     match value {
         None => vec![],
         Some(members) => unique_by(members, |m| m.handle.clone()),

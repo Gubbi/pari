@@ -2,28 +2,28 @@
 //!
 //! All functions return `vec![]` (no violations) until a substrate load path is available.
 
-use super::RuleViolation;
+use crate::error::primitive::PrimitiveError;
 
 /// Check that a referenced entity exists in the store.
 /// Stub: always returns no violations.
-pub fn ref_exists() -> Vec<RuleViolation> {
+pub fn ref_exists() -> Vec<PrimitiveError> {
     vec![]
 }
 
 /// Check that all refs in a collection exist in the store.
 /// Stub: always returns no violations.
-pub fn all_refs_exist() -> Vec<RuleViolation> {
+pub fn all_refs_exist() -> Vec<PrimitiveError> {
     vec![]
 }
 
 /// Check that all hook call inputs match the hook's declared inputs.
 /// Stub: always returns no violations.
-pub fn hook_call_inputs_valid() -> Vec<RuleViolation> {
+pub fn hook_call_inputs_valid() -> Vec<PrimitiveError> {
     vec![]
 }
 
 /// Check that all role refs in a Raci exist in the store.
 /// Stub: always returns no violations.
-pub fn raci_roles_exist() -> Vec<RuleViolation> {
+pub fn raci_roles_exist() -> Vec<PrimitiveError> {
     vec![]
 }

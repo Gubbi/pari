@@ -217,12 +217,6 @@ primitive_errors! {
     InvalidValidationFieldSelection { field: String }
     /// The tracked entity and validation schema did not correspond to the same entity type.
     TrackedEntitySchemaMismatch { tracked_kind: String, schema_kind: String }
-    /// A structural validation rule rejected the candidate state.
-    StructuralRuleViolation { field_path: String, rule_kind: String }
-    /// A semantic validation rule rejected the candidate state.
-    SemanticRuleViolation { field_path: String, rule_kind: String }
-    /// A cross-entity validation rule rejected the candidate state.
-    CrossEntityRuleViolation { field_path: String, rule_kind: String }
     /// Validation dispatch could not route the requested rule set coherently.
     ValidationDispatch { tracked_kind: String, reason: String }
     /// A type-erased tracked wrapper could not dispatch to the correct validation path.
@@ -233,44 +227,41 @@ primitive_errors! {
     ValidationSchemaInconsistency { schema_component: String, reason: String }
     /// Validation rule maps named fields in ways that cannot be reconciled.
     ConflictingValidationFieldNames { field: String, conflict: String }
-    /// A reported nested violation path could not be normalized safely.
-    InvalidValidationSubPath { sub_path: String }
-    /// Concatenating a field path and nested path produced an impossible output path.
-    ImpossibleValidationPath { field: String, sub_path: String }
-    /// A scalar value did not satisfy the primitive validation format required by the rule.
-    MalformedScalarValue { field_path: String, rule_kind: String }
-    /// A collection value did not satisfy the shape required by the rule.
-    MalformedCollectionValue { field_path: String, rule_kind: String }
-    /// A value violated a required naming convention or lexical contract.
-    NamingFormatViolation { field_path: String, rule_kind: String }
-    /// A collection contained entries that were required to be unique.
-    DuplicateEntryViolation { field_path: String, rule_kind: String }
-    /// A required field or collection entry was empty when non-empty content was required.
-    EmptyRequiredValue { field_path: String, rule_kind: String }
-    /// A workflow or dependency graph inside the entity was not semantically coherent.
-    WorkflowGraphInconsistency { field_path: String, reason: String }
-    /// A declared dependency pointed to a step, task, or relationship that is not valid.
-    IllegalDependencyReference { field_path: String, reference: String }
-    /// A referenced state transition was not allowed by the workflow semantics.
-    IllegalStateTransitionReference { field_path: String, reference: String }
-    /// Rejection-handling configuration pointed to an invalid or impossible target.
-    InvalidOnRejectTarget { field_path: String, target: String }
-    /// The same semantic relationship was declared more than once in a conflicting way.
-    DuplicateSemanticRelationship { field_path: String, relationship: String }
-    /// A required companion concept or state was absent.
-    MissingRequiredCompanionState { field_path: String, required_state: String }
-    /// A required referenced entity did not exist.
-    ReferencedEntityAbsent { field_path: String, entity_ref: String }
-    /// A reference resolved to an entity kind incompatible with the field semantics.
-    ReferencedEntityKindMismatch { field_path: String, entity_ref: String, actual_kind: String }
-    /// A required set of related references was incomplete.
-    IncompleteReferenceSet { field_path: String, missing_reference: String }
-    /// A referenced definition existed but did not match the consuming entity's expectations.
-    ReferencedDefinitionMismatch { field_path: String, entity_ref: String, reason: String }
     /// Validation error aggregation could not preserve a coherent combined error set.
     ValidationAggregation { reason: String }
     /// Validation aggregation produced a mix of validation kinds that the contract cannot group.
     IncompatibleValidationKindMix { expected_kind: String, actual_kind: String }
+
+    /// A scalar value did not satisfy the primitive validation format required by the rule.
+    MalformedScalarValue { sub_path: Option<String>, rule_kind: String }
+    /// A collection did not satisfy the minimum size or shape required by the rule.
+    MalformedCollectionValue { rule_kind: String }
+    /// A value violated a required naming convention or lexical contract.
+    NamingFormatViolation { sub_path: Option<String>, rule_kind: String }
+    /// A collection contained entries that were required to be unique.
+    DuplicateEntryViolation { sub_path: String, rule_kind: String }
+    /// A required field or collection entry was empty when non-empty content was required.
+    EmptyRequiredValue { sub_path: Option<String>, rule_kind: String }
+    /// A workflow or dependency graph inside the entity was not semantically coherent.
+    WorkflowGraphInconsistency { reason: String }
+    /// A declared dependency pointed to a step, task, or relationship that is not valid.
+    IllegalDependencyReference { sub_path: String, reference: String }
+    /// A referenced state transition was not allowed by the workflow semantics.
+    IllegalStateTransitionReference { sub_path: String, reference: String }
+    /// Rejection-handling configuration pointed to an invalid or impossible target.
+    InvalidOnRejectTarget { sub_path: String, target: String }
+    /// The same semantic relationship was declared more than once in a conflicting way.
+    DuplicateSemanticRelationship { sub_path: String, relationship: String }
+    /// A required companion concept or state was absent.
+    MissingRequiredCompanionState { required_state: String }
+    /// A required referenced entity did not exist.
+    ReferencedEntityAbsent { sub_path: String, entity_ref: String }
+    /// A reference resolved to an entity kind incompatible with the field semantics.
+    ReferencedEntityKindMismatch { sub_path: String, entity_ref: String, actual_kind: String }
+    /// A required set of related references was incomplete.
+    IncompleteReferenceSet { sub_path: String, missing_reference: String }
+    /// A referenced definition existed but did not match the consuming entity's expectations.
+    ReferencedDefinitionMismatch { sub_path: String, entity_ref: String, reason: String }
 }
 
 impl PrimitiveError {
@@ -322,6 +313,194 @@ impl PrimitiveError {
         Self::MalformedNestedParentReference {
             context: Self::context(message),
             parent_ref: parent_ref.into(),
+            reason: reason.into(),
+        }
+    }
+
+    pub fn invalid_validation_field_selection(
+        message: impl Into<String>,
+        field: impl Into<String>,
+    ) -> Self {
+        Self::InvalidValidationFieldSelection {
+            context: Self::context(message),
+            field: field.into(),
+        }
+    }
+
+    pub fn malformed_scalar_value(
+        message: impl Into<String>,
+        sub_path: Option<impl Into<String>>,
+        rule_kind: impl Into<String>,
+    ) -> Self {
+        Self::MalformedScalarValue {
+            context: Self::context(message),
+            sub_path: sub_path.map(Into::into),
+            rule_kind: rule_kind.into(),
+        }
+    }
+
+    pub fn malformed_collection_value(
+        message: impl Into<String>,
+        rule_kind: impl Into<String>,
+    ) -> Self {
+        Self::MalformedCollectionValue {
+            context: Self::context(message),
+            rule_kind: rule_kind.into(),
+        }
+    }
+
+    pub fn naming_format_violation(
+        message: impl Into<String>,
+        sub_path: Option<impl Into<String>>,
+        rule_kind: impl Into<String>,
+    ) -> Self {
+        Self::NamingFormatViolation {
+            context: Self::context(message),
+            sub_path: sub_path.map(Into::into),
+            rule_kind: rule_kind.into(),
+        }
+    }
+
+    pub fn duplicate_entry_violation(
+        message: impl Into<String>,
+        sub_path: impl Into<String>,
+        rule_kind: impl Into<String>,
+    ) -> Self {
+        Self::DuplicateEntryViolation {
+            context: Self::context(message),
+            sub_path: sub_path.into(),
+            rule_kind: rule_kind.into(),
+        }
+    }
+
+    pub fn empty_required_value(
+        message: impl Into<String>,
+        sub_path: Option<impl Into<String>>,
+        rule_kind: impl Into<String>,
+    ) -> Self {
+        Self::EmptyRequiredValue {
+            context: Self::context(message),
+            sub_path: sub_path.map(Into::into),
+            rule_kind: rule_kind.into(),
+        }
+    }
+
+    pub fn workflow_graph_inconsistency(
+        message: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self::WorkflowGraphInconsistency {
+            context: Self::context(message),
+            reason: reason.into(),
+        }
+    }
+
+    pub fn illegal_dependency_reference(
+        message: impl Into<String>,
+        sub_path: impl Into<String>,
+        reference: impl Into<String>,
+    ) -> Self {
+        Self::IllegalDependencyReference {
+            context: Self::context(message),
+            sub_path: sub_path.into(),
+            reference: reference.into(),
+        }
+    }
+
+    pub fn illegal_state_transition_reference(
+        message: impl Into<String>,
+        sub_path: impl Into<String>,
+        reference: impl Into<String>,
+    ) -> Self {
+        Self::IllegalStateTransitionReference {
+            context: Self::context(message),
+            sub_path: sub_path.into(),
+            reference: reference.into(),
+        }
+    }
+
+    pub fn invalid_on_reject_target(
+        message: impl Into<String>,
+        sub_path: impl Into<String>,
+        target: impl Into<String>,
+    ) -> Self {
+        Self::InvalidOnRejectTarget {
+            context: Self::context(message),
+            sub_path: sub_path.into(),
+            target: target.into(),
+        }
+    }
+
+    pub fn duplicate_semantic_relationship(
+        message: impl Into<String>,
+        sub_path: impl Into<String>,
+        relationship: impl Into<String>,
+    ) -> Self {
+        Self::DuplicateSemanticRelationship {
+            context: Self::context(message),
+            sub_path: sub_path.into(),
+            relationship: relationship.into(),
+        }
+    }
+
+    pub fn missing_required_companion_state(
+        message: impl Into<String>,
+        required_state: impl Into<String>,
+    ) -> Self {
+        Self::MissingRequiredCompanionState {
+            context: Self::context(message),
+            required_state: required_state.into(),
+        }
+    }
+
+    pub fn referenced_entity_absent(
+        message: impl Into<String>,
+        sub_path: impl Into<String>,
+        entity_ref: impl Into<String>,
+    ) -> Self {
+        Self::ReferencedEntityAbsent {
+            context: Self::context(message),
+            sub_path: sub_path.into(),
+            entity_ref: entity_ref.into(),
+        }
+    }
+
+    pub fn referenced_entity_kind_mismatch(
+        message: impl Into<String>,
+        sub_path: impl Into<String>,
+        entity_ref: impl Into<String>,
+        actual_kind: impl Into<String>,
+    ) -> Self {
+        Self::ReferencedEntityKindMismatch {
+            context: Self::context(message),
+            sub_path: sub_path.into(),
+            entity_ref: entity_ref.into(),
+            actual_kind: actual_kind.into(),
+        }
+    }
+
+    pub fn incomplete_reference_set(
+        message: impl Into<String>,
+        sub_path: impl Into<String>,
+        missing_reference: impl Into<String>,
+    ) -> Self {
+        Self::IncompleteReferenceSet {
+            context: Self::context(message),
+            sub_path: sub_path.into(),
+            missing_reference: missing_reference.into(),
+        }
+    }
+
+    pub fn referenced_definition_mismatch(
+        message: impl Into<String>,
+        sub_path: impl Into<String>,
+        entity_ref: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self::ReferencedDefinitionMismatch {
+            context: Self::context(message),
+            sub_path: sub_path.into(),
+            entity_ref: entity_ref.into(),
             reason: reason.into(),
         }
     }

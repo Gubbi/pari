@@ -55,7 +55,7 @@ pub fn generate_accessors_and_setters(
                             ::pari::validation::ValidationKind::Structural,
                             ::pari::validation::ValidationKind::Semantic,
                         ],
-                    ).await;
+                    ).await.expect("generated setter field is always in the validation schema");
 
                     if !errors.is_empty() {
                         return Err(::pari::entity::SetterError::Validation {

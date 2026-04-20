@@ -5,7 +5,7 @@ use pari::{
     },
     store_error::StoreError,
     substrate::error::SubstrateError,
-    validation::error::{FieldValidationError, SetterError, ValidationErrors, ValidationKind},
+    validation::error::{FieldValidationError, SetterError, ValidationErrors},
     workspace::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError},
 };
 
@@ -151,8 +151,11 @@ fn validation_errors_accumulate() {
     let mut errs = ValidationErrors::new();
     errs.errors.push(FieldValidationError {
         path: "id".into(),
-        message: "must be kebab-case".into(),
-        kind: ValidationKind::Structural,
+        error: pari::error::primitive::PrimitiveError::naming_format_violation(
+            "must be kebab-case",
+            None::<String>,
+            "kebab_case",
+        ),
     });
     assert_eq!(errs.errors.len(), 1);
 }

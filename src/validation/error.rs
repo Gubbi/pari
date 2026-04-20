@@ -2,13 +2,14 @@
 
 use pari_macros::{ErrorCompose, OTelEmit};
 
+use crate::error::primitive::PrimitiveError;
 use crate::substrate::error::SubstrateError;
 
 // ---------------------------------------------------------------------------
 // Plain data types (not ErrorCompose)
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ValidationErrors {
     pub errors: Vec<FieldValidationError>,
 }
@@ -38,12 +39,11 @@ pub enum ValidationKind {
     CrossEntity,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FieldValidationError {
-    /// Dot-notation path: `"id"`, `"steps.WriteProposal.depends_on"`
+    /// Schema field name: `"id"`, `"steps"`, `"name"`
     pub path: String,
-    pub message: String,
-    pub kind: ValidationKind,
+    pub error: PrimitiveError,
 }
 
 // ---------------------------------------------------------------------------
@@ -73,6 +73,10 @@ pub enum SetterError {
 mod tests {
     use super::*;
 
+    fn stub_error() -> PrimitiveError {
+        PrimitiveError::empty_required_value("test", None::<String>, "non_empty")
+    }
+
     #[test]
     fn validation_errors_starts_empty() {
         let e = ValidationErrors::new();
@@ -84,8 +88,7 @@ mod tests {
         let mut e1 = ValidationErrors::new();
         e1.errors.push(FieldValidationError {
             path: "name".to_string(),
-            message: "bad".to_string(),
-            kind: ValidationKind::Structural,
+            error: stub_error(),
         });
         let e2 = ValidationErrors::new();
         e1.extend(e2);

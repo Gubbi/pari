@@ -4,11 +4,10 @@ use crate::entity::{
     types::{Extensions, Raci, TaskStateEntry, WorkflowStateEntry},
     Entity, EntityRef, ParentKind,
 };
-
-use super::rule_violation::RuleViolation;
+use crate::error::primitive::PrimitiveError;
 
 /// Id must match `[a-z0-9]+(-[a-z0-9]+)*`
-pub fn kebab_case(value: &str) -> Vec<RuleViolation> {
+pub fn kebab_case(value: &str) -> Vec<PrimitiveError> {
     let valid = !value.is_empty()
         && value
             .chars()
@@ -19,81 +18,109 @@ pub fn kebab_case(value: &str) -> Vec<RuleViolation> {
     if valid {
         vec![]
     } else {
-        vec![RuleViolation::field(format!("'{value}' is not kebab-case"))]
+        vec![PrimitiveError::naming_format_violation(
+            format!("'{value}' is not kebab-case"),
+            None::<String>,
+            "kebab_case",
+        )]
     }
 }
 
 /// Id must match `[A-Z][a-zA-Z0-9]*`
-pub fn camel_case(value: &str) -> Vec<RuleViolation> {
+pub fn camel_case(value: &str) -> Vec<PrimitiveError> {
     let valid = !value.is_empty()
         && value.starts_with(|c: char| c.is_ascii_uppercase())
         && value.chars().all(|c| c.is_ascii_alphanumeric());
     if valid {
         vec![]
     } else {
-        vec![RuleViolation::field(format!("'{value}' is not CamelCase"))]
+        vec![PrimitiveError::naming_format_violation(
+            format!("'{value}' is not CamelCase"),
+            None::<String>,
+            "camel_case",
+        )]
     }
 }
 
 /// `EntityRef` id must be kebab-case
-pub fn kebab_case_id<T: Entity, P: ParentKind>(entity_ref: &EntityRef<T, P>) -> Vec<RuleViolation> {
+pub fn kebab_case_id<T: Entity, P: ParentKind>(entity_ref: &EntityRef<T, P>) -> Vec<PrimitiveError> {
     kebab_case(entity_ref.id())
 }
 
 /// `EntityRef` id must be CamelCase
-pub fn camel_case_id<T: Entity, P: ParentKind>(entity_ref: &EntityRef<T, P>) -> Vec<RuleViolation> {
+pub fn camel_case_id<T: Entity, P: ParentKind>(entity_ref: &EntityRef<T, P>) -> Vec<PrimitiveError> {
     camel_case(entity_ref.id())
 }
 
 /// String must not be empty or whitespace-only
-pub fn non_empty_str(value: &str) -> Vec<RuleViolation> {
+pub fn non_empty_str(value: &str) -> Vec<PrimitiveError> {
     if value.trim().is_empty() {
-        vec![RuleViolation::field("must not be empty")]
+        vec![PrimitiveError::empty_required_value(
+            "must not be empty",
+            None::<String>,
+            "non_empty",
+        )]
     } else {
         vec![]
     }
 }
 
 /// Slice must have at least one element
-pub fn non_empty_list<T>(value: &[T]) -> Vec<RuleViolation> {
+pub fn non_empty_list<T>(value: &[T]) -> Vec<PrimitiveError> {
     if value.is_empty() {
-        vec![RuleViolation::field("must not be empty")]
+        vec![PrimitiveError::malformed_collection_value(
+            "must not be empty",
+            "non_empty",
+        )]
     } else {
         vec![]
     }
 }
 
 /// Slice must have at least `min` elements
-pub fn min_length<T>(value: &[T], min: usize) -> Vec<RuleViolation> {
+pub fn min_length<T>(value: &[T], min: usize) -> Vec<PrimitiveError> {
     if value.len() < min {
-        vec![RuleViolation::field(format!(
-            "must have at least {min} elements, got {}",
-            value.len()
-        ))]
+        vec![PrimitiveError::malformed_collection_value(
+            format!(
+                "must have at least {min} elements, got {}",
+                value.len()
+            ),
+            "min_length",
+        )]
     } else {
         vec![]
     }
 }
 
 /// All elements must produce distinct keys via `key_fn`
-pub fn unique_by<T, K: Eq + Hash>(value: &[T], key_fn: fn(&T) -> K) -> Vec<RuleViolation> {
+pub fn unique_by<T, K: Eq + Hash>(value: &[T], key_fn: fn(&T) -> K) -> Vec<PrimitiveError> {
     let mut seen = std::collections::HashSet::new();
     let mut violations = vec![];
     for (i, item) in value.iter().enumerate() {
         let key = key_fn(item);
         if !seen.insert(key) {
-            violations.push(RuleViolation::sub(format!("[{i}]"), "duplicate entry"));
+            violations.push(PrimitiveError::duplicate_entry_violation(
+                "duplicate entry",
+                format!("[{i}]"),
+                "unique",
+            ));
         }
     }
     violations
 }
 
 /// All keys in extensions must start with `"x-"`
-pub fn x_prefix_keys(value: &Extensions) -> Vec<RuleViolation> {
+pub fn x_prefix_keys(value: &Extensions) -> Vec<PrimitiveError> {
     value
         .keys()
         .filter(|k| !k.starts_with("x-"))
-        .map(|k| RuleViolation::sub(format!(".{k}"), "extension key must start with 'x-'"))
+        .map(|k| {
+            PrimitiveError::naming_format_violation(
+                format!("extension key '{k}' must start with 'x-'"),
+                Some(format!(".{k}")),
+                "x_prefix_keys",
+            )
+        })
         .collect()
 }
 
@@ -103,24 +130,32 @@ pub fn x_prefix_keys(value: &Extensions) -> Vec<RuleViolation> {
 /// - All ids are unique
 /// - At least one Done semantic
 /// - At least one non-Done state
-pub fn states_valid_workflow(value: &[WorkflowStateEntry]) -> Vec<RuleViolation> {
+pub fn states_valid_workflow(value: &[WorkflowStateEntry]) -> Vec<PrimitiveError> {
     let mut v = vec![];
     v.extend(min_length(value, 2));
     for (i, s) in value.iter().enumerate() {
-        v.extend(
-            camel_case(&s.id)
-                .into_iter()
-                .map(|viol| RuleViolation::sub(format!("[{i}].id"), viol.message)),
-        );
+        let sub = format!("[{i}].id");
+        let valid = !s.id.is_empty()
+            && s.id.starts_with(|c: char| c.is_ascii_uppercase())
+            && s.id.chars().all(|c| c.is_ascii_alphanumeric());
+        if !valid {
+            v.push(PrimitiveError::naming_format_violation(
+                format!("'{}' is not CamelCase", s.id),
+                Some(sub),
+                "camel_case",
+            ));
+        }
     }
-    v.extend(
-        unique_by(value, |s| s.id.clone())
-            .into_iter()
-            .map(|viol| RuleViolation {
-                sub_path: viol.sub_path.map(|p| p + ".id"),
-                ..viol
-            }),
-    );
+    let mut seen = std::collections::HashSet::new();
+    for (i, s) in value.iter().enumerate() {
+        if !seen.insert(s.id.clone()) {
+            v.push(PrimitiveError::duplicate_entry_violation(
+                "duplicate entry",
+                format!("[{i}].id"),
+                "unique",
+            ));
+        }
+    }
     let has_done = value.iter().any(|s| {
         matches!(
             s.semantic,
@@ -134,35 +169,47 @@ pub fn states_valid_workflow(value: &[WorkflowStateEntry]) -> Vec<RuleViolation>
         )
     });
     if !has_done {
-        v.push(RuleViolation::field("must include at least one Done state"));
+        v.push(PrimitiveError::workflow_graph_inconsistency(
+            "must include at least one Done state",
+            "missing_done_semantic",
+        ));
     }
     if !has_non_done {
-        v.push(RuleViolation::field(
+        v.push(PrimitiveError::workflow_graph_inconsistency(
             "must include at least one non-Done state",
+            "all_done_states",
         ));
     }
     v
 }
 
 /// State list validation for task states — same rules but for `TaskSemantic`.
-pub fn states_valid_task(value: &[TaskStateEntry]) -> Vec<RuleViolation> {
+pub fn states_valid_task(value: &[TaskStateEntry]) -> Vec<PrimitiveError> {
     let mut v = vec![];
     v.extend(min_length(value, 2));
     for (i, s) in value.iter().enumerate() {
-        v.extend(
-            camel_case(&s.id)
-                .into_iter()
-                .map(|viol| RuleViolation::sub(format!("[{i}].id"), viol.message)),
-        );
+        let sub = format!("[{i}].id");
+        let valid = !s.id.is_empty()
+            && s.id.starts_with(|c: char| c.is_ascii_uppercase())
+            && s.id.chars().all(|c| c.is_ascii_alphanumeric());
+        if !valid {
+            v.push(PrimitiveError::naming_format_violation(
+                format!("'{}' is not CamelCase", s.id),
+                Some(sub),
+                "camel_case",
+            ));
+        }
     }
-    v.extend(
-        unique_by(value, |s| s.id.clone())
-            .into_iter()
-            .map(|viol| RuleViolation {
-                sub_path: viol.sub_path.map(|p| p + ".id"),
-                ..viol
-            }),
-    );
+    let mut seen = std::collections::HashSet::new();
+    for (i, s) in value.iter().enumerate() {
+        if !seen.insert(s.id.clone()) {
+            v.push(PrimitiveError::duplicate_entry_violation(
+                "duplicate entry",
+                format!("[{i}].id"),
+                "unique",
+            ));
+        }
+    }
     let has_done = value
         .iter()
         .any(|s| matches!(s.semantic, Some(crate::entity::types::TaskSemantic::Done)));
@@ -170,20 +217,28 @@ pub fn states_valid_task(value: &[TaskStateEntry]) -> Vec<RuleViolation> {
         .iter()
         .any(|s| !matches!(s.semantic, Some(crate::entity::types::TaskSemantic::Done)));
     if !has_done {
-        v.push(RuleViolation::field("must include at least one Done state"));
+        v.push(PrimitiveError::workflow_graph_inconsistency(
+            "must include at least one Done state",
+            "missing_done_semantic",
+        ));
     }
     if !has_non_done {
-        v.push(RuleViolation::field(
+        v.push(PrimitiveError::workflow_graph_inconsistency(
             "must include at least one non-Done state",
+            "all_done_states",
         ));
     }
     v
 }
 
 /// `Raci.responsible` must be non-empty.
-pub fn raci_structural(value: &Raci) -> Vec<RuleViolation> {
+pub fn raci_structural(value: &Raci) -> Vec<PrimitiveError> {
     if value.responsible.is_empty() {
-        vec![RuleViolation::sub(".responsible", "must not be empty")]
+        vec![PrimitiveError::empty_required_value(
+            "responsible must not be empty",
+            Some(".responsible"),
+            "raci_structural",
+        )]
     } else {
         vec![]
     }
@@ -192,6 +247,7 @@ pub fn raci_structural(value: &Raci) -> Vec<RuleViolation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::primitive::PrimitiveError;
 
     // --- kebab_case ---
 
@@ -306,7 +362,12 @@ mod tests {
         let v = vec!["a", "b", "a"];
         let violations = unique_by(&v, |s| s.to_string());
         assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].sub_path.as_deref(), Some("[2]"));
+        match &violations[0] {
+            PrimitiveError::DuplicateEntryViolation { sub_path, .. } => {
+                assert_eq!(sub_path.as_str(), "[2]");
+            }
+            other => panic!("expected DuplicateEntryViolation, got {other:?}"),
+        }
     }
 
     // --- x_prefix_keys ---
@@ -324,7 +385,12 @@ mod tests {
         ext.insert("owner".to_string(), serde_json::json!("alice"));
         let v = x_prefix_keys(&ext);
         assert_eq!(v.len(), 1);
-        assert!(v[0].sub_path.as_ref().unwrap().contains("owner"));
+        match &v[0] {
+            PrimitiveError::NamingFormatViolation { sub_path, .. } => {
+                assert!(sub_path.as_ref().unwrap().contains("owner"));
+            }
+            other => panic!("expected NamingFormatViolation, got {other:?}"),
+        }
     }
 
     // --- states_valid_workflow ---
@@ -366,7 +432,10 @@ mod tests {
             make_workflow_state("Active", None),
         ];
         let v = states_valid_workflow(&states);
-        assert!(v.iter().any(|e| e.message.contains("Done")));
+        assert!(v.iter().any(|e| matches!(
+            e,
+            PrimitiveError::WorkflowGraphInconsistency { .. }
+        )));
     }
 
     #[test]
@@ -376,7 +445,10 @@ mod tests {
             make_workflow_state("Draft", Some(crate::entity::types::WorkflowSemantic::Done)),
         ];
         let v = states_valid_workflow(&states);
-        assert!(v.iter().any(|e| e.message.contains("duplicate")));
+        assert!(v.iter().any(|e| matches!(
+            e,
+            PrimitiveError::DuplicateEntryViolation { .. }
+        )));
     }
 
     #[test]
@@ -386,11 +458,12 @@ mod tests {
             make_workflow_state("Done", Some(crate::entity::types::WorkflowSemantic::Done)),
         ];
         let v = states_valid_workflow(&states);
-        assert!(v.iter().any(|e| e
-            .sub_path
-            .as_ref()
-            .map(|p| p.contains("id"))
-            .unwrap_or(false)));
+        assert!(v.iter().any(|e| match e {
+            PrimitiveError::NamingFormatViolation { sub_path, .. } => {
+                sub_path.as_ref().map(|p| p.contains("id")).unwrap_or(false)
+            }
+            _ => false,
+        }));
     }
 
     // --- raci_structural ---
@@ -418,10 +491,11 @@ mod tests {
         };
         let v = raci_structural(&raci);
         assert!(!v.is_empty());
-        assert!(v[0]
-            .sub_path
-            .as_ref()
-            .map(|p| p.contains("responsible"))
-            .unwrap_or(false));
+        match &v[0] {
+            PrimitiveError::EmptyRequiredValue { sub_path, .. } => {
+                assert!(sub_path.as_ref().map(|p| p.contains("responsible")).unwrap_or(false));
+            }
+            other => panic!("expected EmptyRequiredValue, got {other:?}"),
+        }
     }
 }

@@ -1,40 +1,43 @@
 //! Structural validation schema for [`Hook`].
 
 use super::{
-    kebab_case_id, non_empty_list, non_empty_str, unique_by, x_prefix_keys, AnyStructuralRule,
-    RuleViolation, ValidationSchema,
+    kebab_case_id, non_empty_list, non_empty_str, x_prefix_keys, AnyStructuralRule,
+    ValidationSchema,
 };
 use crate::entity::entities::hook::{Hook, HookInput, TrackedHook};
+use crate::error::primitive::PrimitiveError;
 
-fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
+fn opt_non_empty_str(value: &Option<String>) -> Vec<PrimitiveError> {
     match value {
         None => vec![],
         Some(s) => non_empty_str(s),
     }
 }
 
-fn hook_inputs_structural(value: &Option<Vec<HookInput>>) -> Vec<RuleViolation> {
+fn hook_inputs_structural(value: &Option<Vec<HookInput>>) -> Vec<PrimitiveError> {
     match value {
         None => vec![],
         Some(inputs) => {
             let mut v = vec![];
-            // Each input name must be non-empty
             for (i, input) in inputs.iter().enumerate() {
-                v.extend(
-                    non_empty_str(&input.name)
-                        .into_iter()
-                        .map(|viol| RuleViolation::sub(format!("[{i}].name"), viol.message)),
-                );
+                if input.name.trim().is_empty() {
+                    v.push(PrimitiveError::empty_required_value(
+                        "must not be empty",
+                        Some(format!("[{i}].name")),
+                        "non_empty",
+                    ));
+                }
             }
-            // Input names must be unique
-            v.extend(
-                unique_by(inputs, |inp| inp.name.clone())
-                    .into_iter()
-                    .map(|viol| RuleViolation {
-                        sub_path: viol.sub_path.map(|p| p + ".name"),
-                        ..viol
-                    }),
-            );
+            let mut seen = std::collections::HashSet::new();
+            for (i, inp) in inputs.iter().enumerate() {
+                if !seen.insert(inp.name.clone()) {
+                    v.push(PrimitiveError::duplicate_entry_violation(
+                        "duplicate entry",
+                        format!("[{i}].name"),
+                        "unique",
+                    ));
+                }
+            }
             v
         }
     }
@@ -74,11 +77,13 @@ pub fn hook_validation_schema() -> ValidationSchema<Hook> {
                 .map(|v| {
                     let mut violations = non_empty_list(v.as_slice());
                     for (i, instr) in v.iter().enumerate() {
-                        violations.extend(
-                            non_empty_str(instr)
-                                .into_iter()
-                                .map(|viol| RuleViolation::sub(format!("[{i}]"), viol.message)),
-                        );
+                        if instr.trim().is_empty() {
+                            violations.push(PrimitiveError::empty_required_value(
+                                "must not be empty",
+                                Some(format!("[{i}]")),
+                                "non_empty",
+                            ));
+                        }
                     }
                     violations
                 })

@@ -1,4 +1,5 @@
 use crate::entity::{Entity, TrackedEntity};
+use crate::error::primitive::PrimitiveError;
 
 use super::{
     error::{FieldValidationError, ValidationErrors, ValidationKind},
@@ -11,12 +12,14 @@ use super::{
 /// `fields: &["name", "purpose"]` runs only those fields.
 /// `kinds` selects which rule kinds to run.
 ///
-/// Errors accumulate — all failing rules are collected before returning.
+/// Returns `Err(PrimitiveError::InvalidValidationFieldSelection)` if any requested
+/// field name is absent from all rule maps. Errors accumulate otherwise — all
+/// failing rules are collected before returning.
 pub async fn run_validations<T: Entity>(
     entity: &T::Tracked,
     fields: &[&str],
     kinds: &[ValidationKind],
-) -> ValidationErrors
+) -> Result<ValidationErrors, PrimitiveError>
 where
     T::Tracked: ValidatableTracked<T>,
 {
@@ -27,17 +30,27 @@ where
     let target_fields: Vec<&str> = if fields.is_empty() {
         all_fields
     } else {
+        for field_name in fields {
+            let in_any_map = schema.structural.contains_key(field_name)
+                || schema.semantic.contains_key(field_name)
+                || schema.cross_entity.contains_key(field_name);
+            if !in_any_map {
+                return Err(PrimitiveError::invalid_validation_field_selection(
+                    format!("field '{field_name}' is not in the validation schema"),
+                    *field_name,
+                ));
+            }
+        }
         fields.to_vec()
     };
 
     for field_name in &target_fields {
         if kinds.contains(&ValidationKind::Structural) {
             if let Some(rules) = schema.structural.get(field_name) {
-                for v in entity.run_structural_rules(field_name, rules) {
+                for error in entity.run_structural_rules(field_name, rules) {
                     result.errors.push(FieldValidationError {
-                        path: build_path(field_name, &v.sub_path),
-                        message: v.message,
-                        kind: ValidationKind::Structural,
+                        path: field_name.to_string(),
+                        error,
                     });
                 }
             }
@@ -46,11 +59,10 @@ where
         if kinds.contains(&ValidationKind::Semantic) {
             if let Some(rules) = schema.semantic.get(field_name) {
                 for rule in rules {
-                    for v in rule(entity).await {
+                    for error in rule(entity).await {
                         result.errors.push(FieldValidationError {
-                            path: build_path(field_name, &v.sub_path),
-                            message: v.message,
-                            kind: ValidationKind::Semantic,
+                            path: field_name.to_string(),
+                            error,
                         });
                     }
                 }
@@ -60,11 +72,10 @@ where
         if kinds.contains(&ValidationKind::CrossEntity) {
             if let Some(rules) = schema.cross_entity.get(field_name) {
                 for rule in rules {
-                    for v in rule(entity).await {
+                    for error in rule(entity).await {
                         result.errors.push(FieldValidationError {
-                            path: build_path(field_name, &v.sub_path),
-                            message: v.message,
-                            kind: ValidationKind::CrossEntity,
+                            path: field_name.to_string(),
+                            error,
                         });
                     }
                 }
@@ -72,40 +83,20 @@ where
         }
     }
 
-    result
+    Ok(result)
 }
 
 pub async fn run_validations_for_entity(
     entity: &TrackedEntity,
     fields: &[&str],
     kinds: &[ValidationKind],
-) -> ValidationErrors {
+) -> Result<ValidationErrors, PrimitiveError> {
     entity.run_validations(fields, kinds).await
-}
-
-pub fn build_path(field: &str, sub_path: &Option<String>) -> String {
-    match sub_path {
-        None => field.to_string(),
-        Some(sub) => format!("{field}{sub}"),
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn build_path_no_sub_path() {
-        assert_eq!(build_path("name", &None), "name");
-    }
-
-    #[test]
-    fn build_path_with_sub_path() {
-        assert_eq!(
-            build_path("steps", &Some(".WriteProposal.depends_on".to_string())),
-            "steps.WriteProposal.depends_on"
-        );
-    }
 
     #[tokio::test]
     async fn run_validations_runs_structural_rules() {

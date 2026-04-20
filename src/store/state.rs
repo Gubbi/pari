@@ -421,7 +421,9 @@ where
         fields: &[&str],
         kinds: &[ValidationKind],
     ) -> Result<(), CommitError> {
-        let errors = run_validations_for_entity(entity, fields, kinds).await;
+        let errors = run_validations_for_entity(entity, fields, kinds)
+            .await
+            .expect("store validation fields are always valid schema fields");
         if errors.is_empty() {
             Ok(())
         } else {
@@ -438,7 +440,9 @@ where
         fields: &[&str],
         kinds: &[ValidationKind],
     ) -> Result<(), LoadError> {
-        let errors = run_validations_for_entity(entity, fields, kinds).await;
+        let errors = run_validations_for_entity(entity, fields, kinds)
+            .await
+            .expect("store validation fields are always valid schema fields");
         if errors.is_empty() {
             Ok(())
         } else {

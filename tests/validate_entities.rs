@@ -6,11 +6,12 @@ use indexmap::IndexMap;
 use pari::{
     entities::{
         hook::{Hook, HookInput, TrackedHook},
-        relay::{Relay, StateMapEntry, TrackedRelay},
+        relay::{StateMapEntry, TrackedRelay},
         role::{Role, TrackedRole},
         workflow::{Step, TrackedWorkflow, Workflow},
     },
-    entity::{Entity, EntityRef, WorkflowParent},
+    entity::{EntityRef, WorkflowParent},
+    error::primitive::PrimitiveError,
     types::{Extensions, Raci, WorkflowSemantic, WorkflowStateEntry},
     validation::{run_validations, ValidationKind},
 };
@@ -106,7 +107,9 @@ fn valid_hook() -> TrackedHook {
 #[tokio::test]
 async fn role_valid_passes_all_structural() {
     let role = valid_role();
-    let errors = run_validations::<Role>(&role, &[], &[ValidationKind::Structural]).await;
+    let errors = run_validations::<Role>(&role, &[], &[ValidationKind::Structural])
+        .await
+        .expect("valid field selection");
     assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
 }
 
@@ -123,7 +126,9 @@ async fn role_invalid_id_fails_structural() {
     .into();
 
     let errors =
-        run_validations::<Role>(&role, &["entity_ref"], &[ValidationKind::Structural]).await;
+        run_validations::<Role>(&role, &["entity_ref"], &[ValidationKind::Structural])
+            .await
+            .expect("valid field selection");
     assert!(!errors.is_empty(), "Expected errors for bad id");
     assert!(errors.errors.iter().any(|e| e.path == "entity_ref"));
 }
@@ -140,7 +145,9 @@ async fn role_empty_name_fails_structural() {
     }
     .into();
 
-    let errors = run_validations::<Role>(&role, &["name"], &[ValidationKind::Structural]).await;
+    let errors = run_validations::<Role>(&role, &["name"], &[ValidationKind::Structural])
+        .await
+        .expect("valid field selection");
     assert!(!errors.is_empty(), "Expected error for empty name");
     assert!(errors.errors.iter().any(|e| e.path == "name"));
 }
@@ -157,7 +164,9 @@ async fn role_empty_purpose_fails_structural() {
     }
     .into();
 
-    let errors = run_validations::<Role>(&role, &["purpose"], &[ValidationKind::Structural]).await;
+    let errors = run_validations::<Role>(&role, &["purpose"], &[ValidationKind::Structural])
+        .await
+        .expect("valid field selection");
     assert!(!errors.is_empty(), "Expected error for empty purpose");
     assert!(errors.errors.iter().any(|e| e.path == "purpose"));
 }
@@ -178,7 +187,9 @@ async fn role_non_x_extension_fails_structural() {
     .into();
 
     let errors =
-        run_validations::<Role>(&role, &["extensions"], &[ValidationKind::Structural]).await;
+        run_validations::<Role>(&role, &["extensions"], &[ValidationKind::Structural])
+            .await
+            .expect("valid field selection");
     assert!(
         !errors.is_empty(),
         "Expected error for non-x- extension key"
@@ -196,7 +207,9 @@ async fn role_non_x_extension_fails_structural() {
 #[tokio::test]
 async fn hook_valid_passes_structural() {
     let hook = valid_hook();
-    let errors = run_validations::<Hook>(&hook, &[], &[ValidationKind::Structural]).await;
+    let errors = run_validations::<Hook>(&hook, &[], &[ValidationKind::Structural])
+        .await
+        .expect("valid field selection");
     assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
 }
 
@@ -223,7 +236,9 @@ async fn hook_duplicate_input_names_fails_structural() {
     }
     .into();
 
-    let errors = run_validations::<Hook>(&hook, &["inputs"], &[ValidationKind::Structural]).await;
+    let errors = run_validations::<Hook>(&hook, &["inputs"], &[ValidationKind::Structural])
+        .await
+        .expect("valid field selection");
     assert!(
         !errors.is_empty(),
         "Expected error for duplicate input names"
@@ -252,7 +267,8 @@ async fn run_validations_only_runs_requested_fields() {
         &["name"], // only name
         &[ValidationKind::Structural],
     )
-    .await;
+    .await
+    .expect("valid field selection");
     // Should pass: name is valid, purpose not checked
     assert!(
         errors.is_empty(),
@@ -278,7 +294,8 @@ async fn run_validations_empty_fields_runs_all() {
         &[], // all fields
         &[ValidationKind::Structural],
     )
-    .await;
+    .await
+    .expect("all-fields always succeeds");
     // Should fail: purpose is empty
     assert!(
         !errors.is_empty(),
@@ -287,25 +304,20 @@ async fn run_validations_empty_fields_runs_all() {
     assert!(errors.errors.iter().any(|e| e.path == "purpose"));
 }
 
+#[tokio::test]
+async fn run_validations_unknown_field_returns_err() {
+    let role = valid_role();
+    let result = run_validations::<Role>(&role, &["nonexistent_field"], &[ValidationKind::Structural]).await;
+    assert!(
+        matches!(result, Err(PrimitiveError::InvalidValidationFieldSelection { .. })),
+        "Expected InvalidValidationFieldSelection error, got: {:?}",
+        result
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Workflow semantic tests
 // ---------------------------------------------------------------------------
-
-fn build_workflow_with_steps(steps: IndexMap<String, Step>) -> TrackedWorkflow {
-    Workflow {
-        entity_ref: EntityRef::new("TestWorkflow"),
-        name: "Test Workflow".to_string(),
-        description: None,
-        purpose: "Testing".to_string(),
-        raci: make_raci(),
-        states: workflow_states_with_done(),
-        steps,
-        intercepts: None,
-        guidance: None,
-        extensions: Extensions::default(),
-    }
-    .into()
-}
 
 fn build_workflow_with_reviewing_steps(steps: IndexMap<String, Step>) -> TrackedWorkflow {
     Workflow {
@@ -326,7 +338,7 @@ fn build_workflow_with_reviewing_steps(steps: IndexMap<String, Step>) -> Tracked
 #[tokio::test]
 async fn workflow_on_reject_valid_passes_when_target_exists() {
     use pari::{
-        entities::{artifact_kind::ArtifactKind, task::Task},
+        entities::task::Task,
         types::{Artifact, TaskSemantic, TaskStateEntry},
     };
 
@@ -336,7 +348,7 @@ async fn workflow_on_reject_valid_passes_when_target_exists() {
     };
 
     let task_step_id = "WriteProposal";
-    let task = Task {
+    let _task = Task {
         entity_ref: EntityRef::with_parent(task_step_id, workflow_parent("TestWorkflow")),
         name: "Write Proposal".to_string(),
         description: None,
@@ -381,13 +393,15 @@ async fn workflow_on_reject_valid_passes_when_target_exists() {
 
     let wf = build_workflow_with_reviewing_steps(steps);
 
-    let errors = run_validations::<Workflow>(&wf, &["steps"], &[ValidationKind::Semantic]).await;
-    // on_reject points to existing step — should pass
+    let errors = run_validations::<Workflow>(&wf, &["steps"], &[ValidationKind::Semantic])
+        .await
+        .expect("valid field selection");
+    // on_reject points to existing step — should have no InvalidOnRejectTarget errors
     assert!(
         errors
             .errors
             .iter()
-            .all(|e| !e.message.contains("on_reject")),
+            .all(|e| !matches!(e.error, PrimitiveError::InvalidOnRejectTarget { .. })),
         "on_reject validation should pass when target exists"
     );
 }
@@ -419,13 +433,15 @@ async fn workflow_reviewing_state_required_when_review_steps_present() {
     }
     .into();
 
-    let errors = run_validations::<Workflow>(&wf, &["steps"], &[ValidationKind::Semantic]).await;
+    let errors = run_validations::<Workflow>(&wf, &["steps"], &[ValidationKind::Semantic])
+        .await
+        .expect("valid field selection");
     assert!(
         errors
             .errors
             .iter()
-            .any(|e| e.message.to_lowercase().contains("reviewing")),
-        "Expected error about missing Reviewing state, got: {:?}",
+            .any(|e| matches!(e.error, PrimitiveError::WorkflowGraphInconsistency { .. })),
+        "Expected WorkflowGraphInconsistency error for missing Reviewing state, got: {:?}",
         errors
     );
 }
@@ -435,7 +451,7 @@ async fn workflow_reviewing_state_required_when_review_steps_present() {
 // ---------------------------------------------------------------------------
 
 fn make_relay_with_state_map(state_map: HashMap<String, StateMapEntry>) -> TrackedRelay {
-    use pari::entities::{relay::Relay, workflow::ReusableWorkflow};
+    use pari::entities::relay::Relay;
 
     Relay {
         entity_ref: EntityRef::with_parent("DelegateTask", workflow_parent("TestWorkflow")),
@@ -461,7 +477,9 @@ async fn relay_empty_state_map_fails_structural() {
     let relay = make_relay_with_state_map(HashMap::new());
 
     let errors =
-        run_validations::<Relay>(&relay, &["state_map"], &[ValidationKind::Structural]).await;
+        run_validations::<Relay>(&relay, &["state_map"], &[ValidationKind::Structural])
+            .await
+            .expect("valid field selection");
     assert!(!errors.is_empty(), "Expected error for empty state_map");
     assert!(errors.errors.iter().any(|e| e.path.contains("state_map")));
 }
@@ -483,7 +501,9 @@ async fn relay_non_camel_case_state_key_fails_structural() {
     let relay = make_relay_with_state_map(state_map);
 
     let errors =
-        run_validations::<Relay>(&relay, &["state_map"], &[ValidationKind::Structural]).await;
+        run_validations::<Relay>(&relay, &["state_map"], &[ValidationKind::Structural])
+            .await
+            .expect("valid field selection");
     assert!(
         !errors.is_empty(),
         "Expected error for non-CamelCase state key"

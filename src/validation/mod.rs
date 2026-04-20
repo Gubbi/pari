@@ -12,7 +12,6 @@ pub mod primitives;
 pub mod relay;
 pub mod role;
 pub mod runner;
-pub mod rule_violation;
 pub mod schema;
 pub mod task;
 pub mod team;
@@ -24,8 +23,7 @@ pub use primitives::{
     non_empty_str, raci_structural, states_valid_task, states_valid_workflow, unique_by,
     x_prefix_keys,
 };
-pub use rule_violation::RuleViolation;
-pub use runner::{build_path, run_validations, run_validations_for_entity};
+pub use runner::{run_validations, run_validations_for_entity};
 pub use schema::{
     AnyCrossEntityRule, AnySemanticRule, AnyStructuralRule, ValidatableTracked, ValidationSchema,
 };

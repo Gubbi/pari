@@ -1,27 +1,34 @@
 //! Structural and cross-entity validation schema for [`Role`].
 
 use super::{
-    kebab_case_id, non_empty_str, x_prefix_keys, AnyStructuralRule, RuleViolation, ValidationSchema,
+    kebab_case_id, non_empty_str, x_prefix_keys, AnyStructuralRule, ValidationSchema,
 };
 use crate::entity::entities::role::{Role, TrackedRole};
+use crate::error::primitive::PrimitiveError;
 
-fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
+fn opt_non_empty_str(value: &Option<String>) -> Vec<PrimitiveError> {
     match value {
         None => vec![],
         Some(s) => non_empty_str(s),
     }
 }
 
-fn each_item_non_empty_str(value: &Option<Vec<String>>) -> Vec<RuleViolation> {
+fn each_item_non_empty_str(value: &Option<Vec<String>>) -> Vec<PrimitiveError> {
     match value {
         None => vec![],
         Some(items) => items
             .iter()
             .enumerate()
             .flat_map(|(i, s)| {
-                non_empty_str(s)
-                    .into_iter()
-                    .map(move |v| RuleViolation::sub(format!("[{i}]"), v.message))
+                if s.trim().is_empty() {
+                    vec![PrimitiveError::empty_required_value(
+                        "must not be empty",
+                        Some(format!("[{i}]")),
+                        "non_empty",
+                    )]
+                } else {
+                    vec![]
+                }
             })
             .collect(),
     }

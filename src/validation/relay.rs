@@ -3,12 +3,13 @@
 use std::collections::HashMap;
 
 use super::{
-    camel_case, camel_case_id, non_empty_str, x_prefix_keys, AnyCrossEntityRule, AnyStructuralRule,
-    RuleViolation, ValidationSchema,
+    camel_case_id, non_empty_str, x_prefix_keys, AnyCrossEntityRule, AnyStructuralRule,
+    ValidationSchema,
 };
 use crate::entity::entities::relay::{Relay, TrackedRelay};
+use crate::error::primitive::PrimitiveError;
 
-fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
+fn opt_non_empty_str(value: &Option<String>) -> Vec<PrimitiveError> {
     match value {
         None => vec![],
         Some(s) => non_empty_str(s),
@@ -17,9 +18,12 @@ fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
 
 fn non_empty_map_state_map(
     value: &HashMap<String, crate::entity::entities::relay::StateMapEntry>,
-) -> Vec<RuleViolation> {
+) -> Vec<PrimitiveError> {
     if value.is_empty() {
-        vec![RuleViolation::field("state_map must not be empty")]
+        vec![PrimitiveError::malformed_collection_value(
+            "state_map must not be empty",
+            "non_empty",
+        )]
     } else {
         vec![]
     }
@@ -27,13 +31,20 @@ fn non_empty_map_state_map(
 
 fn camel_case_state_keys(
     value: &HashMap<String, crate::entity::entities::relay::StateMapEntry>,
-) -> Vec<RuleViolation> {
+) -> Vec<PrimitiveError> {
     value
         .keys()
-        .flat_map(|k| {
-            camel_case(k)
-                .into_iter()
-                .map(move |v| RuleViolation::sub(format!(".{k}"), v.message))
+        .filter(|k| {
+            k.is_empty()
+                || !k.starts_with(|c: char| c.is_ascii_uppercase())
+                || !k.chars().all(|c| c.is_ascii_alphanumeric())
+        })
+        .map(|k| {
+            PrimitiveError::naming_format_violation(
+                format!("'{k}' is not CamelCase"),
+                Some(format!(".{k}")),
+                "camel_case",
+            )
         })
         .collect()
 }

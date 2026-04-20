@@ -2,14 +2,15 @@
 
 use super::{
     camel_case_id, non_empty_str, raci_structural, states_valid_workflow, x_prefix_keys,
-    AnyCrossEntityRule, AnySemanticRule, AnyStructuralRule, RuleViolation, ValidationSchema,
+    AnyCrossEntityRule, AnySemanticRule, AnyStructuralRule, ValidationSchema,
 };
 use crate::entity::entities::workflow::{
     EmbeddedWorkflow, ReusableWorkflow, Step, TrackedEmbeddedWorkflow, TrackedReusableWorkflow,
     TrackedWorkflow, Workflow,
 };
+use crate::error::primitive::PrimitiveError;
 
-fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
+fn opt_non_empty_str(value: &Option<String>) -> Vec<PrimitiveError> {
     match value {
         None => vec![],
         Some(s) => non_empty_str(s),
@@ -20,8 +21,8 @@ fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
 // Semantic rules shared by all workflow variants
 // ---------------------------------------------------------------------------
 
-/// For each Review step, `on_reject` must refer to an existing step id.
-async fn depends_on_valid(e: &TrackedWorkflow) -> Vec<RuleViolation> {
+/// For each step, each `depends_on` entry must refer to an existing step id.
+async fn depends_on_valid(e: &TrackedWorkflow) -> Vec<PrimitiveError> {
     let steps = match e.steps.get() {
         Some(s) => s,
         None => return vec![],
@@ -44,9 +45,10 @@ async fn depends_on_valid(e: &TrackedWorkflow) -> Vec<RuleViolation> {
             } => {
                 for dep in deps {
                     if !step_ids.contains(dep.as_str()) {
-                        violations.push(RuleViolation::sub(
+                        violations.push(PrimitiveError::illegal_dependency_reference(
+                            "step does not exist",
                             format!(".{step_id}.depends_on"),
-                            format!("step '{dep}' does not exist"),
+                            dep.clone(),
                         ));
                     }
                 }
@@ -58,7 +60,7 @@ async fn depends_on_valid(e: &TrackedWorkflow) -> Vec<RuleViolation> {
 }
 
 /// For each Review step, `on_reject` must refer to an existing step id.
-async fn on_reject_valid(e: &TrackedWorkflow) -> Vec<RuleViolation> {
+async fn on_reject_valid(e: &TrackedWorkflow) -> Vec<PrimitiveError> {
     let steps = match e.steps.get() {
         Some(s) => s,
         None => return vec![],
@@ -68,9 +70,10 @@ async fn on_reject_valid(e: &TrackedWorkflow) -> Vec<RuleViolation> {
     for (step_id, step) in steps.iter() {
         if let Step::Review { on_reject, .. } = step {
             if !step_ids.contains(on_reject.as_str()) {
-                violations.push(RuleViolation::sub(
+                violations.push(PrimitiveError::invalid_on_reject_target(
+                    "on_reject target does not exist",
                     format!(".{step_id}.on_reject"),
-                    format!("step '{on_reject}' does not exist"),
+                    on_reject.clone(),
                 ));
             }
         }
@@ -79,7 +82,7 @@ async fn on_reject_valid(e: &TrackedWorkflow) -> Vec<RuleViolation> {
 }
 
 /// If any Review step is present, the workflow must have a state with Reviewing semantic.
-async fn reviewing_state_required(e: &TrackedWorkflow) -> Vec<RuleViolation> {
+async fn reviewing_state_required(e: &TrackedWorkflow) -> Vec<PrimitiveError> {
     let steps = match e.steps.get() {
         Some(s) => s,
         None => return vec![],
@@ -99,8 +102,9 @@ async fn reviewing_state_required(e: &TrackedWorkflow) -> Vec<RuleViolation> {
         )
     });
     if !has_reviewing {
-        vec![RuleViolation::field(
+        vec![PrimitiveError::workflow_graph_inconsistency(
             "workflow has Review steps but no state with Reviewing semantic",
+            "missing_reviewing_semantic",
         )]
     } else {
         vec![]
@@ -108,10 +112,10 @@ async fn reviewing_state_required(e: &TrackedWorkflow) -> Vec<RuleViolation> {
 }
 
 // ---------------------------------------------------------------------------
-// ReusableWorkflow semantic rules (same structure)
+// ReusableWorkflow semantic rules
 // ---------------------------------------------------------------------------
 
-async fn on_reject_valid_reusable(e: &TrackedReusableWorkflow) -> Vec<RuleViolation> {
+async fn on_reject_valid_reusable(e: &TrackedReusableWorkflow) -> Vec<PrimitiveError> {
     let steps = match e.steps.get() {
         Some(s) => s,
         None => return vec![],
@@ -121,9 +125,10 @@ async fn on_reject_valid_reusable(e: &TrackedReusableWorkflow) -> Vec<RuleViolat
     for (step_id, step) in steps.iter() {
         if let Step::Review { on_reject, .. } = step {
             if !step_ids.contains(on_reject.as_str()) {
-                violations.push(RuleViolation::sub(
+                violations.push(PrimitiveError::invalid_on_reject_target(
+                    "on_reject target does not exist",
                     format!(".{step_id}.on_reject"),
-                    format!("step '{on_reject}' does not exist"),
+                    on_reject.clone(),
                 ));
             }
         }
@@ -131,7 +136,7 @@ async fn on_reject_valid_reusable(e: &TrackedReusableWorkflow) -> Vec<RuleViolat
     violations
 }
 
-async fn reviewing_state_required_reusable(e: &TrackedReusableWorkflow) -> Vec<RuleViolation> {
+async fn reviewing_state_required_reusable(e: &TrackedReusableWorkflow) -> Vec<PrimitiveError> {
     let steps = match e.steps.get() {
         Some(s) => s,
         None => return vec![],
@@ -151,15 +156,16 @@ async fn reviewing_state_required_reusable(e: &TrackedReusableWorkflow) -> Vec<R
         )
     });
     if !has_reviewing {
-        vec![RuleViolation::field(
+        vec![PrimitiveError::workflow_graph_inconsistency(
             "workflow has Review steps but no state with Reviewing semantic",
+            "missing_reviewing_semantic",
         )]
     } else {
         vec![]
     }
 }
 
-async fn depends_on_valid_reusable(e: &TrackedReusableWorkflow) -> Vec<RuleViolation> {
+async fn depends_on_valid_reusable(e: &TrackedReusableWorkflow) -> Vec<PrimitiveError> {
     let steps = match e.steps.get() {
         Some(s) => s,
         None => return vec![],
@@ -182,9 +188,10 @@ async fn depends_on_valid_reusable(e: &TrackedReusableWorkflow) -> Vec<RuleViola
             } => {
                 for dep in deps {
                     if !step_ids.contains(dep.as_str()) {
-                        violations.push(RuleViolation::sub(
+                        violations.push(PrimitiveError::illegal_dependency_reference(
+                            "step does not exist",
                             format!(".{step_id}.depends_on"),
-                            format!("step '{dep}' does not exist"),
+                            dep.clone(),
                         ));
                     }
                 }
@@ -199,7 +206,7 @@ async fn depends_on_valid_reusable(e: &TrackedReusableWorkflow) -> Vec<RuleViola
 // EmbeddedWorkflow semantic rules
 // ---------------------------------------------------------------------------
 
-async fn on_reject_valid_embedded(e: &TrackedEmbeddedWorkflow) -> Vec<RuleViolation> {
+async fn on_reject_valid_embedded(e: &TrackedEmbeddedWorkflow) -> Vec<PrimitiveError> {
     let steps = match e.steps.get() {
         Some(s) => s,
         None => return vec![],
@@ -209,9 +216,10 @@ async fn on_reject_valid_embedded(e: &TrackedEmbeddedWorkflow) -> Vec<RuleViolat
     for (step_id, step) in steps.iter() {
         if let Step::Review { on_reject, .. } = step {
             if !step_ids.contains(on_reject.as_str()) {
-                violations.push(RuleViolation::sub(
+                violations.push(PrimitiveError::invalid_on_reject_target(
+                    "on_reject target does not exist",
                     format!(".{step_id}.on_reject"),
-                    format!("step '{on_reject}' does not exist"),
+                    on_reject.clone(),
                 ));
             }
         }
@@ -219,7 +227,7 @@ async fn on_reject_valid_embedded(e: &TrackedEmbeddedWorkflow) -> Vec<RuleViolat
     violations
 }
 
-async fn reviewing_state_required_embedded(e: &TrackedEmbeddedWorkflow) -> Vec<RuleViolation> {
+async fn reviewing_state_required_embedded(e: &TrackedEmbeddedWorkflow) -> Vec<PrimitiveError> {
     let steps = match e.steps.get() {
         Some(s) => s,
         None => return vec![],
@@ -239,8 +247,9 @@ async fn reviewing_state_required_embedded(e: &TrackedEmbeddedWorkflow) -> Vec<R
         )
     });
     if !has_reviewing {
-        vec![RuleViolation::field(
+        vec![PrimitiveError::workflow_graph_inconsistency(
             "workflow has Review steps but no state with Reviewing semantic",
+            "missing_reviewing_semantic",
         )]
     } else {
         vec![]
@@ -373,7 +382,9 @@ pub fn reusable_workflow_validation_schema() -> ValidationSchema<ReusableWorkflo
         vec![
             Box::new(|e: &TrackedReusableWorkflow| Box::pin(depends_on_valid_reusable(e))),
             Box::new(|e: &TrackedReusableWorkflow| Box::pin(on_reject_valid_reusable(e))),
-            Box::new(|e: &TrackedReusableWorkflow| Box::pin(reviewing_state_required_reusable(e))),
+            Box::new(|e: &TrackedReusableWorkflow| {
+                Box::pin(reviewing_state_required_reusable(e))
+            }),
         ],
     );
 
@@ -490,7 +501,9 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
         "steps",
         vec![
             Box::new(|e: &TrackedEmbeddedWorkflow| Box::pin(on_reject_valid_embedded(e))),
-            Box::new(|e: &TrackedEmbeddedWorkflow| Box::pin(reviewing_state_required_embedded(e))),
+            Box::new(|e: &TrackedEmbeddedWorkflow| {
+                Box::pin(reviewing_state_required_embedded(e))
+            }),
         ],
     );
 

@@ -2,11 +2,12 @@
 
 use super::{
     camel_case_id, non_empty_list, non_empty_str, states_valid_task, x_prefix_keys,
-    AnyCrossEntityRule, AnyStructuralRule, RuleViolation, ValidationSchema,
+    AnyCrossEntityRule, AnyStructuralRule, ValidationSchema,
 };
 use crate::entity::entities::task::{Task, TrackedTask};
+use crate::error::primitive::PrimitiveError;
 
-fn opt_non_empty_str(value: &Option<String>) -> Vec<RuleViolation> {
+fn opt_non_empty_str(value: &Option<String>) -> Vec<PrimitiveError> {
     match value {
         None => vec![],
         Some(s) => non_empty_str(s),

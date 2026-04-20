@@ -25,7 +25,7 @@ pub fn generate_tracked_entity_validation_impl(entries: &[RegistryEntry]) -> Tok
                 &self,
                 fields: &[&str],
                 kinds: &[::pari::validation::ValidationKind],
-            ) -> ::pari::validation::ValidationErrors {
+            ) -> ::std::result::Result<::pari::validation::ValidationErrors, ::pari::error::primitive::PrimitiveError> {
                 match self {
                     #(#run_validations_arms)*
                 }

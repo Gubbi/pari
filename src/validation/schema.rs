@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use crate::entity::Entity;
-
-use super::rule_violation::RuleViolation;
+use crate::error::primitive::PrimitiveError;
 
 // ---------------------------------------------------------------------------
 // Rule function type aliases
@@ -10,14 +9,14 @@ use super::rule_violation::RuleViolation;
 
 /// Structural rule: sync closure that receives the whole tracked entity.
 pub type AnyStructuralRule<E> =
-    Box<dyn Fn(&<E as Entity>::Tracked) -> Vec<RuleViolation> + Send + Sync>;
+    Box<dyn Fn(&<E as Entity>::Tracked) -> Vec<PrimitiveError> + Send + Sync>;
 
 /// Semantic rule: async closure that receives the whole tracked entity.
 pub type AnySemanticRule<E> = Box<
     dyn for<'a> Fn(
             &'a <E as Entity>::Tracked,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Vec<RuleViolation>> + Send + 'a>,
+            Box<dyn std::future::Future<Output = Vec<PrimitiveError>> + Send + 'a>,
         > + Send
         + Sync,
 >;
@@ -74,7 +73,7 @@ pub trait ValidatableTracked<E: Entity> {
         &self,
         field_name: &str,
         rules: &[AnyStructuralRule<E>],
-    ) -> Vec<RuleViolation>;
+    ) -> Vec<PrimitiveError>;
 }
 
 impl<E: Entity> ValidatableTracked<E> for E::Tracked {
@@ -82,7 +81,7 @@ impl<E: Entity> ValidatableTracked<E> for E::Tracked {
         &self,
         _field_name: &str,
         rules: &[AnyStructuralRule<E>],
-    ) -> Vec<RuleViolation> {
+    ) -> Vec<PrimitiveError> {
         rules.iter().flat_map(|r| r(self)).collect()
     }
 }
