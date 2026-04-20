@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
+    error::primitive::PrimitiveError,
     entity::{AnyEntityRef, EntityKind, TrackedEntity},
     store::EntityChange,
     substrate::{
@@ -21,7 +22,7 @@ where
 {
     Sub::schema_for(entity_kind)
         .load_strategy_for(field)
-        .map_err(SubstrateError::from)
+        .map_err(SubstrateError::invalid_persistence_layout)
 }
 
 pub(crate) async fn exists<Sub>(
@@ -66,9 +67,10 @@ where
     Sub: SchemaBackedSubstrate,
 {
     let schema = Sub::schema_for(entity.any_ref().kind());
-    let entity_json = entity_to_json(entity)?;
+    let entity_json = entity_to_json(entity).map_err(SubstrateError::unpersistable_definition)?;
     let assets_to_fetch =
-        pipeline::AssetMapper::select_for_read(schema, fields).map_err(SubstrateError::from)?;
+        pipeline::AssetMapper::select_for_read(schema, fields)
+            .map_err(SubstrateError::invalid_persistence_layout)?;
 
     let requests = assets_to_fetch.iter().map(|asset| {
         let location = substrate
@@ -94,8 +96,9 @@ where
         let field_map = substrate
             .codec()
             .decode(&encoded, asset.fields())
-            .map_err(SubstrateError::from)?;
-        merge_field_map_into(&mut result, field_map)?;
+            .map_err(SubstrateError::unpersistable_definition)?;
+        merge_field_map_into(&mut result, field_map)
+            .map_err(SubstrateError::unpersistable_definition)?;
     }
 
     Ok(result)
@@ -155,7 +158,11 @@ where
         .executor()
         .execute(ops)
         .map(|_| ())
-        .map_err(|errs| errs.into_iter().map(SubstrateError::from).collect())
+        .map_err(|errs| {
+            errs.into_iter()
+                .map(SubstrateError::corrupt_persistence_state)
+                .collect()
+        })
 }
 
 fn build_write_ops<'a, Sub>(
@@ -168,12 +175,12 @@ fn build_write_ops<'a, Sub>(
 where
     Sub: SchemaBackedSubstrate,
 {
-    let entity_json = entity_to_json(entity).map_err(|e| vec![e])?;
+    let entity_json =
+        entity_to_json(entity).map_err(|source| vec![SubstrateError::unpersistable_definition(source)])?;
     let is_create = dirty_fields.is_none();
 
     for asset in pipeline::AssetMapper::select_for_write(schema, dirty_fields)
-        .map_err(SubstrateError::from)
-        .map_err(|e| vec![e])?
+        .map_err(|source| vec![SubstrateError::invalid_persistence_layout(source)])?
     {
         let location = substrate
             .resolver()
@@ -184,8 +191,7 @@ where
         let encoded = substrate
             .codec()
             .encode(&entity_json, asset.fields())
-            .map_err(SubstrateError::from)
-            .map_err(|e| vec![e])?;
+            .map_err(|source| vec![SubstrateError::unpersistable_definition(source)])?;
         ops.push(pipeline::AssetRequest {
             location,
             op: asset.kind().write_op(is_create, is_partial, encoded),
@@ -211,10 +217,13 @@ fn asset_write_is_partial<S: pipeline::Slot>(
     dirty_in_asset < asset_fields.len()
 }
 
-fn collapse_executor_errors(errors: Vec<pipeline::ExecutorError>) -> SubstrateError {
-    let error = errors
+fn collapse_executor_errors(errors: Vec<PrimitiveError>) -> SubstrateError {
+    let source = errors
         .into_iter()
         .next()
-        .unwrap_or_else(|| pipeline::ExecutorError::new("substrate", "executor batch failed"));
-    SubstrateError::from(error)
+        .unwrap_or_else(|| PrimitiveError::EmptyBatch {
+            context: PrimitiveError::context("empty batch"),
+            batch_kind: "executor_errors".to_string(),
+        });
+    SubstrateError::corrupt_persistence_state(source)
 }

@@ -1,6 +1,9 @@
-use crate::substrate::{
-    in_memory::storage::InMemoryStorage,
-    pipeline::{AssetOp, AssetRequest, AssetResponse, Executor, ExecutorError},
+use crate::{
+    error::primitive::PrimitiveError,
+    substrate::{
+        in_memory::storage::InMemoryStorage,
+        pipeline::{AssetOp, AssetRequest, AssetResponse, Executor},
+    },
 };
 pub struct InMemoryExecutor {
     pub(super) assets: InMemoryStorage,
@@ -16,7 +19,10 @@ impl Executor for InMemoryExecutor {
     type Location = String;
     type Encoded = String;
 
-    fn execute<I>(&self, ops: I) -> Result<Vec<AssetResponse<Self::Encoded>>, Vec<ExecutorError>>
+    fn execute<I>(
+        &self,
+        ops: I,
+    ) -> Result<Vec<AssetResponse<Self::Encoded>>, Vec<PrimitiveError>>
     where
         I: IntoIterator<Item = AssetRequest<Self::Location, Self::Encoded>>,
     {
@@ -32,7 +38,13 @@ impl Executor for InMemoryExecutor {
                 }
                 AssetOp::Get => match assets.get(&req.location) {
                     Some(data) => responses.push(AssetResponse::Data(data.clone())),
-                    None => errors.push(ExecutorError::new(req.location, "not found")),
+                    None => {
+                        let asset_path = req.location.clone();
+                        errors.push(PrimitiveError::MissingAsset {
+                            context: PrimitiveError::context("requested asset missing"),
+                            asset_path: asset_path.clone(),
+                        });
+                    }
                 },
                 AssetOp::Put(encoded) | AssetOp::Post(encoded) | AssetOp::Patch(encoded) => {
                     assets.insert(req.location, encoded);

@@ -1,8 +1,11 @@
-use pari::error::{primitive::*, ErrorLayer};
+use pari::error::{primitive::PrimitiveError, ErrorLayer};
 
 #[test]
 fn document_primitive_default_error_type_is_snake_case() {
-    let error = MalformedFrontmatter::new("frontmatter parse failed", "---".to_string());
+    let error = PrimitiveError::MalformedFrontmatter {
+        context: PrimitiveError::context("frontmatter parse failed"),
+        raw_snippet: "---".to_string(),
+    };
 
     assert_eq!(error.error_layer(), ErrorLayer::Primitive);
     assert_eq!(error.error_type(), "malformed_frontmatter");
@@ -11,7 +14,10 @@ fn document_primitive_default_error_type_is_snake_case() {
 
 #[test]
 fn schema_primitive_captures_named_detail_fields() {
-    let error = UnknownSchemaField::new("field is not mapped", "purpose".to_string());
+    let error = PrimitiveError::UnknownSchemaField {
+        context: PrimitiveError::context("field is not mapped"),
+        field: "purpose".to_string(),
+    };
 
     let details = error.details();
     assert_eq!(details.len(), 1);
@@ -21,11 +27,11 @@ fn schema_primitive_captures_named_detail_fields() {
 
 #[test]
 fn io_primitive_supports_multiple_detail_fields() {
-    let error = PathPermissionDenied::new(
-        "permission denied",
-        "roles/eng-lead.md".to_string(),
-        "write".to_string(),
-    );
+    let error = PrimitiveError::PathPermissionDenied {
+        context: PrimitiveError::context("permission denied"),
+        asset_path: "roles/eng-lead.md".to_string(),
+        operation: "write".to_string(),
+    };
 
     let details = error.details();
     assert_eq!(details.len(), 2);
@@ -37,14 +43,19 @@ fn io_primitive_supports_multiple_detail_fields() {
 
 #[test]
 fn schema_message_only_primitive_has_no_details() {
-    let error = SharedStateCorrupted::new("shared state corrupted");
+    let error = PrimitiveError::SharedStateCorrupted {
+        context: PrimitiveError::context("shared state corrupted"),
+    };
 
     assert!(error.details().is_empty());
 }
 
 #[test]
 fn payload_primitives_cover_shared_reconstruction_failures() {
-    let error = MissingRequiredPayloadField::new("required payload field missing", "owner".to_string());
+    let error = PrimitiveError::MissingRequiredPayloadField {
+        context: PrimitiveError::context("required payload field missing"),
+        field: "owner".to_string(),
+    };
 
     assert_eq!(error.error_type(), "missing_required_payload_field");
     let details = error.details();

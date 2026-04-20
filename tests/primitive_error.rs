@@ -1,5 +1,4 @@
-use pari::error::{ErrorLayer, OTelEmit};
-use pari_macros::primitive_error;
+use pari::error::{primitive::PrimitiveError, ErrorLayer, ErrorLocation, OTelEmit};
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},
@@ -10,21 +9,12 @@ use tracing::{
     Event, Metadata, Subscriber,
 };
 
-#[primitive_error]
-pub struct MalformedFrontmatter {
-    pub line: usize,
-    pub raw_snippet: String,
-}
-
-#[primitive_error(error_type = "rename_failed")]
-pub struct RenameFailure {
-    pub from: String,
-    pub to: String,
-}
-
 #[test]
-fn primitive_error_new_captures_common_fields() {
-    let error = MalformedFrontmatter::new("invalid frontmatter", 7, "---".to_string());
+fn primitive_error_context_captures_common_fields() {
+    let error = PrimitiveError::MalformedFrontmatter {
+        context: PrimitiveError::context("invalid frontmatter"),
+        raw_snippet: "---".to_string(),
+    };
 
     assert_eq!(error.error_layer(), ErrorLayer::Primitive);
     assert_eq!(error.error_type(), "malformed_frontmatter");
@@ -34,45 +24,40 @@ fn primitive_error_new_captures_common_fields() {
 }
 
 #[test]
-fn primitive_error_override_error_type() {
-    let error = RenameFailure::new("rename failed", "a".to_string(), "b".to_string());
-
-    assert_eq!(error.error_type(), "rename_failed");
-}
-
-#[test]
-fn primitive_error_new_with_location_uses_explicit_location() {
-    let location = pari::error::ErrorLocation {
+fn primitive_error_context_with_location_uses_explicit_location() {
+    let location = ErrorLocation {
         file: "domain.md".to_string(),
         line: 12,
         column: 9,
     };
 
-    let error = MalformedFrontmatter::new_with_location(
-        location.clone(),
-        "invalid frontmatter",
-        3,
-        "---".to_string(),
-    );
+    let error = PrimitiveError::MalformedFrontmatter {
+        context: PrimitiveError::context_with_location(location.clone(), "invalid frontmatter"),
+        raw_snippet: "---".to_string(),
+    };
 
     assert_eq!(error.location(), &location);
 }
 
 #[test]
-fn primitive_error_details_include_struct_fields() {
-    let error = RenameFailure::new("rename failed", "old.md".to_string(), "new.md".to_string());
+fn primitive_error_details_include_variant_fields() {
+    let error = PrimitiveError::UnknownSchemaField {
+        context: PrimitiveError::context("unknown schema field"),
+        field: "owner".to_string(),
+    };
 
     let details = error.details();
-    assert_eq!(details.len(), 2);
-    assert_eq!(details[0].field_name, "from");
-    assert!(details[0].value.contains("old.md"));
-    assert_eq!(details[1].field_name, "to");
-    assert!(details[1].value.contains("new.md"));
+    assert_eq!(details.len(), 1);
+    assert_eq!(details[0].field_name, "field");
+    assert!(details[0].value.contains("owner"));
 }
 
 #[test]
 fn primitive_error_emit_contains_expected_payload() {
-    let error = RenameFailure::new("rename failed", "old.md".to_string(), "new.md".to_string());
+    let error = PrimitiveError::UnknownSchemaField {
+        context: PrimitiveError::context("unknown schema field"),
+        field: "owner".to_string(),
+    };
     let captured = Arc::new(Mutex::new(Vec::<CapturedEvent>::new()));
     let subscriber = TestSubscriber::new(Arc::clone(&captured));
 
@@ -85,21 +70,14 @@ fn primitive_error_emit_contains_expected_payload() {
 
     let event = &events[0];
     assert_eq!(event.level, "ERROR");
-    assert_eq!(event.fields.get("exception.type"), Some(&"rename_failed".to_string()));
+    assert_eq!(event.fields.get("exception.type"), Some(&"unknown_schema_field".to_string()));
     assert_eq!(
         event.fields.get("exception.message"),
-        Some(&"rename failed".to_string())
-    );
-    assert_eq!(event.fields.get("code.file.path").is_some(), true);
-    assert_eq!(event.fields.get("code.line.number").is_some(), true);
-    assert_eq!(event.fields.get("code.column.number").is_some(), true);
-    assert_eq!(
-        event.fields.get("error.rename_failed.from"),
-        Some(&"\"old.md\"".to_string())
+        Some(&"unknown schema field".to_string())
     );
     assert_eq!(
-        event.fields.get("error.rename_failed.to"),
-        Some(&"\"new.md\"".to_string())
+        event.fields.get("error.unknown_schema_field.field"),
+        Some(&"\"owner\"".to_string())
     );
 }
 

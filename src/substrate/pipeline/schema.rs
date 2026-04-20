@@ -3,7 +3,10 @@ use std::{
     sync::{LazyLock, Mutex},
 };
 
-use crate::substrate::pipeline::{AssetKind, CodecError, Slot};
+use crate::{
+    error::primitive::PrimitiveError,
+    substrate::pipeline::{AssetKind, Slot},
+};
 
 #[derive(Clone, Copy)]
 pub struct FieldMapping<S: Slot> {
@@ -76,7 +79,7 @@ impl<S: Slot> EntitySchema<S> {
         Self { ref_asset, assets }
     }
 
-    pub fn load_strategy_for(&self, field: &str) -> Result<LoadStrategy, CodecError> {
+    pub fn load_strategy_for(&self, field: &str) -> Result<LoadStrategy, PrimitiveError> {
         let selector = self.lookup(field)?;
         let (asset, prerequisites) = self.asset_parts(selector);
         Ok(LoadStrategy {
@@ -88,7 +91,7 @@ impl<S: Slot> EntitySchema<S> {
     pub fn assets_for_write<'a>(
         &'a self,
         dirty_fields: Option<&[&str]>,
-    ) -> Result<Vec<SchemaAsset<'a, S>>, CodecError> {
+    ) -> Result<Vec<SchemaAsset<'a, S>>, PrimitiveError> {
         match dirty_fields {
             None => Ok(self.all_assets().collect()),
             Some(fields) => self.assets_for_fields(fields),
@@ -98,7 +101,7 @@ impl<S: Slot> EntitySchema<S> {
     pub fn assets_for_read<'a>(
         &'a self,
         fields: &[&str],
-    ) -> Result<Vec<SchemaAsset<'a, S>>, CodecError> {
+    ) -> Result<Vec<SchemaAsset<'a, S>>, PrimitiveError> {
         if fields.is_empty() {
             Ok(self.all_assets().collect())
         } else {
@@ -114,7 +117,7 @@ impl<S: Slot> EntitySchema<S> {
     fn assets_for_fields<'a>(
         &'a self,
         fields: &[&str],
-    ) -> Result<Vec<SchemaAsset<'a, S>>, CodecError> {
+    ) -> Result<Vec<SchemaAsset<'a, S>>, PrimitiveError> {
         let mut resolved = Vec::new();
         let mut seen = HashSet::new();
         for field in fields {
@@ -145,7 +148,7 @@ impl<S: Slot> EntitySchema<S> {
         asset.kind().supports_partial || asset.fields().len() == 1
     }
 
-    fn lookup(&self, field: &str) -> Result<AssetSelector, CodecError> {
+    fn lookup(&self, field: &str) -> Result<AssetSelector, PrimitiveError> {
         let schema_id = self as *const Self as usize;
         let mut cache = FIELD_INDEX_CACHE.lock().unwrap();
         let index = cache.entry(schema_id).or_insert_with(|| {
@@ -174,6 +177,11 @@ impl<S: Slot> EntitySchema<S> {
         index
             .get(field)
             .copied()
-            .ok_or_else(|| CodecError::new(field, "unknown schema field"))
+            .ok_or_else(|| {
+                PrimitiveError::UnknownSchemaField {
+                    context: PrimitiveError::context("unknown schema field"),
+                    field: field.to_string(),
+                }
+            })
     }
 }

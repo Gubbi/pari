@@ -1,30 +1,7 @@
 //! Centralized primitive error repository.
 //!
 //! Primitive errors are the leaf-most failure evidence in the error model.
-//! They live centrally under the formal `error` layer and are organized by
-//! shared primitive family rather than by the current owning layer's module
-//! layout.
 
-pub mod aggregation;
-pub mod document;
-pub mod identity;
-pub mod io;
-pub mod path;
-pub mod payload;
-pub mod schema;
-pub mod state;
-pub mod substrate;
-pub mod transport;
-pub mod validation;
+mod primitive_errors;
 
-pub use aggregation::*;
-pub use document::*;
-pub use identity::*;
-pub use io::*;
-pub use path::*;
-pub use payload::*;
-pub use schema::*;
-pub use state::*;
-pub use substrate::*;
-pub use transport::*;
-pub use validation::*;
+pub use primitive_errors::{PrimitiveContext, PrimitiveError};

@@ -1,45 +1,36 @@
 use pari::{
-    error::{pari_error::PariError, ErrorCompose, FixDomain, Recoverability, Severity},
-    store_error::StoreError,
-    substrate::{
-        error::SubstrateError,
-        pipeline::{codec::error::CodecError, executor::error::ExecutorError},
+    error::{
+        pari_error::PariError, primitive::PrimitiveError, ErrorCompose, FixDomain, Recoverability,
+        Severity,
     },
+    store_error::StoreError,
+    substrate::error::SubstrateError,
     validation::error::{FieldValidationError, SetterError, ValidationErrors, ValidationKind},
     workspace::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError},
 };
 
-// --- Primitive classifications ---
-
 #[test]
-fn codec_error_is_data_operator_action() {
-    let e = CodecError::new("name", "expected string");
+fn substrate_unpersistable_definition_is_data_operator_action() {
+    let primitive = PrimitiveError::UnknownSchemaField {
+        context: PrimitiveError::context("unknown schema field"),
+        field: "name".to_string(),
+    };
+    let e = SubstrateError::unpersistable_definition(primitive);
     assert_eq!(e.fix_domain(), FixDomain::Data);
     assert_eq!(e.recoverability(), Recoverability::OperatorAction);
 }
 
 #[test]
-fn executor_error_is_infra_operator_action() {
-    let e = ExecutorError::new("roles/eng-lead.md", "permission denied");
+fn substrate_corrupt_persistence_state_is_infra_operator_action() {
+    let primitive = PrimitiveError::PathPermissionDenied {
+        context: PrimitiveError::context("path permission denied"),
+        asset_path: "roles/eng-lead.md".to_string(),
+        operation: "get".to_string(),
+    };
+    let e = SubstrateError::corrupt_persistence_state(primitive);
     assert_eq!(e.fix_domain(), FixDomain::Infra);
     assert_eq!(e.recoverability(), Recoverability::OperatorAction);
 }
-
-// --- SubstrateError delegates correctly ---
-
-#[test]
-fn substrate_error_codec_variant_delegates_fix_domain() {
-    let sub = SubstrateError::Codec(CodecError::new("name", "bad"));
-    assert_eq!(sub.fix_domain(), FixDomain::Data);
-}
-
-#[test]
-fn substrate_error_executor_variant_delegates_fix_domain() {
-    let sub = SubstrateError::Executor(ExecutorError::new("roles/x.md", "io error"));
-    assert_eq!(sub.fix_domain(), FixDomain::Infra);
-}
-
-// --- Store operation error classifications ---
 
 #[test]
 fn checkout_already_checked_out_is_client_user_action() {
@@ -62,10 +53,11 @@ fn checkout_not_found_is_client_user_action() {
 
 #[test]
 fn checkout_substrate_delegates() {
-    let e = CheckoutError::Substrate(SubstrateError::Executor(ExecutorError::new(
-        "roles/x.md",
-        "io error",
-    )));
+    let primitive = PrimitiveError::FileRead {
+        context: PrimitiveError::context("file read failed"),
+        asset_path: "roles/x.md".to_string(),
+    };
+    let e = CheckoutError::Substrate(SubstrateError::corrupt_persistence_state(primitive));
     assert_eq!(e.fix_domain(), FixDomain::Infra);
 }
 
@@ -81,10 +73,13 @@ fn commit_validation_failed_is_client_user_action() {
 
 #[test]
 fn commit_cross_ref_check_failed_delegates_to_substrate() {
-    let e = CommitError::CrossReferenceCheckFailed(SubstrateError::Executor(ExecutorError::new(
-        "roles/x.md",
-        "io",
-    )));
+    let primitive = PrimitiveError::FileRead {
+        context: PrimitiveError::context("file read failed"),
+        asset_path: "roles/x.md".to_string(),
+    };
+    let e = CommitError::CrossReferenceCheckFailed(SubstrateError::corrupt_persistence_state(
+        primitive,
+    ));
     assert_eq!(e.fix_domain(), FixDomain::Infra);
 }
 
@@ -101,7 +96,6 @@ fn load_validation_failed_is_data_operator_action() {
         error_count: 2,
         errors: ValidationErrors::new(),
     };
-    // Data because substrate returned invalid content, not user input
     assert_eq!(e.fix_domain(), FixDomain::Data);
     assert_eq!(e.recoverability(), Recoverability::OperatorAction);
 }
@@ -129,20 +123,19 @@ fn resolve_store_unavailable_is_pari_not_recoverable() {
     assert_eq!(e.recoverability(), Recoverability::NotRecoverable);
 }
 
-// --- as_error downcast through PariError chain ---
-
 #[test]
 fn pari_error_downcast_reaches_load_error() {
-    let codec = CodecError::new("name", "bad");
-    let sub = SubstrateError::Codec(codec);
+    let primitive = PrimitiveError::UnknownSchemaField {
+        context: PrimitiveError::context("unknown schema field"),
+        field: "name".to_string(),
+    };
+    let sub = SubstrateError::unpersistable_definition(primitive);
     let load = LoadError::Substrate(sub);
     let pari = PariError::LoadFailed(load);
 
     let found = (&pari as &dyn ErrorCompose).as_error::<LoadError>();
     assert!(found.is_some());
 }
-
-// --- emit() compiles and is callable ---
 
 #[test]
 fn emit_on_pari_error_does_not_panic() {
@@ -152,8 +145,6 @@ fn emit_on_pari_error_does_not_panic() {
     });
     e.emit();
 }
-
-// --- ValidationErrors: plain data, not ErrorCompose ---
 
 #[test]
 fn validation_errors_accumulate() {
@@ -166,8 +157,6 @@ fn validation_errors_accumulate() {
     assert_eq!(errs.errors.len(), 1);
 }
 
-// --- Setter error ---
-
 #[test]
 fn setter_validation_error_is_client_user_action() {
     let e = SetterError::Validation {
@@ -178,14 +167,10 @@ fn setter_validation_error_is_client_user_action() {
     assert_eq!(e.recoverability(), Recoverability::UserAction);
 }
 
-// --- All operation errors implement ErrorCompose ---
-
 fn assert_error_compose<E: ErrorCompose>() {}
 
 #[test]
 fn all_operation_errors_implement_error_compose() {
-    assert_error_compose::<CodecError>();
-    assert_error_compose::<ExecutorError>();
     assert_error_compose::<SubstrateError>();
     assert_error_compose::<StoreError>();
     assert_error_compose::<CheckoutError>();

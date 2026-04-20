@@ -9,6 +9,7 @@ mod entity_registry;
 mod error_compose;
 mod otel_emit;
 mod primitive_error;
+mod primitive_error_enum;
 mod store_codegen;
 mod substrate_codegen;
 mod validation_codegen;
@@ -51,4 +52,9 @@ pub fn primitive_with_fields(args: TokenStream, input: TokenStream) -> TokenStre
 #[proc_macro_attribute]
 pub fn primitive_message_only(args: TokenStream, input: TokenStream) -> TokenStream {
     primitive_error::primitive_message_only(args, input)
+}
+
+#[proc_macro]
+pub fn primitive_errors(input: TokenStream) -> TokenStream {
+    primitive_error_enum::primitive_errors(input)
 }

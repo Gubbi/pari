@@ -1,12 +1,12 @@
-use pari::error::{primitive::*, ErrorLayer};
+use pari::error::{primitive::PrimitiveError, ErrorLayer};
 
 #[test]
 fn identity_primitive_defaults_error_type_from_name() {
-    let error = ParentChildKindMismatch::new(
-        "parent kind does not match child kind",
-        "Workflow".to_string(),
-        "Task".to_string(),
-    );
+    let error = PrimitiveError::ParentChildKindMismatch {
+        context: PrimitiveError::context("parent kind does not match child kind"),
+        parent_kind: "Workflow".to_string(),
+        child_kind: "Task".to_string(),
+    };
 
     assert_eq!(error.error_layer(), ErrorLayer::Primitive);
     assert_eq!(error.error_type(), "parent_child_kind_mismatch");
@@ -15,10 +15,10 @@ fn identity_primitive_defaults_error_type_from_name() {
 
 #[test]
 fn identity_primitive_captures_reference_details() {
-    let error = MissingRequiredReferenceField::new(
-        "missing required reference field",
-        "id".to_string(),
-    );
+    let error = PrimitiveError::MissingRequiredReferenceField {
+        context: PrimitiveError::context("missing required reference field"),
+        field: "id".to_string(),
+    };
 
     let details = error.details();
     assert_eq!(details.len(), 1);
@@ -28,11 +28,11 @@ fn identity_primitive_captures_reference_details() {
 
 #[test]
 fn validation_primitive_captures_rule_violation_details() {
-    let error = StructuralRuleViolation::new(
-        "structural rule rejected candidate state",
-        "steps.approval".to_string(),
-        "non_empty".to_string(),
-    );
+    let error = PrimitiveError::StructuralRuleViolation {
+        context: PrimitiveError::context("structural rule rejected candidate state"),
+        field_path: "steps.approval".to_string(),
+        rule_kind: "non_empty".to_string(),
+    };
 
     let details = error.details();
     assert_eq!(details.len(), 2);
@@ -44,13 +44,13 @@ fn validation_primitive_captures_rule_violation_details() {
 
 #[test]
 fn validation_primitive_supports_dispatch_failures() {
-    let error = ValidationDispatchFailed::new(
-        "validation dispatch failed",
-        "Workflow".to_string(),
-        "missing validator registration".to_string(),
-    );
+    let error = PrimitiveError::ValidationDispatch {
+        context: PrimitiveError::context("validation dispatch failed"),
+        tracked_kind: "Workflow".to_string(),
+        reason: "missing validator registration".to_string(),
+    };
 
-    assert_eq!(error.error_type(), "validation_dispatch_failed");
+    assert_eq!(error.error_type(), "validation_dispatch");
     let details = error.details();
     assert_eq!(details.len(), 2);
     assert_eq!(details[0].field_name, "tracked_kind");

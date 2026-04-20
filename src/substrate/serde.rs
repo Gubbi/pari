@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
+    error::primitive::PrimitiveError,
     entity::{AnyEntityRef, TrackedEntity},
-    substrate::{pipeline, SubstrateError},
 };
 
 pub(crate) fn any_ref_to_stub_json(any_ref: &AnyEntityRef) -> serde_json::Value {
@@ -11,16 +11,22 @@ pub(crate) fn any_ref_to_stub_json(any_ref: &AnyEntityRef) -> serde_json::Value 
     })
 }
 
-pub(crate) fn entity_to_json(entity: &TrackedEntity) -> Result<serde_json::Value, SubstrateError> {
-    entity
-        .to_json_value()
-        .map_err(|e| SubstrateError::Codec(pipeline::CodecError::new("entity", e.to_string())))
+pub(crate) fn entity_to_json(
+    entity: &TrackedEntity,
+) -> Result<serde_json::Value, PrimitiveError> {
+    entity.to_json_value().map_err(|e| {
+        PrimitiveError::EntityProjection {
+            context: PrimitiveError::context("entity projection failed"),
+            entity_ref: entity.any_ref().id().to_string(),
+            reason: e.to_string(),
+        }
+    })
 }
 
 pub(crate) fn merge_field_map_into(
     target: &mut TrackedEntity,
     mut field_map: HashMap<String, serde_json::Value>,
-) -> Result<(), SubstrateError> {
+) -> Result<(), PrimitiveError> {
     if let Some(ext) = field_map.remove("extensions") {
         if let Some(obj) = ext.as_object() {
             for (k, v) in obj {
@@ -78,9 +84,14 @@ fn insert_path_value(
 fn deserialize_entity_from_value(
     any_ref: &AnyEntityRef,
     value: serde_json::Value,
-) -> Result<TrackedEntity, SubstrateError> {
-    TrackedEntity::from_json_value(any_ref, value)
-        .map_err(|e| SubstrateError::Codec(pipeline::CodecError::new(any_ref.id(), e.to_string())))
+) -> Result<TrackedEntity, PrimitiveError> {
+    TrackedEntity::from_json_value(any_ref, value).map_err(|e| {
+        PrimitiveError::PartialPayloadDeserialization {
+            context: PrimitiveError::context("partial payload deserialization failed"),
+            entity_ref: any_ref.id().to_string(),
+            reason: e.to_string(),
+        }
+    })
 }
 
 fn any_ref_json(any_ref: &AnyEntityRef) -> serde_json::Value {

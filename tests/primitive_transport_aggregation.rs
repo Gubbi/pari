@@ -1,25 +1,25 @@
-use pari::error::{primitive::*, ErrorLayer};
+use pari::error::{primitive::PrimitiveError, ErrorLayer};
 
 #[test]
 fn transport_primitive_defaults_error_type_from_name() {
-    let error = RequestChannelSendFailed::new(
-        "request channel send failed",
-        "resolve".to_string(),
-        "workspace->store".to_string(),
-    );
+    let error = PrimitiveError::RequestChannelSend {
+        context: PrimitiveError::context("request channel send failed"),
+        operation: "resolve".to_string(),
+        boundary: "workspace->store".to_string(),
+    };
 
     assert_eq!(error.error_layer(), ErrorLayer::Primitive);
-    assert_eq!(error.error_type(), "request_channel_send_failed");
+    assert_eq!(error.error_type(), "request_channel_send");
     assert_eq!(error.message(), "request channel send failed");
 }
 
 #[test]
 fn transport_primitive_captures_boundary_details() {
-    let error = ReplyChannelDropped::new(
-        "reply channel dropped",
-        "persist".to_string(),
-        "store->workspace".to_string(),
-    );
+    let error = PrimitiveError::ReplyChannelDropped {
+        context: PrimitiveError::context("reply channel dropped"),
+        operation: "persist".to_string(),
+        boundary: "store->workspace".to_string(),
+    };
 
     let details = error.details();
     assert_eq!(details.len(), 2);
@@ -31,11 +31,11 @@ fn transport_primitive_captures_boundary_details() {
 
 #[test]
 fn aggregation_primitive_captures_batch_shape_details() {
-    let error = HeterogeneousBatch::new(
-        "batch contained incompatible operation contexts",
-        "substrate_errors".to_string(),
-        "mixed load and persist failures".to_string(),
-    );
+    let error = PrimitiveError::HeterogeneousBatch {
+        context: PrimitiveError::context("batch contained incompatible operation contexts"),
+        batch_kind: "substrate_errors".to_string(),
+        conflict: "mixed load and persist failures".to_string(),
+    };
 
     assert_eq!(error.error_type(), "heterogeneous_batch");
     let details = error.details();

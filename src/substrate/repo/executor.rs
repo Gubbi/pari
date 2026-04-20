@@ -1,6 +1,9 @@
 use std::{fs, path::PathBuf};
 
-use crate::substrate::pipeline::{AssetOp, AssetRequest, AssetResponse, Executor, ExecutorError};
+use crate::{
+    error::primitive::PrimitiveError,
+    substrate::pipeline::{AssetOp, AssetRequest, AssetResponse, Executor},
+};
 
 pub struct RepoExecutor;
 
@@ -14,7 +17,10 @@ impl Executor for RepoExecutor {
     type Location = PathBuf;
     type Encoded = String;
 
-    fn execute<I>(&self, ops: I) -> Result<Vec<AssetResponse<Self::Encoded>>, Vec<ExecutorError>>
+    fn execute<I>(
+        &self,
+        ops: I,
+    ) -> Result<Vec<AssetResponse<Self::Encoded>>, Vec<PrimitiveError>>
     where
         I: IntoIterator<Item = AssetRequest<Self::Location, Self::Encoded>>,
     {
@@ -27,50 +33,90 @@ impl Executor for RepoExecutor {
                 AssetOp::Get => match fs::read_to_string(&req.location) {
                     Ok(raw) => responses.push(AssetResponse::Data(raw)),
                     Err(e) => {
-                        errors.push(ExecutorError::new(
-                            req.location.display().to_string(),
-                            e.to_string(),
-                        ));
+                        let path = req.location.display().to_string();
+                        if e.kind() == std::io::ErrorKind::PermissionDenied {
+                            errors.push(PrimitiveError::PathPermissionDenied {
+                                context: PrimitiveError::context("path permission denied"),
+                                asset_path: path.clone(),
+                                operation: "get".to_string(),
+                            });
+                        } else {
+                            errors.push(PrimitiveError::FileRead {
+                                context: PrimitiveError::context("file read failed"),
+                                asset_path: path.clone(),
+                            });
+                        }
                     }
                 },
                 AssetOp::Put(encoded) => {
                     if let Some(parent) = req.location.parent() {
                         if let Err(e) = fs::create_dir_all(parent) {
-                            errors.push(ExecutorError::new(
-                                parent.display().to_string(),
-                                e.to_string(),
-                            ));
+                            let path = parent.display().to_string();
+                            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                                errors.push(PrimitiveError::PathPermissionDenied {
+                                    context: PrimitiveError::context("path permission denied"),
+                                    asset_path: path.clone(),
+                                    operation: "create_dir_all".to_string(),
+                                });
+                            } else {
+                                errors.push(PrimitiveError::ParentDirectoryCreation {
+                                    context: PrimitiveError::context("parent directory creation failed"),
+                                    directory_path: path.clone(),
+                                });
+                            }
                             continue;
                         }
                     }
                     if let Err(e) = fs::write(&req.location, encoded) {
-                        errors.push(ExecutorError::new(
-                            req.location.display().to_string(),
-                            e.to_string(),
-                        ));
+                        let path = req.location.display().to_string();
+                        if e.kind() == std::io::ErrorKind::PermissionDenied {
+                            errors.push(PrimitiveError::PathPermissionDenied {
+                                context: PrimitiveError::context("path permission denied"),
+                                asset_path: path.clone(),
+                                operation: "put".to_string(),
+                            });
+                        } else {
+                            errors.push(PrimitiveError::FileWrite {
+                                context: PrimitiveError::context("file write failed"),
+                                asset_path: path.clone(),
+                            });
+                        }
                     } else {
                         responses.push(AssetResponse::Done);
                     }
                 }
                 AssetOp::Post(_) => {
-                    errors.push(ExecutorError::new(
-                        req.location.display().to_string(),
-                        "repo executor does not support POST asset writes",
-                    ));
+                    let asset_path = req.location.display().to_string();
+                    errors.push(PrimitiveError::UnsupportedExecutorOperation {
+                        context: PrimitiveError::context("unsupported executor operation"),
+                        operation: "post".to_string(),
+                        asset_path: asset_path.clone(),
+                    });
                 }
                 AssetOp::Patch(_) => {
-                    errors.push(ExecutorError::new(
-                        req.location.display().to_string(),
-                        "repo executor does not support PATCH asset writes",
-                    ));
+                    let asset_path = req.location.display().to_string();
+                    errors.push(PrimitiveError::UnsupportedExecutorOperation {
+                        context: PrimitiveError::context("unsupported executor operation"),
+                        operation: "patch".to_string(),
+                        asset_path: asset_path.clone(),
+                    });
                 }
                 AssetOp::Delete => {
                     if req.location.exists() {
                         if let Err(e) = fs::remove_file(&req.location) {
-                            errors.push(ExecutorError::new(
-                                req.location.display().to_string(),
-                                e.to_string(),
-                            ));
+                            let path = req.location.display().to_string();
+                            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                                errors.push(PrimitiveError::PathPermissionDenied {
+                                    context: PrimitiveError::context("path permission denied"),
+                                    asset_path: path.clone(),
+                                    operation: "delete".to_string(),
+                                });
+                            } else {
+                                errors.push(PrimitiveError::FileDelete {
+                                    context: PrimitiveError::context("file delete failed"),
+                                    asset_path: path.clone(),
+                                });
+                            }
                             continue;
                         }
                     }

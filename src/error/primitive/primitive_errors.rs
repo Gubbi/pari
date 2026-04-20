@@ -1,0 +1,274 @@
+use pari_macros::primitive_errors;
+
+use crate::error::{ErrorLayer, ErrorLocation, OTelEmit, PrimitiveDetail};
+
+#[derive(Debug)]
+pub struct PrimitiveContext {
+    pub(crate) message: String,
+    pub(crate) location: ErrorLocation,
+    pub(crate) span_trace: tracing_error::SpanTrace,
+    pub(crate) backtrace: std::backtrace::Backtrace,
+}
+
+primitive_errors! {
+    /// A batch was created even though the caller promised at least one failure item.
+    EmptyBatch { batch_kind: String }
+    /// A batch combined failures from incompatible operation contexts.
+    HeterogeneousBatch { batch_kind: String, conflict: String }
+
+    /// The selected schema slots cannot be encoded together into one valid asset body.
+    UnsupportedSlotComposition { slot: String, field: String }
+    /// Frontmatter content could not be serialized into the encoded document format.
+    FrontmatterSerialization { field: String, reason: String }
+    /// A section payload could not be rendered into the target document body.
+    SectionRendering { section: String, field: String }
+    /// An encoded frontmatter block could not be parsed as a valid frontmatter structure.
+    MalformedFrontmatter { raw_snippet: String }
+    /// A frontmatter block was present but was not valid YAML.
+    InvalidYamlFrontmatter { raw_snippet: String }
+    /// Parsed YAML frontmatter could not be converted into the expected JSON shape.
+    InvalidYamlJsonConversion { raw_snippet: String }
+    /// A decoded section body did not match the shape required by the schema slot.
+    UnsupportedSectionBodyShape { section: String, body_shape: String }
+    /// Multiple headings or sections collapsed into the same reconstructed field mapping.
+    DuplicateHeadingCollision { heading: String }
+    /// The document body did not contain enough valid structure to reconstruct a schema slot.
+    UnreconstructableSchemaSlot { slot: String, field: String }
+
+    /// A top-level entity identifier did not satisfy the required identifier format.
+    InvalidTopLevelIdentifierFormat { id: String }
+    /// An identifier was syntactically valid but belongs to a reserved identity space.
+    ReservedIdentifierValue { id: String }
+    /// An identifier could not be normalized into the canonical stored form.
+    IdentifierCanonicalization { id: String, reason: String }
+    /// An embedded child identifier did not satisfy the required identifier format.
+    InvalidEmbeddedIdentifierFormat { id: String, child_kind: String }
+    /// A parent identity was incompatible with the requested child entity kind.
+    ParentChildKindMismatch { parent_kind: String, child_kind: String }
+    /// Required parent identity data was missing from a child reference.
+    MissingParentIdentityComponent { child_kind: String, component: String }
+    /// A parent chain described an impossible or cyclic entity hierarchy.
+    ImpossibleParentChain { child_kind: String, parent_path: String }
+    /// A serialized reference omitted one or more fields required to reconstruct identity.
+    MissingRequiredReferenceField { field: String }
+    /// A serialized reference contained an entity kind tag that is not recognized.
+    UnknownEntityKindTag { entity_kind: String }
+    /// Parent identity data was present but could not be parsed into a valid parent reference.
+    MalformedParentPayload { parent_kind: String, reason: String }
+    /// A reference payload combined a valid child kind with an incompatible parent kind.
+    ReferenceParentKindMismatch { parent_kind: String, child_kind: String }
+    /// A serialized identifier field existed but used the wrong scalar or structured representation.
+    IdentifierPayloadTypeMismatch { field: String, actual_type: String }
+    /// A serialized reference payload contained overlapping or contradictory identity data.
+    ConflictingReferenceFields { field: String, conflict: String }
+    /// Parent identity was mandatory but the required parent object was missing.
+    MissingRequiredParentObject { child_kind: String }
+    /// A top-level entity payload incorrectly included parent identity data.
+    UnexpectedParentOnTopLevelEntity { entity_kind: String }
+    /// A nested parent reference was present but structurally invalid.
+    MalformedNestedParentReference { parent_kind: String, reason: String }
+
+    /// A storage existence check could not be completed for the requested asset path.
+    ExistenceCheck { asset_path: String, operation: String }
+    /// A storage read failed while trying to fetch an asset.
+    AssetRead { asset_path: String, operation: String }
+    /// A storage write failed while trying to persist an asset.
+    AssetWrite { asset_path: String, operation: String }
+    /// A storage delete failed while trying to remove an asset.
+    AssetDelete { asset_path: String }
+    /// The substrate root directory could not be created or initialized.
+    RootDirectoryCreation { root: String }
+    /// Traversal of stale substrate artifacts failed before cleanup could complete.
+    StaleCleanupTraversal { path: String }
+    /// A stale substrate artifact was identified but could not be deleted.
+    StaleCleanupDeletion { path: String }
+    /// A required directory could not be read during substrate or executor work.
+    DirectoryRead { path: String }
+    /// A directory entry could not be enumerated or inspected during traversal.
+    DirectoryEntryRead { path: String }
+    /// A file could not be read from the backing storage.
+    FileRead { asset_path: String }
+    /// A parent directory required for a write could not be created.
+    ParentDirectoryCreation { directory_path: String }
+    /// A file could not be written to the backing storage.
+    FileWrite { asset_path: String }
+    /// A file could not be deleted from the backing storage.
+    FileDelete { asset_path: String }
+    /// The executor received an operation kind that it does not implement.
+    UnsupportedExecutorOperation { operation: String, asset_path: String }
+    /// The backing storage rejected access to the requested asset path.
+    PathPermissionDenied { asset_path: String, operation: String }
+    /// A requested asset was not present in the backing storage.
+    MissingAsset { asset_path: String }
+
+    /// A path template could not be resolved into a concrete asset location.
+    PathResolution { path_template: String, reason: String }
+    /// A configured root path was syntactically or semantically unusable.
+    InvalidRootPath { root: String }
+    /// A path template referenced a placeholder that was not available in the input projection.
+    UnresolvedTemplatePlaceholder { path_template: String, placeholder: String }
+    /// Parent-derived path data required by a template was missing.
+    MissingParentBaseData { path_template: String, parent_kind: String }
+    /// A configured path template was invalid before resolution could succeed.
+    InvalidPathTemplate { path_template: String }
+    /// Path resolution would have produced a location outside the permitted substrate root.
+    PathEscapesSubstrateRoot { root: String, resolved_path: String }
+
+    /// A returned payload shape did not match the operation's expected response contract.
+    ResponseShapeMismatch { operation: String, expected: String, actual: String }
+    /// A tracked entity could not be projected into the payload shape required by a lower boundary.
+    EntityProjection { entity_ref: String, reason: String }
+    /// Encoded asset content could not be decoded into field values.
+    AssetDecode { asset_kind: String, field: String }
+    /// A decoded field map could not be merged back into tracked entity state.
+    FieldMapMerge { field: String, reason: String }
+    /// A change payload could not be serialized into the required persistence boundary shape.
+    ChangePayloadSerialization { entity_ref: String, change_kind: String }
+    /// A nested entity reference could not be serialized while building a payload.
+    InvalidNestedReferenceSerialization { field: String, entity_ref: String }
+    /// A decoded value did not match the type expected for the target field.
+    IncompatibleDecodedFieldType { field: String, expected_type: String, actual_type: String }
+    /// Dot-path reconstruction collided with an incompatible intermediate path segment.
+    DecodedPathSegmentCollision { path: String, segment: String }
+    /// A partial payload could not be deserialized into a coherent tracked entity shape.
+    PartialPayloadDeserialization { entity_ref: String, reason: String }
+    /// Flattened extension keys conflicted with explicit payload keys.
+    ConflictingExtensionKeys { key: String }
+    /// A payload identified an entity kind different from the expected target kind.
+    EntityKindPayloadMismatch { entity_ref: String, expected_kind: String, actual_kind: String }
+    /// A payload omitted a field that is required for reconstruction.
+    MissingRequiredPayloadField { field: String }
+    /// A nested entity reference in an incoming payload failed its identity contract.
+    InvalidNestedEntityReference { field: String, entity_ref: String }
+    /// The overall payload shape could not be reconciled with the tracked entity definition.
+    IncompatibleTrackedEntityShape { entity_ref: String, reason: String }
+    /// A scalar value was required but a different payload shape was supplied.
+    ExpectedScalarValue { field: String, actual_type: String }
+    /// An object value was required but a different payload shape was supplied.
+    ExpectedObjectValue { field: String, actual_type: String }
+    /// An array value was required but a different payload shape was supplied.
+    ExpectedArrayValue { field: String, actual_type: String }
+    /// A field payload could not be encoded into JSON for an in-memory or external boundary.
+    JsonEncoding { field: String, reason: String }
+    /// Extracted field data did not match the shape expected by the codec.
+    FieldExtractionShapeMismatch { field: String, expected_shape: String }
+    /// A raw JSON payload was malformed and could not be parsed safely.
+    MalformedJsonPayload { raw_snippet: String }
+    /// A decoded field map did not match the expected field-to-value mapping shape.
+    IncompatibleFieldMapShape { field: String, expected_shape: String }
+
+    /// A requested field does not exist in the schema-backed surface.
+    UnknownSchemaField { field: String }
+    /// More than one asset mapping claimed ownership of the same field.
+    AmbiguousFieldMapping { field: String, asset_count: usize }
+    /// Declared asset dependencies did not form a coherent dependency graph.
+    InvalidAssetDependencyGraph { field: String, dependency: String }
+    /// Field prerequisite expansion encountered a dependency cycle.
+    CyclicPrerequisiteChain { field: String, cycle: Vec<String> }
+    /// The schema could not select a coherent asset set for the requested field operation.
+    AssetSelection { operation: String, field: String }
+    /// Cached field-index metadata no longer matched the schema definition.
+    CorruptedFieldIndexCache { field: String }
+    /// A prerequisite declaration referenced fields or assets that do not form a valid plan.
+    InvalidPrerequisiteDeclaration { field: String, prerequisite: String }
+    /// A field was classified as mutable-without-load even though its asset shape forbids that.
+    InvalidMutableWithoutLoadClassification { field: String }
+    /// Asset selection produced conflicting or duplicate candidates for a field.
+    ConflictingAssetSelection { field: String, asset_count: usize }
+    /// Schema metadata was internally contradictory for the referenced component.
+    InconsistentSchemaMetadata { schema_component: String, reason: String }
+    /// The selected asset kind cannot express the requested partial write behavior.
+    UnsupportedPartialWriteMapping { field: String, asset_kind: String }
+    /// Shared state or bookkeeping was corrupted in a way that violates expected invariants.
+    SharedStateCorrupted { }
+
+    /// Only a subset of the requested persistence operations completed successfully.
+    PartialPersist { failed_operation_count: usize }
+    /// A change set described a state transition that the persistence contract cannot honor.
+    ImpossibleChangeSet { entity_ref: String, change_kind: String }
+    /// A field that must already be loaded or initialized was still unavailable.
+    UnloadedRequiredField { field: String }
+    /// An injected shared storage handle did not satisfy the substrate's expected contract.
+    InconsistentInjectedStorageHandle { storage_kind: String }
+    /// Preloaded in-memory asset state could not support coherent substrate operations.
+    IncompatiblePreloadedAssetState { asset_path: String, reason: String }
+    /// A no-load substrate was asked to materialize entity data.
+    UnsupportedLoad { entity_ref: String, substrate_kind: String }
+
+    /// The schema registry has no entry for the requested entity kind.
+    UnsupportedEntityKind { entity_kind: String }
+
+    /// A request could not be sent across the intended boundary.
+    RequestTransportUnavailable { operation: String, boundary: String }
+    /// A request channel rejected or lost an outbound request.
+    RequestChannelSend { operation: String, boundary: String }
+    /// A reply was never delivered on the expected response channel.
+    ReplyChannelDropped { operation: String, boundary: String }
+    /// The target actor terminated before it could complete the request.
+    ActorTerminatedMidRequest { operation: String, actor: String }
+    /// A request payload reaching the boundary did not match the expected operation contract.
+    MalformedRequestPayload { operation: String, reason: String }
+    /// A response shape did not match the request/response protocol for the operation.
+    RequestResponseProtocolMismatch { operation: String, expected: String, actual: String }
+    /// Internal actor state could not support dispatch or the requested transition.
+    ActorStateTransitionInvariantViolation { operation: String, reason: String }
+
+    /// Validation was asked to evaluate a field that is not represented in the schema.
+    InvalidValidationFieldSelection { field: String }
+    /// The tracked entity and validation schema did not correspond to the same entity type.
+    TrackedEntitySchemaMismatch { tracked_kind: String, schema_kind: String }
+    /// A structural validation rule rejected the candidate state.
+    StructuralRuleViolation { field_path: String, rule_kind: String }
+    /// A semantic validation rule rejected the candidate state.
+    SemanticRuleViolation { field_path: String, rule_kind: String }
+    /// A cross-entity validation rule rejected the candidate state.
+    CrossEntityRuleViolation { field_path: String, rule_kind: String }
+    /// Validation dispatch could not route the requested rule set coherently.
+    ValidationDispatch { tracked_kind: String, reason: String }
+    /// A type-erased tracked wrapper could not dispatch to the correct validation path.
+    TrackedWrapperDispatch { tracked_kind: String }
+    /// A tracked wrapper resolved to the wrong tracked subtype for the underlying entity kind.
+    WrongTrackedSubtype { expected_kind: String, actual_kind: String }
+    /// Validation schema maps did not describe a coherent field inventory.
+    ValidationSchemaInconsistency { schema_component: String, reason: String }
+    /// Validation rule maps named fields in ways that cannot be reconciled.
+    ConflictingValidationFieldNames { field: String, conflict: String }
+    /// A reported nested violation path could not be normalized safely.
+    InvalidValidationSubPath { sub_path: String }
+    /// Concatenating a field path and nested path produced an impossible output path.
+    ImpossibleValidationPath { field: String, sub_path: String }
+    /// A scalar value did not satisfy the primitive validation format required by the rule.
+    MalformedScalarValue { field_path: String, rule_kind: String }
+    /// A collection value did not satisfy the shape required by the rule.
+    MalformedCollectionValue { field_path: String, rule_kind: String }
+    /// A value violated a required naming convention or lexical contract.
+    NamingFormatViolation { field_path: String, rule_kind: String }
+    /// A collection contained entries that were required to be unique.
+    DuplicateEntryViolation { field_path: String, rule_kind: String }
+    /// A required field or collection entry was empty when non-empty content was required.
+    EmptyRequiredValue { field_path: String, rule_kind: String }
+    /// A workflow or dependency graph inside the entity was not semantically coherent.
+    WorkflowGraphInconsistency { field_path: String, reason: String }
+    /// A declared dependency pointed to a step, task, or relationship that is not valid.
+    IllegalDependencyReference { field_path: String, reference: String }
+    /// A referenced state transition was not allowed by the workflow semantics.
+    IllegalStateTransitionReference { field_path: String, reference: String }
+    /// Rejection-handling configuration pointed to an invalid or impossible target.
+    InvalidOnRejectTarget { field_path: String, target: String }
+    /// The same semantic relationship was declared more than once in a conflicting way.
+    DuplicateSemanticRelationship { field_path: String, relationship: String }
+    /// A required companion concept or state was absent.
+    MissingRequiredCompanionState { field_path: String, required_state: String }
+    /// A required referenced entity did not exist.
+    ReferencedEntityAbsent { field_path: String, entity_ref: String }
+    /// A reference resolved to an entity kind incompatible with the field semantics.
+    ReferencedEntityKindMismatch { field_path: String, entity_ref: String, actual_kind: String }
+    /// A required set of related references was incomplete.
+    IncompleteReferenceSet { field_path: String, missing_reference: String }
+    /// A referenced definition existed but did not match the consuming entity's expectations.
+    ReferencedDefinitionMismatch { field_path: String, entity_ref: String, reason: String }
+    /// Validation error aggregation could not preserve a coherent combined error set.
+    ValidationAggregation { reason: String }
+    /// Validation aggregation produced a mix of validation kinds that the contract cannot group.
+    IncompatibleValidationKindMix { expected_kind: String, actual_kind: String }
+}

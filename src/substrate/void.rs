@@ -1,8 +1,9 @@
 use crate::{
+    error::primitive::PrimitiveError,
     entity::{AnyEntityRef, EntityKind, TrackedEntity},
     store::EntityChange,
     substrate::{
-        pipeline::{self, ExecutorError},
+        pipeline::{self},
         Substrate, SubstrateError,
     },
 };
@@ -38,7 +39,7 @@ impl pipeline::Codec for VoidCodec {
         &self,
         _: &serde_json::Value,
         _: &[pipeline::FieldMapping<VoidSlot>],
-    ) -> Result<String, pipeline::CodecError> {
+    ) -> Result<String, PrimitiveError> {
         Ok(String::new())
     }
 
@@ -46,7 +47,7 @@ impl pipeline::Codec for VoidCodec {
         &self,
         _: &String,
         _: &[pipeline::FieldMapping<VoidSlot>],
-    ) -> Result<std::collections::HashMap<String, serde_json::Value>, pipeline::CodecError> {
+    ) -> Result<std::collections::HashMap<String, serde_json::Value>, PrimitiveError> {
         Ok(std::collections::HashMap::new())
     }
 }
@@ -60,7 +61,7 @@ impl pipeline::Executor for VoidExecutor {
     fn execute<I>(
         &self,
         _: I,
-    ) -> Result<Vec<pipeline::AssetResponse<String>>, Vec<pipeline::ExecutorError>>
+    ) -> Result<Vec<pipeline::AssetResponse<String>>, Vec<PrimitiveError>>
     where
         I: IntoIterator<Item = pipeline::AssetRequest<String, String>>,
     {
@@ -104,10 +105,13 @@ impl Substrate for VoidSubstrate {
         entity: &TrackedEntity,
         _: &[&str],
     ) -> Result<TrackedEntity, SubstrateError> {
-        Err(SubstrateError::Executor(ExecutorError::new(
-            entity.any_ref().id().to_string(),
-            "VoidSubstrate: no load",
-        )))
+        let entity_ref = entity.any_ref().id().to_string();
+        let primitive = PrimitiveError::UnsupportedLoad {
+            context: PrimitiveError::context("unsupported load"),
+            entity_ref: entity_ref.clone(),
+            substrate_kind: "void_substrate".to_string(),
+        };
+        Err(SubstrateError::corrupt_persistence_state(primitive))
     }
 
     async fn persist(
