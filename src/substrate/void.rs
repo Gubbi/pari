@@ -103,12 +103,9 @@ impl Substrate for VoidSubstrate {
         _: &[&str],
     ) -> Result<TrackedEntity, SubstrateError> {
         let entity_ref = entity.any_ref().id().to_string();
-        let primitive = PrimitiveError::UnsupportedLoad {
-            context: PrimitiveError::context("unsupported load"),
-            entity_ref: entity_ref.clone(),
-            substrate_kind: "void_substrate".to_string(),
-        };
-        Err(SubstrateError::corrupt_persistence_state(primitive))
+        Err(SubstrateError::corrupt_persistence_state(
+            PrimitiveError::unsupported_load("unsupported load", entity_ref, "void_substrate"),
+        ))
     }
 
     async fn persist(

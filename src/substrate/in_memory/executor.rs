@@ -36,11 +36,10 @@ impl Executor for InMemoryExecutor {
                 AssetOp::Get => match assets.get(&req.location) {
                     Some(data) => responses.push(AssetResponse::Data(data.clone())),
                     None => {
-                        let asset_path = req.location.clone();
-                        errors.push(PrimitiveError::MissingAsset {
-                            context: PrimitiveError::context("requested asset missing"),
-                            asset_path: asset_path.clone(),
-                        });
+                        errors.push(PrimitiveError::missing_asset(
+                            "requested asset missing",
+                            req.location.clone(),
+                        ));
                     }
                 },
                 AssetOp::Put(encoded) | AssetOp::Post(encoded) | AssetOp::Patch(encoded) => {

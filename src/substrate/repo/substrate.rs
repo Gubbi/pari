@@ -25,14 +25,17 @@ impl RepoSubstrate {
         cleanup_stale(&root)?;
         fs::create_dir_all(&root).map_err(|e| {
             let root_path = root.display().to_string();
-            let primitive = PrimitiveError::RootDirectoryCreation {
-                context: PrimitiveError::context("root directory creation failed"),
-                root: root_path.clone(),
-            };
-            let _message = if e.kind() == std::io::ErrorKind::PermissionDenied {
-                format!("filesystem permission denied creating substrate root '{root_path}'")
+            let primitive = if e.kind() == std::io::ErrorKind::PermissionDenied {
+                PrimitiveError::path_permission_denied(
+                    "filesystem permission denied creating substrate root",
+                    root_path,
+                    "create_dir_all",
+                )
             } else {
-                format!("failed to create substrate root '{root_path}'")
+                PrimitiveError::root_directory_creation(
+                    "root directory creation failed",
+                    root_path,
+                )
             };
             SubstrateError::corrupt_persistence_state(primitive)
         })?;
@@ -74,22 +77,27 @@ fn cleanup_stale(root: &Path) -> Result<(), SubstrateError> {
     fn walk(dir: &Path) -> Result<(), SubstrateError> {
         for entry in fs::read_dir(dir).map_err(|e| {
             let path = dir.display().to_string();
-            let primitive = PrimitiveError::DirectoryRead {
-                context: PrimitiveError::context("directory read failed"),
-                path: path.clone(),
-            };
-            let _message = if e.kind() == std::io::ErrorKind::PermissionDenied {
-                format!("filesystem permission denied reading directory '{path}'")
+            let primitive = if e.kind() == std::io::ErrorKind::PermissionDenied {
+                PrimitiveError::path_permission_denied(
+                    "filesystem permission denied reading directory",
+                    path,
+                    "read_dir",
+                )
             } else {
-                format!("failed to read directory '{path}'")
+                PrimitiveError::directory_read("directory read failed", path)
             };
             SubstrateError::corrupt_persistence_state(primitive)
         })? {
-            let entry = entry.map_err(|_e| {
+            let entry = entry.map_err(|e| {
                 let path = dir.display().to_string();
-                let primitive = PrimitiveError::DirectoryEntryRead {
-                    context: PrimitiveError::context("directory entry read failed"),
-                    path: path.clone(),
+                let primitive = if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    PrimitiveError::path_permission_denied(
+                        "filesystem permission denied reading directory entry",
+                        path,
+                        "read_dir_entry",
+                    )
+                } else {
+                    PrimitiveError::directory_entry_read("directory entry read failed", path)
                 };
                 SubstrateError::corrupt_persistence_state(primitive)
             })?;
@@ -99,16 +107,17 @@ fn cleanup_stale(root: &Path) -> Result<(), SubstrateError> {
                 if name.ends_with(".part") || name.ends_with(".old") {
                     fs::remove_dir_all(&path).map_err(|e| {
                         let stale_path = path.display().to_string();
-                        let primitive = PrimitiveError::StaleCleanupDeletion {
-                            context: PrimitiveError::context("stale cleanup deletion failed"),
-                            path: stale_path.clone(),
-                        };
-                        let _message = if e.kind() == std::io::ErrorKind::PermissionDenied {
-                            format!(
-                                "filesystem permission denied removing stale substrate directory '{stale_path}'"
+                        let primitive = if e.kind() == std::io::ErrorKind::PermissionDenied {
+                            PrimitiveError::path_permission_denied(
+                                "filesystem permission denied removing stale substrate directory",
+                                stale_path,
+                                "remove_dir_all",
                             )
                         } else {
-                            format!("failed to remove stale substrate directory '{stale_path}'")
+                            PrimitiveError::stale_cleanup_deletion(
+                                "stale cleanup deletion failed",
+                                stale_path,
+                            )
                         };
                         SubstrateError::corrupt_persistence_state(primitive)
                     })?;

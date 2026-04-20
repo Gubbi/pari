@@ -14,11 +14,11 @@ pub(crate) fn any_ref_to_stub_json(any_ref: &AnyEntityRef) -> serde_json::Value 
 pub(crate) fn entity_to_json(entity: &TrackedEntity) -> Result<serde_json::Value, PrimitiveError> {
     entity
         .to_json_value()
-        .map_err(|e| PrimitiveError::EntityProjection {
-            context: PrimitiveError::context("entity projection failed"),
-            entity_ref: entity.any_ref().id().to_string(),
-            reason: e.to_string(),
-        })
+        .map_err(|e| PrimitiveError::entity_projection(
+            "entity projection failed",
+            entity.any_ref().id().to_string(),
+            e.to_string(),
+        ))
 }
 
 pub(crate) fn merge_field_map_into(
@@ -84,11 +84,11 @@ fn deserialize_entity_from_value(
     value: serde_json::Value,
 ) -> Result<TrackedEntity, PrimitiveError> {
     TrackedEntity::from_json_value(any_ref, value).map_err(|e| {
-        PrimitiveError::PartialPayloadDeserialization {
-            context: PrimitiveError::context("partial payload deserialization failed"),
-            entity_ref: any_ref.id().to_string(),
-            reason: e.to_string(),
-        }
+        PrimitiveError::partial_payload_deserialization(
+            "partial payload deserialization failed",
+            any_ref.id().to_string(),
+            e.to_string(),
+        )
     })
 }
 

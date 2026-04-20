@@ -504,4 +504,233 @@ impl PrimitiveError {
             reason: reason.into(),
         }
     }
+
+    // -------------------------------------------------------------------------
+    // Substrate layer
+    // -------------------------------------------------------------------------
+
+    pub fn empty_batch(message: impl Into<String>, batch_kind: impl Into<String>) -> Self {
+        Self::EmptyBatch {
+            context: Self::context(message),
+            batch_kind: batch_kind.into(),
+        }
+    }
+
+    pub fn entity_projection(
+        message: impl Into<String>,
+        entity_ref: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self::EntityProjection {
+            context: Self::context(message),
+            entity_ref: entity_ref.into(),
+            reason: reason.into(),
+        }
+    }
+
+    pub fn partial_payload_deserialization(
+        message: impl Into<String>,
+        entity_ref: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self::PartialPayloadDeserialization {
+            context: Self::context(message),
+            entity_ref: entity_ref.into(),
+            reason: reason.into(),
+        }
+    }
+
+    pub fn unknown_schema_field(message: impl Into<String>, field: impl Into<String>) -> Self {
+        Self::UnknownSchemaField {
+            context: Self::context(message),
+            field: field.into(),
+        }
+    }
+
+    pub fn missing_asset(message: impl Into<String>, asset_path: impl Into<String>) -> Self {
+        Self::MissingAsset {
+            context: Self::context(message),
+            asset_path: asset_path.into(),
+        }
+    }
+
+    pub fn file_read(message: impl Into<String>, asset_path: impl Into<String>) -> Self {
+        Self::FileRead {
+            context: Self::context(message),
+            asset_path: asset_path.into(),
+        }
+    }
+
+    pub fn file_write(message: impl Into<String>, asset_path: impl Into<String>) -> Self {
+        Self::FileWrite {
+            context: Self::context(message),
+            asset_path: asset_path.into(),
+        }
+    }
+
+    pub fn file_delete(message: impl Into<String>, asset_path: impl Into<String>) -> Self {
+        Self::FileDelete {
+            context: Self::context(message),
+            asset_path: asset_path.into(),
+        }
+    }
+
+    pub fn path_permission_denied(
+        message: impl Into<String>,
+        asset_path: impl Into<String>,
+        operation: impl Into<String>,
+    ) -> Self {
+        Self::PathPermissionDenied {
+            context: Self::context(message),
+            asset_path: asset_path.into(),
+            operation: operation.into(),
+        }
+    }
+
+    pub fn parent_directory_creation(
+        message: impl Into<String>,
+        directory_path: impl Into<String>,
+    ) -> Self {
+        Self::ParentDirectoryCreation {
+            context: Self::context(message),
+            directory_path: directory_path.into(),
+        }
+    }
+
+    pub fn unsupported_executor_operation(
+        message: impl Into<String>,
+        operation: impl Into<String>,
+        asset_path: impl Into<String>,
+    ) -> Self {
+        Self::UnsupportedExecutorOperation {
+            context: Self::context(message),
+            operation: operation.into(),
+            asset_path: asset_path.into(),
+        }
+    }
+
+    pub fn expected_scalar_value(
+        message: impl Into<String>,
+        field: impl Into<String>,
+        actual_type: impl Into<String>,
+    ) -> Self {
+        Self::ExpectedScalarValue {
+            context: Self::context(message),
+            field: field.into(),
+            actual_type: actual_type.into(),
+        }
+    }
+
+    pub fn expected_object_value(
+        message: impl Into<String>,
+        field: impl Into<String>,
+        actual_type: impl Into<String>,
+    ) -> Self {
+        Self::ExpectedObjectValue {
+            context: Self::context(message),
+            field: field.into(),
+            actual_type: actual_type.into(),
+        }
+    }
+
+    pub fn expected_array_value(
+        message: impl Into<String>,
+        field: impl Into<String>,
+        actual_type: impl Into<String>,
+    ) -> Self {
+        Self::ExpectedArrayValue {
+            context: Self::context(message),
+            field: field.into(),
+            actual_type: actual_type.into(),
+        }
+    }
+
+    pub fn json_encoding(
+        message: impl Into<String>,
+        field: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self::JsonEncoding {
+            context: Self::context(message),
+            field: field.into(),
+            reason: reason.into(),
+        }
+    }
+
+    pub fn malformed_frontmatter(
+        message: impl Into<String>,
+        raw_snippet: impl Into<String>,
+    ) -> Self {
+        Self::MalformedFrontmatter {
+            context: Self::context(message),
+            raw_snippet: raw_snippet.into(),
+        }
+    }
+
+    pub fn frontmatter_serialization(
+        message: impl Into<String>,
+        field: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self::FrontmatterSerialization {
+            context: Self::context(message),
+            field: field.into(),
+            reason: reason.into(),
+        }
+    }
+
+    pub fn unsupported_slot_composition(
+        message: impl Into<String>,
+        slot: impl Into<String>,
+        field: impl Into<String>,
+    ) -> Self {
+        Self::UnsupportedSlotComposition {
+            context: Self::context(message),
+            slot: slot.into(),
+            field: field.into(),
+        }
+    }
+
+    pub fn root_directory_creation(
+        message: impl Into<String>,
+        root: impl Into<String>,
+    ) -> Self {
+        Self::RootDirectoryCreation {
+            context: Self::context(message),
+            root: root.into(),
+        }
+    }
+
+    pub fn directory_read(message: impl Into<String>, path: impl Into<String>) -> Self {
+        Self::DirectoryRead {
+            context: Self::context(message),
+            path: path.into(),
+        }
+    }
+
+    pub fn directory_entry_read(message: impl Into<String>, path: impl Into<String>) -> Self {
+        Self::DirectoryEntryRead {
+            context: Self::context(message),
+            path: path.into(),
+        }
+    }
+
+    pub fn stale_cleanup_deletion(message: impl Into<String>, path: impl Into<String>) -> Self {
+        Self::StaleCleanupDeletion {
+            context: Self::context(message),
+            path: path.into(),
+        }
+    }
+
+    pub fn unsupported_load(
+        message: impl Into<String>,
+        entity_ref: impl Into<String>,
+        substrate_kind: impl Into<String>,
+    ) -> Self {
+        Self::UnsupportedLoad {
+            context: Self::context(message),
+            entity_ref: entity_ref.into(),
+            substrate_kind: substrate_kind.into(),
+        }
+    }
 }

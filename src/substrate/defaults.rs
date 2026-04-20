@@ -220,9 +220,6 @@ fn collapse_executor_errors(errors: Vec<PrimitiveError>) -> SubstrateError {
     let source = errors
         .into_iter()
         .next()
-        .unwrap_or_else(|| PrimitiveError::EmptyBatch {
-            context: PrimitiveError::context("empty batch"),
-            batch_kind: "executor_errors".to_string(),
-        });
+        .unwrap_or_else(|| PrimitiveError::empty_batch("empty batch", "executor_errors"));
     SubstrateError::corrupt_persistence_state(source)
 }

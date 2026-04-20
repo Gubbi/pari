@@ -177,10 +177,7 @@ impl<S: Slot> EntitySchema<S> {
         index
             .get(field)
             .copied()
-            .ok_or_else(|| PrimitiveError::UnknownSchemaField {
-                context: PrimitiveError::context("unknown schema field"),
-                field: field.to_string(),
-            })
+            .ok_or_else(|| PrimitiveError::unknown_schema_field("unknown schema field", field))
     }
 }
 
