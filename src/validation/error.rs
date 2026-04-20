@@ -50,6 +50,7 @@ pub struct FieldValidationError {
 // SetterError
 // ---------------------------------------------------------------------------
 
+
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
 pub enum SetterError {
     /// ensure_mutable triggered a substrate load which failed.
@@ -66,4 +67,28 @@ pub enum SetterError {
         error_count: usize,
         errors: ValidationErrors,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validation_errors_starts_empty() {
+        let e = ValidationErrors::new();
+        assert!(e.is_empty());
+    }
+
+    #[test]
+    fn validation_errors_extend_combines_errors() {
+        let mut e1 = ValidationErrors::new();
+        e1.errors.push(FieldValidationError {
+            path: "name".to_string(),
+            message: "bad".to_string(),
+            kind: ValidationKind::Structural,
+        });
+        let e2 = ValidationErrors::new();
+        e1.extend(e2);
+        assert_eq!(e1.errors.len(), 1);
+    }
 }

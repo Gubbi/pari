@@ -183,3 +183,7 @@ impl<S: Slot> EntitySchema<S> {
             })
     }
 }
+
+pub trait SubstrateSchema<Sub: super::super::Substrate>: crate::entity::Entity {
+    const SCHEMA: EntitySchema<<Sub as super::super::Substrate>::Slot>;
+}
