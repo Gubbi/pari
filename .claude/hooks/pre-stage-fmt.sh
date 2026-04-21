@@ -6,6 +6,6 @@ cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // ""')
 case "$cmd" in
   *"git add"*)
     cargo fmt
-    echo "pre-stage-fmt: cargo fmt ran before git add"
+    echo "$(date): pre-stage-fmt ran for: $cmd" >> /tmp/pari-hook.log
     ;;
 esac
