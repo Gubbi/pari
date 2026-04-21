@@ -3,15 +3,16 @@ use crate::{
     store::{StoreRequest, StoreResponse},
     workspace::{
         error::{CommitError, UndoError},
-        protocol::request,
+        lib::request::request,
     },
 };
 
 impl TrackedEntity {
     pub async fn commit(self) -> Result<(), CommitError> {
+        // TODO: propagate PrimitiveError via ActivityError once the framework exists.
         match request(StoreRequest::Commit { entity: self })
             .await
-            .map_err(CommitError::StoreUnavailable)?
+            .expect("entity server unavailable")
         {
             StoreResponse::Unit => Ok(()),
             StoreResponse::CommitErr(e) => Err(e),
@@ -20,10 +21,11 @@ impl TrackedEntity {
     }
 
     pub async fn undo_checkout(&self) -> Result<(), UndoError> {
+        // TODO: propagate PrimitiveError via ActivityError once the framework exists.
         let any_ref = self.any_ref();
         match request(StoreRequest::UndoCheckout { any_ref })
             .await
-            .map_err(UndoError::StoreUnavailable)?
+            .expect("entity server unavailable")
         {
             StoreResponse::Unit => Ok(()),
             StoreResponse::UndoErr(e) => Err(e),

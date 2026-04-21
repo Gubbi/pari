@@ -170,9 +170,7 @@ async fn remove_then_resolve_returns_error() {
             .await
             .unwrap();
 
-        EntityClient::remove(role_any_ref("eng-lead"))
-            .await
-            .unwrap();
+        EntityClient::remove(role_any_ref("eng-lead")).await;
         let result = EntityClient::resolve(role_any_ref("eng-lead")).await;
         assert!(
             matches!(result, Err(ResolveError::NotFound { entity_ref }) if entity_ref == "eng-lead")
@@ -282,17 +280,13 @@ async fn remove_then_reinsert_then_remove_deletes_persisted_entity() {
         EntityClient::resolve(role_any_ref("eng-lead"))
             .await
             .unwrap();
-        EntityClient::remove(role_any_ref("eng-lead"))
-            .await
-            .unwrap();
+        EntityClient::remove(role_any_ref("eng-lead")).await;
 
         let replacement = make_role("eng-lead");
         EntityClient::insert(TrackedEntity::from_role(TrackedRole::from(replacement)))
             .await
             .unwrap();
-        EntityClient::remove(role_any_ref("eng-lead"))
-            .await
-            .unwrap();
+        EntityClient::remove(role_any_ref("eng-lead")).await;
         EntityClient::persist().await.unwrap();
     })
     .await;

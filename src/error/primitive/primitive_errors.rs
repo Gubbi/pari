@@ -733,4 +733,16 @@ impl PrimitiveError {
             substrate_kind: substrate_kind.into(),
         }
     }
+
+    // -------------------------------------------------------------------------
+    // Workspace layer
+    // -------------------------------------------------------------------------
+
+    pub fn store_unavailable(message: impl Into<String>) -> Self {
+        Self::RequestTransportUnavailable {
+            context: Self::context(message),
+            operation: "store_request".into(),
+            boundary: "entity_server".into(),
+        }
+    }
 }

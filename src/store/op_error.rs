@@ -1,7 +1,7 @@
 use pari_macros::{ErrorCompose, OTelEmit};
 
 use crate::{
-    error::{store::StoreError, BatchError},
+    error::BatchError,
     substrate::error::SubstrateError,
     validation::error::ValidationErrors,
 };
@@ -21,10 +21,6 @@ pub enum CheckoutError {
     #[error(transparent)]
     #[compose(delegate)]
     Substrate(#[from] SubstrateError),
-
-    #[error(transparent)]
-    #[compose(delegate)]
-    StoreUnavailable(#[from] StoreError),
 }
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
@@ -41,10 +37,6 @@ pub enum CommitError {
     #[error(transparent)]
     #[compose(delegate)]
     CrossReferenceCheckFailed(SubstrateError),
-
-    #[error(transparent)]
-    #[compose(delegate)]
-    StoreUnavailable(#[from] StoreError),
 }
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
@@ -66,10 +58,6 @@ pub enum LoadError {
         error_count: usize,
         errors: ValidationErrors,
     },
-
-    #[error(transparent)]
-    #[compose(delegate)]
-    StoreUnavailable(#[from] StoreError),
 }
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
@@ -78,10 +66,6 @@ pub enum UndoError {
     #[compose(fix = Pari, recoverability = NotRecoverable)]
     #[otel(error_type = "wrong_state_for_undo")]
     WrongState,
-
-    #[error(transparent)]
-    #[compose(delegate)]
-    StoreUnavailable(#[from] StoreError),
 }
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
@@ -94,10 +78,6 @@ pub enum PersistError {
     #[error("{0}")]
     #[compose(delegate)]
     SubstrateErrors(BatchError<SubstrateError>),
-
-    #[error(transparent)]
-    #[compose(delegate)]
-    StoreUnavailable(#[from] StoreError),
 }
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
@@ -110,8 +90,4 @@ pub enum ResolveError {
     #[error(transparent)]
     #[compose(delegate)]
     Substrate(#[from] SubstrateError),
-
-    #[error(transparent)]
-    #[compose(delegate)]
-    StoreUnavailable(#[from] StoreError),
 }

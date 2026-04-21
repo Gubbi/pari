@@ -14,10 +14,10 @@ The authoritative design docs for this area live under [docs/design/workspace_la
 
 ## Module Map
 
-- [src/workspace/client.rs](/Users/vinuth/code/pari/src/workspace/client.rs): `EntityClient`
+- [src/workspace/client.rs](/Users/vinuth/code/pari/src/workspace/client.rs): `EntityClient` — orchestration component
 - [src/workspace/error.rs](/Users/vinuth/code/pari/src/workspace/error.rs): re-exports of store-owned operation errors for caller convenience
-- [src/workspace/protocol.rs](/Users/vinuth/code/pari/src/workspace/protocol.rs): request helper over `EntityServer`
-- [src/workspace/tracked_entity.rs](/Users/vinuth/code/pari/src/workspace/tracked_entity.rs): `TrackedEntity::commit()` and `TrackedEntity::undo_checkout()`
+- [src/workspace/lib/request.rs](/Users/vinuth/code/pari/src/workspace/lib/request.rs): pure `request` function — emits `PrimitiveError` on channel failure
+- [src/workspace/tracked_entity.rs](/Users/vinuth/code/pari/src/workspace/tracked_entity.rs): `TrackedEntity::commit()` and `TrackedEntity::undo_checkout()` — orchestration components
 
 ## Boundary Rules
 
@@ -30,6 +30,6 @@ The authoritative design docs for this area live under [docs/design/workspace_la
 
 - `EntityClient::{resolve, insert, remove, checkout, load, ensure_mutable, persist, undo_commit, unload}`
 - returned operation errors are store-owned and re-exported here: `CheckoutError`, `CommitError`, `LoadError`, `PersistError`, `ResolveError`, `UndoError`
-- channel-level failure is preserved as the store-owned `StoreUnavailable(...)` operation-error variant
+- channel-level failure (`PrimitiveError` from `lib::request`) currently panics in orchestrators with a TODO — will propagate via `ActivityError` once that framework is defined
 
 If documentation here starts describing actor state machines or persistence asset mapping, it has crossed out of the workspace layer.

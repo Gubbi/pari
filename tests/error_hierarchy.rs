@@ -8,6 +8,8 @@ use pari::{
     validation::error::{FieldValidationError, SetterError, ValidationErrors},
     workspace::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError},
 };
+// Note: StoreError is kept above because assert_error_compose::<StoreError>() still validates
+// that StoreError (internal channel error) implements ErrorCompose.
 
 #[test]
 fn substrate_unpersistable_definition_is_data_operator_action() {
@@ -84,13 +86,6 @@ fn commit_cross_ref_check_failed_delegates_to_substrate() {
 }
 
 #[test]
-fn commit_store_unavailable_is_pari_not_recoverable() {
-    let e = CommitError::StoreUnavailable(StoreError::Unavailable);
-    assert_eq!(e.fix_domain(), FixDomain::Pari);
-    assert_eq!(e.recoverability(), Recoverability::NotRecoverable);
-}
-
-#[test]
 fn load_validation_failed_is_data_operator_action() {
     let e = LoadError::ValidationFailed {
         error_count: 2,
@@ -112,13 +107,6 @@ fn persist_pending_checkouts_is_client_user_action() {
 #[test]
 fn undo_wrong_state_is_pari_not_recoverable() {
     let e = UndoError::WrongState;
-    assert_eq!(e.fix_domain(), FixDomain::Pari);
-    assert_eq!(e.recoverability(), Recoverability::NotRecoverable);
-}
-
-#[test]
-fn resolve_store_unavailable_is_pari_not_recoverable() {
-    let e = ResolveError::StoreUnavailable(StoreError::Unavailable);
     assert_eq!(e.fix_domain(), FixDomain::Pari);
     assert_eq!(e.recoverability(), Recoverability::NotRecoverable);
 }
