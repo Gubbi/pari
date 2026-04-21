@@ -86,3 +86,27 @@ impl<E: Entity> ValidatableTracked<E> for E::Tracked {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Pure field selection check
+// ---------------------------------------------------------------------------
+
+/// Validates that every requested field name exists in at least one rule map.
+/// Returns `Err(PrimitiveError::InvalidValidationFieldSelection)` on the first
+/// unknown field; returns `Ok(())` if all fields are known or the slice is empty.
+pub fn validate_field_selection<E: Entity>(
+    schema: &ValidationSchema<E>,
+    fields: &[&str],
+) -> Result<(), PrimitiveError> {
+    for field_name in fields {
+        let in_any_map = schema.structural.contains_key(field_name)
+            || schema.semantic.contains_key(field_name)
+            || schema.cross_entity.contains_key(field_name);
+        if !in_any_map {
+            return Err(PrimitiveError::invalid_validation_field_selection(
+                format!("field '{field_name}' is not in the validation schema"),
+                *field_name,
+            ));
+        }
+    }
+    Ok(())
+}

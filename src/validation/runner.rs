@@ -3,7 +3,7 @@ use crate::error::primitive::PrimitiveError;
 
 use super::{
     error::{FieldValidationError, ValidationErrors, ValidationKind},
-    schema::ValidatableTracked,
+    lib::schema::{validate_field_selection, ValidatableTracked},
 };
 
 /// Runs validation rules from the entity's schema.
@@ -30,17 +30,7 @@ where
     let target_fields: Vec<&str> = if fields.is_empty() {
         all_fields
     } else {
-        for field_name in fields {
-            let in_any_map = schema.structural.contains_key(field_name)
-                || schema.semantic.contains_key(field_name)
-                || schema.cross_entity.contains_key(field_name);
-            if !in_any_map {
-                return Err(PrimitiveError::invalid_validation_field_selection(
-                    format!("field '{field_name}' is not in the validation schema"),
-                    *field_name,
-                ));
-            }
-        }
+        validate_field_selection(schema, fields)?;
         fields.to_vec()
     };
 

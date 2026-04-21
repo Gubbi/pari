@@ -2,28 +2,24 @@
 //!
 //! [`ValidationSchema`] — per-entity schema with three rule maps.
 //! [`run_validations`] — async runner that dispatches rules and accumulates errors.
-//! Shared structural primitive rule functions.
 
-pub mod artifact_kind;
-pub mod cross_entity;
+mod lib;
 pub mod error;
-pub mod hook;
-pub mod primitives;
-pub mod relay;
-pub mod role;
-pub mod runner;
-pub mod schema;
-pub mod task;
-pub mod team;
-pub mod workflow;
+mod runner;
 
 pub use error::{FieldValidationError, SetterError, ValidationErrors, ValidationKind};
-pub use primitives::{
-    camel_case, camel_case_id, kebab_case, kebab_case_id, min_length, non_empty_list,
-    non_empty_str, raci_structural, states_valid_task, states_valid_workflow, unique_by,
-    x_prefix_keys,
-};
-pub use runner::{run_validations, run_validations_for_entity};
-pub use schema::{
+pub use lib::schema::{
     AnyCrossEntityRule, AnySemanticRule, AnyStructuralRule, ValidatableTracked, ValidationSchema,
 };
+pub use lib::rules::structural::primitives::{
+    camel_case, camel_case_id, kebab_case, kebab_case_id, min_length, non_empty_list,
+    non_empty_str, opt_non_empty_str, unique_by, x_prefix_keys,
+};
+pub use lib::rules::structural::raci::raci_structural;
+pub use lib::rules::structural::workflow::states_valid_workflow;
+pub use lib::rules::structural::task::states_valid_task;
+pub use runner::{run_validations, run_validations_for_entity};
+
+// Re-export entity rule modules so paths like `crate::validation::workflow::workflow_validation_schema`
+// remain valid for entity schema attributes.
+pub use lib::rules::{artifact_kind, hook, relay, role, task, team, workflow};
