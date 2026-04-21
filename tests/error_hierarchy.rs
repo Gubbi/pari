@@ -1,10 +1,10 @@
 use pari::{
     error::{
-        pari_error::PariError, primitive::PrimitiveError, ErrorCompose, FixDomain, Recoverability,
-        Severity,
+        pari_error::PariError, primitive::PrimitiveError, ActivityError, ErrorCompose, FixDomain,
+        Recoverability, Severity,
     },
     store_error::StoreError,
-    substrate::error::SubstrateError,
+    substrate::{InMemorySubstrate, Substrate},
     validation::error::{FieldValidationError, SetterError, ValidationErrors},
     workspace::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError},
 };
@@ -12,24 +12,25 @@ use pari::{
 // that StoreError (internal channel error) implements ErrorCompose.
 
 #[test]
-fn substrate_unpersistable_definition_is_data_operator_action() {
+fn activity_unpersistable_definition_is_data_operator_action() {
     let primitive = PrimitiveError::UnknownSchemaField {
         context: PrimitiveError::context("unknown schema field"),
         field: "name".to_string(),
     };
-    let e = SubstrateError::unpersistable_definition(primitive);
+    let e = ActivityError::unpersistable_definition(InMemorySubstrate::substrate_name(), primitive);
     assert_eq!(e.fix_domain(), FixDomain::Data);
     assert_eq!(e.recoverability(), Recoverability::OperatorAction);
 }
 
 #[test]
-fn substrate_corrupt_persistence_state_is_infra_operator_action() {
+fn activity_corrupt_persistence_state_is_infra_operator_action() {
     let primitive = PrimitiveError::PathPermissionDenied {
         context: PrimitiveError::context("path permission denied"),
         asset_path: "roles/eng-lead.md".to_string(),
         operation: "get".to_string(),
     };
-    let e = SubstrateError::corrupt_persistence_state(primitive);
+    let e =
+        ActivityError::corrupt_persistence_state(InMemorySubstrate::substrate_name(), primitive);
     assert_eq!(e.fix_domain(), FixDomain::Infra);
     assert_eq!(e.recoverability(), Recoverability::OperatorAction);
 }
@@ -59,7 +60,10 @@ fn checkout_substrate_delegates() {
         context: PrimitiveError::context("file read failed"),
         asset_path: "roles/x.md".to_string(),
     };
-    let e = CheckoutError::Substrate(SubstrateError::corrupt_persistence_state(primitive));
+    let e = CheckoutError::Substrate(ActivityError::corrupt_persistence_state(
+        InMemorySubstrate::substrate_name(),
+        primitive,
+    ));
     assert_eq!(e.fix_domain(), FixDomain::Infra);
 }
 
@@ -79,7 +83,8 @@ fn commit_cross_ref_check_failed_delegates_to_substrate() {
         context: PrimitiveError::context("file read failed"),
         asset_path: "roles/x.md".to_string(),
     };
-    let e = CommitError::CrossReferenceCheckFailed(SubstrateError::corrupt_persistence_state(
+    let e = CommitError::CrossReferenceCheckFailed(ActivityError::corrupt_persistence_state(
+        InMemorySubstrate::substrate_name(),
         primitive,
     ));
     assert_eq!(e.fix_domain(), FixDomain::Infra);
@@ -117,7 +122,8 @@ fn pari_error_downcast_reaches_load_error() {
         context: PrimitiveError::context("unknown schema field"),
         field: "name".to_string(),
     };
-    let sub = SubstrateError::unpersistable_definition(primitive);
+    let sub =
+        ActivityError::unpersistable_definition(InMemorySubstrate::substrate_name(), primitive);
     let load = LoadError::Substrate(sub);
     let pari = PariError::LoadFailed(load);
 
@@ -162,7 +168,7 @@ fn assert_error_compose<E: ErrorCompose>() {}
 
 #[test]
 fn all_operation_errors_implement_error_compose() {
-    assert_error_compose::<SubstrateError>();
+    assert_error_compose::<ActivityError>();
     assert_error_compose::<StoreError>();
     assert_error_compose::<CheckoutError>();
     assert_error_compose::<CommitError>();

@@ -1,10 +1,10 @@
 use crate::{
     entity::{AnyEntityRef, EntityKind, TrackedEntity},
-    error::primitive::PrimitiveError,
+    error::{primitive::PrimitiveError, ActivityError},
     store::EntityChange,
     substrate::{
         pipeline::{self},
-        Substrate, SubstrateError,
+        Substrate,
     },
 };
 
@@ -86,14 +86,18 @@ impl Substrate for VoidSubstrate {
         &VoidExecutor
     }
 
-    fn load_strategy(_: EntityKind, _: &str) -> Result<pipeline::LoadStrategy, SubstrateError> {
+    fn substrate_name() -> &'static str {
+        "void_substrate"
+    }
+
+    fn load_strategy(_: EntityKind, _: &str) -> Result<pipeline::LoadStrategy, ActivityError> {
         Ok(pipeline::LoadStrategy {
             prerequisites: vec![],
             mutable_without_load: true,
         })
     }
 
-    async fn exists(&self, refs: &[AnyEntityRef]) -> Result<Vec<bool>, SubstrateError> {
+    async fn exists(&self, refs: &[AnyEntityRef]) -> Result<Vec<bool>, ActivityError> {
         Ok(vec![false; refs.len()])
     }
 
@@ -101,17 +105,18 @@ impl Substrate for VoidSubstrate {
         &self,
         entity: &TrackedEntity,
         _: &[&str],
-    ) -> Result<TrackedEntity, SubstrateError> {
+    ) -> Result<TrackedEntity, ActivityError> {
         let entity_ref = entity.any_ref().id().to_string();
-        Err(SubstrateError::corrupt_persistence_state(
-            PrimitiveError::unsupported_load("unsupported load", entity_ref, "void_substrate"),
+        Err(ActivityError::corrupt_persistence_state(
+            Self::substrate_name(),
+            PrimitiveError::unsupported_load("unsupported load", entity_ref),
         ))
     }
 
     async fn persist(
         &self,
         _: impl Iterator<Item = EntityChange<'_>> + Send,
-    ) -> Result<(), Vec<SubstrateError>> {
+    ) -> Result<(), Vec<ActivityError>> {
         Ok(())
     }
 }

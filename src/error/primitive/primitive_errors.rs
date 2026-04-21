@@ -193,7 +193,7 @@ primitive_errors! {
     /// Preloaded in-memory asset state could not support coherent substrate operations.
     IncompatiblePreloadedAssetState { asset_path: String, reason: String }
     /// A no-load substrate was asked to materialize entity data.
-    UnsupportedLoad { entity_ref: String, substrate_kind: String }
+    UnsupportedLoad { entity_ref: String }
 
     /// The schema registry has no entry for the requested entity kind.
     UnsupportedEntityKind { entity_kind: String }
@@ -719,15 +719,10 @@ impl PrimitiveError {
         }
     }
 
-    pub fn unsupported_load(
-        message: impl Into<String>,
-        entity_ref: impl Into<String>,
-        substrate_kind: impl Into<String>,
-    ) -> Self {
+    pub fn unsupported_load(message: impl Into<String>, entity_ref: impl Into<String>) -> Self {
         Self::UnsupportedLoad {
             context: Self::context(message),
             entity_ref: entity_ref.into(),
-            substrate_kind: substrate_kind.into(),
         }
     }
 

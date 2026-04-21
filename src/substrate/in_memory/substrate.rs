@@ -41,6 +41,10 @@ impl Substrate for InMemorySubstrate {
     type Codec = InMemoryCodec;
     type Executor = InMemoryExecutor;
 
+    fn substrate_name() -> &'static str {
+        "in_memory_substrate"
+    }
+
     fn resolver(&self) -> &Self::Resolver {
         &self.resolver
     }

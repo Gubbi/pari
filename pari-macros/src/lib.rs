@@ -3,7 +3,7 @@
 use proc_macro::TokenStream;
 use syn::{parse_macro_input, DeriveInput};
 
-mod activity_error;
+mod activity_error_enum;
 mod entity;
 mod entity_codegen;
 mod entity_registry;
@@ -60,7 +60,7 @@ pub fn primitive_errors(input: TokenStream) -> TokenStream {
     primitive_error_enum::primitive_errors(input)
 }
 
-#[proc_macro_attribute]
-pub fn activity_error(args: TokenStream, input: TokenStream) -> TokenStream {
-    activity_error::activity_error(args, input)
+#[proc_macro]
+pub fn activity_errors(input: TokenStream) -> TokenStream {
+    activity_error_enum::activity_errors(input)
 }

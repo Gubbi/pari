@@ -1,7 +1,8 @@
 use pari_macros::{ErrorCompose, OTelEmit};
 
 use crate::{
-    error::BatchError, substrate::error::SubstrateError, validation::error::ValidationErrors,
+    error::{ActivityError, BatchError},
+    validation::error::ValidationErrors,
 };
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
@@ -18,7 +19,7 @@ pub enum CheckoutError {
 
     #[error(transparent)]
     #[compose(delegate)]
-    Substrate(#[from] SubstrateError),
+    Substrate(#[from] ActivityError),
 }
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
@@ -34,7 +35,7 @@ pub enum CommitError {
 
     #[error(transparent)]
     #[compose(delegate)]
-    CrossReferenceCheckFailed(SubstrateError),
+    CrossReferenceCheckFailed(ActivityError),
 }
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
@@ -46,7 +47,7 @@ pub enum LoadError {
 
     #[error(transparent)]
     #[compose(delegate)]
-    Substrate(#[from] SubstrateError),
+    Substrate(#[from] ActivityError),
 
     #[error("load validation failed: {error_count} error(s)")]
     #[compose(fix = Data, recoverability = OperatorAction)]
@@ -75,7 +76,7 @@ pub enum PersistError {
 
     #[error("{0}")]
     #[compose(delegate)]
-    SubstrateErrors(BatchError<SubstrateError>),
+    ActivityErrors(BatchError<ActivityError>),
 }
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
@@ -87,5 +88,5 @@ pub enum ResolveError {
 
     #[error(transparent)]
     #[compose(delegate)]
-    Substrate(#[from] SubstrateError),
+    Substrate(#[from] ActivityError),
 }

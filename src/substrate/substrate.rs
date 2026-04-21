@@ -1,7 +1,8 @@
 use crate::{
     entity::{AnyEntityRef, EntityKind, TrackedEntity},
+    error::ActivityError,
     store::EntityChange,
-    substrate::{defaults, lib::schema_registry::SchemaBackedSubstrate, pipeline, SubstrateError},
+    substrate::{defaults, lib::schema_registry::SchemaBackedSubstrate, pipeline},
 };
 
 pub trait Substrate: Sized + Send + Sync + 'static {
@@ -16,10 +17,14 @@ pub trait Substrate: Sized + Send + Sync + 'static {
     fn codec(&self) -> &Self::Codec;
     fn executor(&self) -> &Self::Executor;
 
+    /// Short snake_case identifier for this backend, used in component strings.
+    /// Format: `"{backend_name}"` e.g. `"repo_substrate"`, `"in_memory_substrate"`.
+    fn substrate_name() -> &'static str;
+
     fn load_strategy(
         entity_kind: EntityKind,
         field: &str,
-    ) -> Result<pipeline::LoadStrategy, SubstrateError>
+    ) -> Result<pipeline::LoadStrategy, ActivityError>
     where
         Self: SchemaBackedSubstrate,
     {
@@ -29,7 +34,7 @@ pub trait Substrate: Sized + Send + Sync + 'static {
     fn exists<'a>(
         &'a self,
         refs: &'a [AnyEntityRef],
-    ) -> impl std::future::Future<Output = Result<Vec<bool>, SubstrateError>> + Send + 'a
+    ) -> impl std::future::Future<Output = Result<Vec<bool>, ActivityError>> + Send + 'a
     where
         Self: SchemaBackedSubstrate,
     {
@@ -40,7 +45,7 @@ pub trait Substrate: Sized + Send + Sync + 'static {
         &'a self,
         entity: &'a TrackedEntity,
         fields: &'a [&'a str],
-    ) -> impl std::future::Future<Output = Result<TrackedEntity, SubstrateError>> + Send + 'a
+    ) -> impl std::future::Future<Output = Result<TrackedEntity, ActivityError>> + Send + 'a
     where
         Self: SchemaBackedSubstrate,
     {
@@ -50,7 +55,7 @@ pub trait Substrate: Sized + Send + Sync + 'static {
     fn persist<'a>(
         &'a self,
         changes: impl Iterator<Item = EntityChange<'a>> + Send + 'a,
-    ) -> impl std::future::Future<Output = Result<(), Vec<SubstrateError>>> + Send + 'a
+    ) -> impl std::future::Future<Output = Result<(), Vec<ActivityError>>> + Send + 'a
     where
         Self: SchemaBackedSubstrate,
     {

@@ -1,31 +1,32 @@
 #[cfg(test)]
 mod tests {
-    use crate::{error::primitive, substrate::SubstrateError};
+    use crate::{
+        error::{primitive, ActivityError},
+        substrate::{RepoSubstrate, Substrate},
+    };
 
     #[test]
-    fn substrate_error_display_format() {
+    fn activity_error_display_format() {
         let primitive = primitive::PrimitiveError::PathPermissionDenied {
             context: primitive::PrimitiveError::context("path permission denied"),
             asset_path: "roles/eng-lead.md".to_string(),
             operation: "get".to_string(),
         };
-        let error = SubstrateError::corrupt_persistence_state(primitive);
+        let error =
+            ActivityError::corrupt_persistence_state(RepoSubstrate::substrate_name(), primitive);
         let message = format!("{error}");
-        assert!(
-            message.contains("corrupt persistence state"),
-            "display: {message}"
-        );
         assert!(message.contains("permission denied"), "display: {message}");
     }
 
     #[test]
-    fn substrate_error_implements_std_error() {
+    fn activity_error_implements_std_error() {
         let primitive = primitive::PrimitiveError::PathPermissionDenied {
             context: primitive::PrimitiveError::context("path permission denied"),
             asset_path: "roles/eng-lead.md".to_string(),
             operation: "get".to_string(),
         };
-        let error = SubstrateError::corrupt_persistence_state(primitive);
+        let error =
+            ActivityError::corrupt_persistence_state(RepoSubstrate::substrate_name(), primitive);
         let _: &dyn std::error::Error = &error;
     }
 }

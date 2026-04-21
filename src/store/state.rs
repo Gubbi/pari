@@ -246,7 +246,7 @@ where
             self.substrate
                 .persist(changes.iter())
                 .await
-                .map_err(|errs| PersistError::SubstrateErrors(BatchError::new(errs)))?;
+                .map_err(|errs| PersistError::ActivityErrors(BatchError::new(errs)))?;
         }
 
         for any_ref in self.modified.iter().cloned().collect::<Vec<_>>() {

@@ -4,13 +4,13 @@ use std::{
 };
 
 use crate::{
-    error::primitive::PrimitiveError,
+    error::{primitive::PrimitiveError, ActivityError},
     substrate::{
         repo::{
             lib::{codec::RepoCodec, executor::RepoExecutor, schema::RepoSlot},
             resolver::RepoLocationResolver,
         },
-        Substrate, SubstrateError,
+        Substrate,
     },
 };
 
@@ -21,7 +21,7 @@ pub struct RepoSubstrate {
 }
 
 impl RepoSubstrate {
-    pub fn new(root: PathBuf) -> Result<Self, SubstrateError> {
+    pub fn new(root: PathBuf) -> Result<Self, ActivityError> {
         cleanup_stale(&root)?;
         fs::create_dir_all(&root).map_err(|e| {
             let root_path = root.display().to_string();
@@ -34,7 +34,7 @@ impl RepoSubstrate {
             } else {
                 PrimitiveError::root_directory_creation("root directory creation failed", root_path)
             };
-            SubstrateError::corrupt_persistence_state(primitive)
+            ActivityError::corrupt_persistence_state(Self::substrate_name(), primitive)
         })?;
 
         Ok(Self {
@@ -53,6 +53,10 @@ impl Substrate for RepoSubstrate {
     type Codec = RepoCodec;
     type Executor = RepoExecutor;
 
+    fn substrate_name() -> &'static str {
+        "repo_substrate"
+    }
+
     fn resolver(&self) -> &Self::Resolver {
         &self.resolver
     }
@@ -66,12 +70,13 @@ impl Substrate for RepoSubstrate {
     }
 }
 
-fn cleanup_stale(root: &Path) -> Result<(), SubstrateError> {
+fn cleanup_stale(root: &Path) -> Result<(), ActivityError> {
     if !root.exists() {
         return Ok(());
     }
 
-    fn walk(dir: &Path) -> Result<(), SubstrateError> {
+    fn walk(dir: &Path) -> Result<(), ActivityError> {
+        let component = RepoSubstrate::substrate_name();
         for entry in fs::read_dir(dir).map_err(|e| {
             let path = dir.display().to_string();
             let primitive = if e.kind() == std::io::ErrorKind::PermissionDenied {
@@ -83,7 +88,7 @@ fn cleanup_stale(root: &Path) -> Result<(), SubstrateError> {
             } else {
                 PrimitiveError::directory_read("directory read failed", path)
             };
-            SubstrateError::corrupt_persistence_state(primitive)
+            ActivityError::corrupt_persistence_state(component, primitive)
         })? {
             let entry = entry.map_err(|e| {
                 let path = dir.display().to_string();
@@ -96,7 +101,7 @@ fn cleanup_stale(root: &Path) -> Result<(), SubstrateError> {
                 } else {
                     PrimitiveError::directory_entry_read("directory entry read failed", path)
                 };
-                SubstrateError::corrupt_persistence_state(primitive)
+                ActivityError::corrupt_persistence_state(component, primitive)
             })?;
             let path = entry.path();
             if path.is_dir() {
@@ -116,7 +121,7 @@ fn cleanup_stale(root: &Path) -> Result<(), SubstrateError> {
                                 stale_path,
                             )
                         };
-                        SubstrateError::corrupt_persistence_state(primitive)
+                        ActivityError::corrupt_persistence_state(component, primitive)
                     })?;
                 } else {
                     walk(&path)?;

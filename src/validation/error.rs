@@ -2,7 +2,7 @@
 
 use pari_macros::{ErrorCompose, OTelEmit};
 
-use crate::{error::primitive::PrimitiveError, substrate::error::SubstrateError};
+use crate::error::{primitive::PrimitiveError, ActivityError};
 
 // ---------------------------------------------------------------------------
 // Plain data types (not ErrorCompose)
@@ -54,7 +54,7 @@ pub enum SetterError {
     /// ensure_mutable triggered a substrate load which failed.
     #[error(transparent)]
     #[compose(delegate)]
-    Substrate(#[from] SubstrateError),
+    Substrate(#[from] ActivityError),
 
     /// Structural or semantic validation rejected the incoming value.
     #[error("validation failed: {error_count} error(s)")]
