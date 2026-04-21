@@ -88,7 +88,8 @@ Every error chain in Pari follows this structure:
 │  Communicates the outcome of a subsystem activity.                   │
 │  Outcome-based name: what went wrong / what state was left.          │
 │  Declares: fix domain, recoverability (via #[compose(...)]).         │
-│  Carries: component + hint for recovery or corrective guidance.      │
+│  Carries: component: ActivityComponent + hint: Option<&'static str>  │
+│  Generated via: #[activity_error(fix=..., recoverability=...)]       │
 │  Module: <owning-module>::error::                                    │
 └─────────────────────────────┬────────────────────────────────────────┘
                               │ #[source]
@@ -113,9 +114,35 @@ Both Activity and Intermediary Op errors live at `<owning-module>::error::`. The
 |---|---|---|
 | Declares `fix` + `recoverability` | Yes — `#[compose(fix=..., recoverability=...)]` | No |
 | Communicates outcome | Yes | No |
-| Carries `component` + `hint` | Yes | No |
+| Carries `component: ActivityComponent`, `hint: Option<&'static str>` | Yes | No |
 | Wraps | A Primitive error | Another error (Activity or Intermediary Op) |
 | Compose annotation | Declares | `#[compose(delegate)]` |
+
+### `ActivityComponent` — Subsystem Identity
+
+Every activity error carries a `component: ActivityComponent` field identifying the
+orchestration-visible subsystem where the failure originated. `ActivityComponent` is a
+shared enum defined in `error::ActivityComponent` and auto-added by `#[activity_error]`.
+
+```rust
+pub enum ActivityComponent {
+    // substrate/repo
+    RepoSubstrate, RepoCodec, RepoExecutor, RepoLocationResolver,
+    // substrate/in_memory
+    InMemoryCodec, InMemoryExecutor,
+    // store
+    EntityServer,
+    // validation
+    ValidationRunner,
+}
+```
+
+Components are named at the granularity visible to the orchestrating layer — the
+pure `lib/` subsystem that surfaced the primitive failure. `ActivityComponent`
+serialises to lowercase snake_case via `Display` for OTel emission.
+
+`component` and `hint` are both fixed per error type. The same activity error type
+always identifies the same component and carries the same corrective hint.
 
 ### Chain depth varies
 
@@ -222,8 +249,8 @@ Computed by `#[derive(ErrorCompose)]` — no annotation required.
 | Dimension | Field |
 |---|---|
 | Outcome | Variant or type name |
-| Component identity | `component` |
-| Corrective guidance | `hint: Option<String>` |
+| Component identity | `component: ActivityComponent` — typed enum, fixed per error type |
+| Corrective guidance | `hint: Option<&'static str>` — fixed per error type, declared in macro args |
 
 ### At the Primitive layer
 
@@ -259,27 +286,19 @@ On every type it is applied to:
 The Activity layer owns the classification. Declare `fix` and `recoverability` here:
 
 ```rust
-#[derive(Error, Debug, ErrorCompose, OTelEmit)]
-#[compose(fix = Data, recoverability = OperatorAction)]
-#[otel(error_type = "bad_definition")]
-pub struct BadDefinitionError {
-    pub component: RepoComponent,
-    pub hint: Option<String>,
-    #[source]
-    #[otel(delegate)]    // OTel cascade to primitive
-    pub cause: MalformedFrontmatterError,
-}
+// Activity errors are declared via #[activity_error]. The macro auto-adds
+// component: ActivityComponent and cause: PrimitiveError. fix, recoverability,
+// and hint are fixed per type and declared as macro args.
 
-#[derive(Error, Debug, ErrorCompose, OTelEmit)]
-#[compose(fix = Infra, recoverability = OperatorAction)]
-#[otel(error_type = "corrupt_persistence_state")]
-pub struct CorruptPersistenceState {
-    pub component: RepoComponent,
-    pub hint: Option<String>,
-    #[source]
-    #[otel(delegate)]
-    pub cause: RenameFailed,
-}
+#[activity_error(fix = Data, recoverability = OperatorAction)]
+pub struct BadDefinitionError {}
+
+#[activity_error(
+    fix = Infra,
+    recoverability = OperatorAction,
+    hint = "stale .part/ dir may exist — safe to remove",
+)]
+pub struct CorruptPersistenceState {}
 ```
 
 ### At the Intermediary Op and Job layers — delegate

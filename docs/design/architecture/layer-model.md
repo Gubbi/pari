@@ -31,7 +31,7 @@ The main rule is simple:
 | `entity` | Domain identity, entity definitions, tracked entity representations, shared value types, change-tracking primitives | Actor orchestration, persistence layout, validation policy, caller-facing operation flow | `error` |
 | `workspace` | Caller-facing async API, operation handles, generated accessors/setters, request shaping for user intent | In-memory store state, persistence implementation details, validation rule definitions | `entity`, `store`, `validation`, `error` |
 | `store` | In-memory entity state, actor/message flow, checkout lifecycle, resolve/load orchestration, persist orchestration, store-owned persistence handoff types | Public caller API ergonomics, persistence layout/encoding, entity rule definitions | `entity`, `substrate`, `validation`, `error` |
-| `substrate` | Persistence contracts, schema-driven asset pipeline, backend implementations, storage layout and execution details | Store actor behavior, caller-facing APIs, validation rule authorship | `entity`, `error`, and explicit store-owned persistence boundary types |
+| `substrate` | Persistence contracts, schema-driven asset pipeline, backend implementations, storage layout and execution details | Entity Server behavior, caller-facing APIs, validation rule authorship | `entity`, `error`, and explicit store-owned persistence boundary types |
 | `validation` | Validation schemas, validation rules, cross-entity validation behavior, validation error details | Persistence, actor flow, caller transport/protocol concerns | `entity`, `error` |
 | `error` | Cross-cutting error composition, classification, aggregation, emission, umbrella error types | Domain entities, runtime orchestration, persistence behavior, test logic | none |
 | `test` | Verification strategy, test fixtures, integration/end-to-end expectations, test-only support code | Production runtime behavior or ownership decisions | any production layer |
@@ -54,7 +54,7 @@ More specific expectations:
 - `entity` is foundational. Higher layers may use entity-layer types, but entity code must stay free of store, substrate, workspace, and test concerns.
 - `workspace` is the caller-facing boundary. It may coordinate store operations and validation-triggered behavior, but it should not own store internals or substrate mechanics.
 - `store` is the orchestration boundary between caller intent and persistence. It may coordinate validation and substrate work, but it should not absorb caller-facing API design from `workspace` or persistence implementation concerns from `substrate`.
-- `substrate` owns storage concerns. It may consume explicit persistence handoff types defined by the `store` layer, but it should not depend on store actor internals or workspace behavior.
+- `substrate` owns storage concerns. It may consume explicit persistence handoff types defined by the `store` layer, but it should not depend on entity server internals or workspace behavior.
 - `validation` owns rule definition and validation-time interpretation, not runtime orchestration.
 - `error` stays reusable and cross-cutting; it should not become a back door for moving business logic between layers.
 - `test` may reach across layers for verification, but production layers must not depend on test code.
@@ -72,6 +72,41 @@ Use these rules when deciding where a concept belongs:
 7. If it exists only to verify behavior, it belongs to `test`.
 
 When a concept touches more than one layer, the owning layer is the one that defines the behavior; other layers should depend on that behavior through an explicit boundary rather than duplicate the logic.
+
+## Within-Layer Structure
+
+Each layer follows a consistent internal split between pure and orchestration components.
+
+### Pure components (`lib/`)
+
+Pure components live in `lib/` subdirectories within each layer. They are responsible
+for data transformation, type definitions, encoding/decoding, and rule evaluation.
+Every Result-returning function in a `lib/` component emits only `PrimitiveError`.
+Pure components have no knowledge of cross-layer concerns.
+
+### Orchestration components (layer root)
+
+Orchestration components live at the layer root. They coordinate across pure components
+and adjacent layers. At cross-layer boundaries, orchestration components emit activity
+errors — wrapping `PrimitiveError`s received from pure components into the appropriate
+activity error type, and forwarding activity errors from deeper layers unchanged.
+
+### Error type by component role
+
+| Component role | Error type at boundaries |
+|---|---|
+| Pure (`lib/`) | `PrimitiveError` — emitted at the exact point of failure |
+| Orchestration | Activity error via `#[activity_error]` — wrap or forward |
+
+`entity` is the sole exception: it has no orchestration layer of its own and stays
+with `PrimitiveError` at all boundaries.
+
+### `mod.rs` files
+
+`mod.rs` files contain only `mod` declarations and `pub use` re-exports — no logic,
+no `impl` blocks, no free functions. All logic lives in named source files.
+
+---
 
 ## Design Tree Mapping
 
