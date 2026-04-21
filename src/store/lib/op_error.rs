@@ -1,9 +1,7 @@
 use pari_macros::{ErrorCompose, OTelEmit};
 
 use crate::{
-    error::BatchError,
-    substrate::error::SubstrateError,
-    validation::error::ValidationErrors,
+    error::BatchError, substrate::error::SubstrateError, validation::error::ValidationErrors,
 };
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]

@@ -1,7 +1,5 @@
-mod codec;
-mod executor;
+mod lib;
 mod resolver;
-mod schema;
 mod substrate;
 
 pub use substrate::RepoSubstrate;

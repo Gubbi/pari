@@ -2,8 +2,7 @@
 
 use pari_macros::{ErrorCompose, OTelEmit};
 
-use crate::error::primitive::PrimitiveError;
-use crate::substrate::error::SubstrateError;
+use crate::{error::primitive::PrimitiveError, substrate::error::SubstrateError};
 
 // ---------------------------------------------------------------------------
 // Plain data types (not ErrorCompose)
@@ -49,7 +48,6 @@ pub struct FieldValidationError {
 // ---------------------------------------------------------------------------
 // SetterError
 // ---------------------------------------------------------------------------
-
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
 pub enum SetterError {

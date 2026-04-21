@@ -1,5 +1,4 @@
-use crate::entity::types::Raci;
-use crate::error::primitive::PrimitiveError;
+use crate::{entity::types::Raci, error::primitive::PrimitiveError};
 
 /// `Raci.responsible` must be non-empty.
 pub fn raci_structural(value: &Raci) -> Vec<PrimitiveError> {
@@ -42,7 +41,10 @@ mod tests {
         assert!(!v.is_empty());
         match &v[0] {
             PrimitiveError::EmptyRequiredValue { sub_path, .. } => {
-                assert!(sub_path.as_ref().map(|p| p.contains("responsible")).unwrap_or(false));
+                assert!(sub_path
+                    .as_ref()
+                    .map(|p| p.contains("responsible"))
+                    .unwrap_or(false));
             }
             other => panic!("expected EmptyRequiredValue, got {other:?}"),
         }

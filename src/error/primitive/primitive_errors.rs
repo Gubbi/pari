@@ -691,10 +691,7 @@ impl PrimitiveError {
         }
     }
 
-    pub fn root_directory_creation(
-        message: impl Into<String>,
-        root: impl Into<String>,
-    ) -> Self {
+    pub fn root_directory_creation(message: impl Into<String>, root: impl Into<String>) -> Self {
         Self::RootDirectoryCreation {
             context: Self::context(message),
             root: root.into(),

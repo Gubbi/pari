@@ -3,8 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::{
     entity::EntityKind,
     substrate::{
-        pipeline::LocationResolver, repo::substrate::RepoSubstrate,
-        SchemaBackedSubstrate,
+        pipeline::LocationResolver, repo::substrate::RepoSubstrate, SchemaBackedSubstrate,
     },
 };
 

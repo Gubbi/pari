@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use crate::entity::entities::relay::StateMapEntry;
-use crate::error::primitive::PrimitiveError;
+use crate::{entity::entities::relay::StateMapEntry, error::primitive::PrimitiveError};
 
 pub fn non_empty_map_state_map(value: &HashMap<String, StateMapEntry>) -> Vec<PrimitiveError> {
     if value.is_empty() {

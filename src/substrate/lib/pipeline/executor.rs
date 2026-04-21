@@ -1,6 +1,5 @@
-use crate::error::primitive::PrimitiveError;
-
 use super::{AssetRequest, AssetResponse};
+use crate::error::primitive::PrimitiveError;
 
 pub trait Executor {
     type Location;

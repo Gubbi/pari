@@ -12,13 +12,13 @@ pub(crate) fn any_ref_to_stub_json(any_ref: &AnyEntityRef) -> serde_json::Value 
 }
 
 pub(crate) fn entity_to_json(entity: &TrackedEntity) -> Result<serde_json::Value, PrimitiveError> {
-    entity
-        .to_json_value()
-        .map_err(|e| PrimitiveError::entity_projection(
+    entity.to_json_value().map_err(|e| {
+        PrimitiveError::entity_projection(
             "entity projection failed",
             entity.any_ref().id().to_string(),
             e.to_string(),
-        ))
+        )
+    })
 }
 
 pub(crate) fn merge_field_map_into(

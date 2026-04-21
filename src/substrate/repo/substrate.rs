@@ -7,8 +7,8 @@ use crate::{
     error::primitive::PrimitiveError,
     substrate::{
         repo::{
-            codec::RepoCodec, executor::RepoExecutor, resolver::RepoLocationResolver,
-            schema::RepoSlot,
+            lib::{codec::RepoCodec, executor::RepoExecutor, schema::RepoSlot},
+            resolver::RepoLocationResolver,
         },
         Substrate, SubstrateError,
     },
@@ -32,10 +32,7 @@ impl RepoSubstrate {
                     "create_dir_all",
                 )
             } else {
-                PrimitiveError::root_directory_creation(
-                    "root directory creation failed",
-                    root_path,
-                )
+                PrimitiveError::root_directory_creation("root directory creation failed", root_path)
             };
             SubstrateError::corrupt_persistence_state(primitive)
         })?;

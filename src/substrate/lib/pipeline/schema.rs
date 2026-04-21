@@ -3,9 +3,8 @@ use std::{
     sync::{LazyLock, Mutex},
 };
 
-use crate::error::primitive::PrimitiveError;
-
 use super::{AssetKind, Slot};
+use crate::error::primitive::PrimitiveError;
 
 #[derive(Clone, Copy)]
 pub struct FieldMapping<S: Slot> {

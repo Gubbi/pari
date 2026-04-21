@@ -10,7 +10,7 @@ use crate::{
     entity::{AnyEntityRef, TrackedEntity},
     error::{store::StoreError, BatchError},
     store::{
-        message::{StoreMessage, StoreRequest, StoreResponse},
+        lib::message::{StoreMessage, StoreRequest, StoreResponse},
         CheckoutError, CommitError, LoadError, PersistChanges, PersistError, ResolveError,
         UndoError,
     },

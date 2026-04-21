@@ -1,13 +1,15 @@
 //! EntityStore — async actor-based store for tracked entities.
 
-mod change;
-mod message;
-mod op_error;
+mod lib;
 mod server;
 mod state;
 
-pub use change::EntityChange;
-pub(crate) use change::PersistChanges;
-pub(crate) use message::{StoreRequest, StoreResponse};
-pub use op_error::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError};
+pub use lib::{
+    change::EntityChange,
+    op_error::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError},
+};
+pub(crate) use lib::{
+    change::PersistChanges,
+    message::{StoreRequest, StoreResponse},
+};
 pub use server::EntityServer;

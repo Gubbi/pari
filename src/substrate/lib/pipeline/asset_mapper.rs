@@ -1,6 +1,5 @@
-use crate::error::primitive::PrimitiveError;
-
 use super::{EntitySchema, SchemaAsset, Slot};
+use crate::error::primitive::PrimitiveError;
 
 pub struct AssetMapper;
 

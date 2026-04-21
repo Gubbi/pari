@@ -101,10 +101,8 @@ impl Executor for RepoExecutor {
                                     "delete",
                                 ));
                             } else {
-                                errors.push(PrimitiveError::file_delete(
-                                    "file delete failed",
-                                    path,
-                                ));
+                                errors
+                                    .push(PrimitiveError::file_delete("file delete failed", path));
                             }
                             continue;
                         }

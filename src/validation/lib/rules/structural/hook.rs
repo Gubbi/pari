@@ -1,5 +1,4 @@
-use crate::entity::entities::hook::HookInput;
-use crate::error::primitive::PrimitiveError;
+use crate::{entity::entities::hook::HookInput, error::primitive::PrimitiveError};
 
 pub fn hook_inputs_structural(value: &Option<Vec<HookInput>>) -> Vec<PrimitiveError> {
     match value {

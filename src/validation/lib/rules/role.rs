@@ -1,7 +1,9 @@
-use super::super::schema::{AnyStructuralRule, ValidationSchema};
-use super::structural::{
-    primitives::{kebab_case_id, non_empty_str, opt_non_empty_str, x_prefix_keys},
-    role::each_item_non_empty_str,
+use super::{
+    super::schema::{AnyStructuralRule, ValidationSchema},
+    structural::{
+        primitives::{kebab_case_id, non_empty_str, opt_non_empty_str, x_prefix_keys},
+        role::each_item_non_empty_str,
+    },
 };
 use crate::entity::entities::role::{Role, TrackedRole};
 
@@ -22,25 +24,37 @@ pub fn role_validation_schema() -> ValidationSchema<Role> {
     structural.insert(
         "description",
         vec![Box::new(|e: &TrackedRole| {
-            e.description.get().map(|v| opt_non_empty_str(v)).unwrap_or_default()
+            e.description
+                .get()
+                .map(|v| opt_non_empty_str(v))
+                .unwrap_or_default()
         })],
     );
     structural.insert(
         "purpose",
         vec![Box::new(|e: &TrackedRole| {
-            e.purpose.get().map(|v| non_empty_str(v)).unwrap_or_default()
+            e.purpose
+                .get()
+                .map(|v| non_empty_str(v))
+                .unwrap_or_default()
         })],
     );
     structural.insert(
         "traits",
         vec![Box::new(|e: &TrackedRole| {
-            e.traits.get().map(|v| each_item_non_empty_str(v)).unwrap_or_default()
+            e.traits
+                .get()
+                .map(|v| each_item_non_empty_str(v))
+                .unwrap_or_default()
         })],
     );
     structural.insert(
         "extensions",
         vec![Box::new(|e: &TrackedRole| {
-            e.extensions.get().map(|v| x_prefix_keys(v)).unwrap_or_default()
+            e.extensions
+                .get()
+                .map(|v| x_prefix_keys(v))
+                .unwrap_or_default()
         })],
     );
 

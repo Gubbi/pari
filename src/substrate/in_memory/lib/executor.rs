@@ -1,7 +1,7 @@
 use crate::{
     error::primitive::PrimitiveError,
     substrate::{
-        in_memory::storage::InMemoryStorage,
+        in_memory::lib::storage::InMemoryStorage,
         pipeline::{AssetOp, AssetRequest, AssetResponse, Executor},
     },
 };

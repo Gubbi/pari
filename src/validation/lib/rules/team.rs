@@ -1,7 +1,9 @@
-use super::super::schema::{AnyCrossEntityRule, AnyStructuralRule, ValidationSchema};
-use super::structural::{
-    primitives::{kebab_case_id, non_empty_str, opt_non_empty_str, x_prefix_keys},
-    team::unique_member_handles,
+use super::{
+    super::schema::{AnyCrossEntityRule, AnyStructuralRule, ValidationSchema},
+    structural::{
+        primitives::{kebab_case_id, non_empty_str, opt_non_empty_str, x_prefix_keys},
+        team::unique_member_handles,
+    },
 };
 use crate::entity::entities::team::{Team, TrackedTeam};
 
@@ -22,19 +24,28 @@ pub fn team_validation_schema() -> ValidationSchema<Team> {
     structural.insert(
         "description",
         vec![Box::new(|e: &TrackedTeam| {
-            e.description.get().map(|v| opt_non_empty_str(v)).unwrap_or_default()
+            e.description
+                .get()
+                .map(|v| opt_non_empty_str(v))
+                .unwrap_or_default()
         })],
     );
     structural.insert(
         "members",
         vec![Box::new(|e: &TrackedTeam| {
-            e.members.get().map(|v| unique_member_handles(v)).unwrap_or_default()
+            e.members
+                .get()
+                .map(|v| unique_member_handles(v))
+                .unwrap_or_default()
         })],
     );
     structural.insert(
         "extensions",
         vec![Box::new(|e: &TrackedTeam| {
-            e.extensions.get().map(|v| x_prefix_keys(v)).unwrap_or_default()
+            e.extensions
+                .get()
+                .map(|v| x_prefix_keys(v))
+                .unwrap_or_default()
         })],
     );
 

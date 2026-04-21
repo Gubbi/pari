@@ -1,7 +1,9 @@
-use crate::entity::entities::workflow::{
-    Step, TrackedEmbeddedWorkflow, TrackedReusableWorkflow, TrackedWorkflow,
+use crate::{
+    entity::entities::workflow::{
+        Step, TrackedEmbeddedWorkflow, TrackedReusableWorkflow, TrackedWorkflow,
+    },
+    error::primitive::PrimitiveError,
 };
-use crate::error::primitive::PrimitiveError;
 
 // ---------------------------------------------------------------------------
 // Workflow
@@ -16,9 +18,18 @@ pub async fn depends_on_valid(e: &TrackedWorkflow) -> Vec<PrimitiveError> {
     let step_ids: std::collections::HashSet<&str> = steps.keys().map(|s| s.as_str()).collect();
     for (step_id, step) in steps.iter() {
         match step {
-            Step::Task { depends_on: Some(deps), .. }
-            | Step::Relay { depends_on: Some(deps), .. }
-            | Step::EmbeddedWorkflow { depends_on: Some(deps), .. } => {
+            Step::Task {
+                depends_on: Some(deps),
+                ..
+            }
+            | Step::Relay {
+                depends_on: Some(deps),
+                ..
+            }
+            | Step::EmbeddedWorkflow {
+                depends_on: Some(deps),
+                ..
+            } => {
                 for dep in deps {
                     if !step_ids.contains(dep.as_str()) {
                         violations.push(PrimitiveError::illegal_dependency_reference(
@@ -69,7 +80,10 @@ pub async fn reviewing_state_required(e: &TrackedWorkflow) -> Vec<PrimitiveError
         None => return vec![],
     };
     let has_reviewing = states.iter().any(|s| {
-        matches!(s.semantic, Some(crate::entity::types::WorkflowSemantic::Reviewing))
+        matches!(
+            s.semantic,
+            Some(crate::entity::types::WorkflowSemantic::Reviewing)
+        )
     });
     if !has_reviewing {
         vec![PrimitiveError::workflow_graph_inconsistency(
@@ -94,9 +108,18 @@ pub async fn depends_on_valid_reusable(e: &TrackedReusableWorkflow) -> Vec<Primi
     let step_ids: std::collections::HashSet<&str> = steps.keys().map(|s| s.as_str()).collect();
     for (step_id, step) in steps.iter() {
         match step {
-            Step::Task { depends_on: Some(deps), .. }
-            | Step::Relay { depends_on: Some(deps), .. }
-            | Step::EmbeddedWorkflow { depends_on: Some(deps), .. } => {
+            Step::Task {
+                depends_on: Some(deps),
+                ..
+            }
+            | Step::Relay {
+                depends_on: Some(deps),
+                ..
+            }
+            | Step::EmbeddedWorkflow {
+                depends_on: Some(deps),
+                ..
+            } => {
                 for dep in deps {
                     if !step_ids.contains(dep.as_str()) {
                         violations.push(PrimitiveError::illegal_dependency_reference(
@@ -147,7 +170,10 @@ pub async fn reviewing_state_required_reusable(e: &TrackedReusableWorkflow) -> V
         None => return vec![],
     };
     let has_reviewing = states.iter().any(|s| {
-        matches!(s.semantic, Some(crate::entity::types::WorkflowSemantic::Reviewing))
+        matches!(
+            s.semantic,
+            Some(crate::entity::types::WorkflowSemantic::Reviewing)
+        )
     });
     if !has_reviewing {
         vec![PrimitiveError::workflow_graph_inconsistency(
@@ -197,7 +223,10 @@ pub async fn reviewing_state_required_embedded(e: &TrackedEmbeddedWorkflow) -> V
         None => return vec![],
     };
     let has_reviewing = states.iter().any(|s| {
-        matches!(s.semantic, Some(crate::entity::types::WorkflowSemantic::Reviewing))
+        matches!(
+            s.semantic,
+            Some(crate::entity::types::WorkflowSemantic::Reviewing)
+        )
     });
     if !has_reviewing {
         vec![PrimitiveError::workflow_graph_inconsistency(

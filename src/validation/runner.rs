@@ -1,9 +1,10 @@
-use crate::entity::{Entity, TrackedEntity};
-use crate::error::primitive::PrimitiveError;
-
 use super::{
     error::{FieldValidationError, ValidationErrors, ValidationKind},
     lib::schema::{validate_field_selection, ValidatableTracked},
+};
+use crate::{
+    entity::{Entity, TrackedEntity},
+    error::primitive::PrimitiveError,
 };
 
 /// Runs validation rules from the entity's schema.

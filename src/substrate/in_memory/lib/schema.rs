@@ -9,10 +9,10 @@ use crate::{
         workflow::{EmbeddedWorkflow, ReusableWorkflow, Workflow},
     },
     substrate::{
-        in_memory::substrate::InMemorySubstrate,
         pipeline::{
             AssetKind, EntitySchema, FieldMapping, RefAssetDef, SubstrateSchema, ValueSlot,
         },
+        InMemorySubstrate,
     },
 };
 

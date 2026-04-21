@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 use crate::{
     error::store::StoreError,
     store::{
-        message::{StoreMessage, StoreRequest, StoreResponse},
+        lib::message::{StoreMessage, StoreRequest, StoreResponse},
         state::Store,
     },
     substrate::SchemaBackedSubstrate,

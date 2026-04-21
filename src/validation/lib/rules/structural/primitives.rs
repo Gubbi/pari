@@ -1,7 +1,9 @@
 use std::hash::Hash;
 
-use crate::entity::{Entity, EntityRef, ParentKind, types::Extensions};
-use crate::error::primitive::PrimitiveError;
+use crate::{
+    entity::{types::Extensions, Entity, EntityRef, ParentKind},
+    error::primitive::PrimitiveError,
+};
 
 /// Id must match `[a-z0-9]+(-[a-z0-9]+)*`
 pub fn kebab_case(value: &str) -> Vec<PrimitiveError> {
@@ -40,12 +42,16 @@ pub fn camel_case(value: &str) -> Vec<PrimitiveError> {
 }
 
 /// `EntityRef` id must be kebab-case
-pub fn kebab_case_id<T: Entity, P: ParentKind>(entity_ref: &EntityRef<T, P>) -> Vec<PrimitiveError> {
+pub fn kebab_case_id<T: Entity, P: ParentKind>(
+    entity_ref: &EntityRef<T, P>,
+) -> Vec<PrimitiveError> {
     kebab_case(entity_ref.id())
 }
 
 /// `EntityRef` id must be CamelCase
-pub fn camel_case_id<T: Entity, P: ParentKind>(entity_ref: &EntityRef<T, P>) -> Vec<PrimitiveError> {
+pub fn camel_case_id<T: Entity, P: ParentKind>(
+    entity_ref: &EntityRef<T, P>,
+) -> Vec<PrimitiveError> {
     camel_case(entity_ref.id())
 }
 

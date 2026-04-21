@@ -1,7 +1,9 @@
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
     error::store::StoreError,
-    store::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError},
+    store::lib::op_error::{
+        CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError,
+    },
 };
 
 pub(crate) enum StoreRequest {
@@ -51,7 +53,7 @@ pub(crate) enum StoreResponse {
     UndoErr(UndoError),
 }
 
-pub(super) enum StoreMessage {
+pub(in crate::store) enum StoreMessage {
     Request {
         request: StoreRequest,
         reply: tokio::sync::oneshot::Sender<Result<StoreResponse, StoreError>>,

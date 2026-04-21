@@ -1,6 +1,5 @@
-use crate::entity::types::WorkflowStateEntry;
-use crate::error::primitive::PrimitiveError;
 use super::primitives::min_length;
+use crate::{entity::types::WorkflowStateEntry, error::primitive::PrimitiveError};
 
 /// State list validation for workflow states:
 /// - At least 2 states
@@ -35,10 +34,16 @@ pub fn states_valid_workflow(value: &[WorkflowStateEntry]) -> Vec<PrimitiveError
         }
     }
     let has_done = value.iter().any(|s| {
-        matches!(s.semantic, Some(crate::entity::types::WorkflowSemantic::Done))
+        matches!(
+            s.semantic,
+            Some(crate::entity::types::WorkflowSemantic::Done)
+        )
     });
     let has_non_done = value.iter().any(|s| {
-        !matches!(s.semantic, Some(crate::entity::types::WorkflowSemantic::Done))
+        !matches!(
+            s.semantic,
+            Some(crate::entity::types::WorkflowSemantic::Done)
+        )
     });
     if !has_done {
         v.push(PrimitiveError::workflow_graph_inconsistency(
@@ -64,7 +69,11 @@ mod tests {
         id: &str,
         semantic: Option<crate::entity::types::WorkflowSemantic>,
     ) -> WorkflowStateEntry {
-        WorkflowStateEntry { id: id.to_string(), description: "d".to_string(), semantic }
+        WorkflowStateEntry {
+            id: id.to_string(),
+            description: "d".to_string(),
+            semantic,
+        }
     }
 
     #[test]
@@ -78,7 +87,10 @@ mod tests {
 
     #[test]
     fn requires_min_2() {
-        let states = vec![make_state("Done", Some(crate::entity::types::WorkflowSemantic::Done))];
+        let states = vec![make_state(
+            "Done",
+            Some(crate::entity::types::WorkflowSemantic::Done),
+        )];
         assert!(!states_valid_workflow(&states).is_empty());
     }
 
@@ -86,7 +98,9 @@ mod tests {
     fn requires_done_semantic() {
         let states = vec![make_state("Draft", None), make_state("Active", None)];
         let v = states_valid_workflow(&states);
-        assert!(v.iter().any(|e| matches!(e, PrimitiveError::WorkflowGraphInconsistency { .. })));
+        assert!(v
+            .iter()
+            .any(|e| matches!(e, PrimitiveError::WorkflowGraphInconsistency { .. })));
     }
 
     #[test]
@@ -96,7 +110,9 @@ mod tests {
             make_state("Draft", Some(crate::entity::types::WorkflowSemantic::Done)),
         ];
         let v = states_valid_workflow(&states);
-        assert!(v.iter().any(|e| matches!(e, PrimitiveError::DuplicateEntryViolation { .. })));
+        assert!(v
+            .iter()
+            .any(|e| matches!(e, PrimitiveError::DuplicateEntryViolation { .. })));
     }
 
     #[test]

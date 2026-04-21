@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use crate::entity::Entity;
-use crate::error::primitive::PrimitiveError;
+use crate::{entity::Entity, error::primitive::PrimitiveError};
 
 // ---------------------------------------------------------------------------
 // Rule function type aliases

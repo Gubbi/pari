@@ -1,5 +1,5 @@
 use crate::substrate::{
-    in_memory::{
+    in_memory::lib::{
         codec::InMemoryCodec, executor::InMemoryExecutor, resolver::InMemoryResolver,
         storage::InMemoryStorage,
     },

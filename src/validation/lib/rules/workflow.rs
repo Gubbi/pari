@@ -1,14 +1,16 @@
-use super::semantic::workflow::{
-    depends_on_valid, depends_on_valid_reusable, on_reject_valid, on_reject_valid_embedded,
-    on_reject_valid_reusable, reviewing_state_required, reviewing_state_required_embedded,
-    reviewing_state_required_reusable,
+use super::{
+    super::schema::{AnyCrossEntityRule, AnySemanticRule, AnyStructuralRule, ValidationSchema},
+    semantic::workflow::{
+        depends_on_valid, depends_on_valid_reusable, on_reject_valid, on_reject_valid_embedded,
+        on_reject_valid_reusable, reviewing_state_required, reviewing_state_required_embedded,
+        reviewing_state_required_reusable,
+    },
+    structural::{
+        primitives::{camel_case_id, non_empty_str, opt_non_empty_str, x_prefix_keys},
+        raci::raci_structural,
+        workflow::states_valid_workflow,
+    },
 };
-use super::structural::{
-    primitives::{camel_case_id, non_empty_str, opt_non_empty_str, x_prefix_keys},
-    raci::raci_structural,
-    workflow::states_valid_workflow,
-};
-use super::super::schema::{AnyCrossEntityRule, AnySemanticRule, AnyStructuralRule, ValidationSchema};
 use crate::entity::entities::workflow::{
     EmbeddedWorkflow, ReusableWorkflow, TrackedEmbeddedWorkflow, TrackedReusableWorkflow,
     TrackedWorkflow, Workflow,
@@ -32,13 +34,19 @@ macro_rules! common_structural {
         structural.insert(
             "description",
             vec![Box::new(|e: &$Tracked| {
-                e.description.get().map(|v| opt_non_empty_str(v)).unwrap_or_default()
+                e.description
+                    .get()
+                    .map(|v| opt_non_empty_str(v))
+                    .unwrap_or_default()
             })],
         );
         structural.insert(
             "purpose",
             vec![Box::new(|e: &$Tracked| {
-                e.purpose.get().map(|v| non_empty_str(v)).unwrap_or_default()
+                e.purpose
+                    .get()
+                    .map(|v| non_empty_str(v))
+                    .unwrap_or_default()
             })],
         );
         structural.insert(
@@ -50,13 +58,19 @@ macro_rules! common_structural {
         structural.insert(
             "states",
             vec![Box::new(|e: &$Tracked| {
-                e.states.get().map(|v| states_valid_workflow(v.as_slice())).unwrap_or_default()
+                e.states
+                    .get()
+                    .map(|v| states_valid_workflow(v.as_slice()))
+                    .unwrap_or_default()
             })],
         );
         structural.insert(
             "extensions",
             vec![Box::new(|e: &$Tracked| {
-                e.extensions.get().map(|v| x_prefix_keys(v)).unwrap_or_default()
+                e.extensions
+                    .get()
+                    .map(|v| x_prefix_keys(v))
+                    .unwrap_or_default()
             })],
         );
 
@@ -78,8 +92,10 @@ pub fn workflow_validation_schema() -> ValidationSchema<Workflow> {
         ],
     );
 
-    let mut cross_entity: std::collections::HashMap<&'static str, Vec<AnyCrossEntityRule<Workflow>>> =
-        std::collections::HashMap::new();
+    let mut cross_entity: std::collections::HashMap<
+        &'static str,
+        Vec<AnyCrossEntityRule<Workflow>>,
+    > = std::collections::HashMap::new();
     cross_entity.insert(
         "steps",
         vec![
@@ -92,14 +108,20 @@ pub fn workflow_validation_schema() -> ValidationSchema<Workflow> {
         vec![Box::new(|_e: &TrackedWorkflow| Box::pin(async { vec![] }))], // raci_roles_exist
     );
 
-    ValidationSchema { structural, semantic, cross_entity }
+    ValidationSchema {
+        structural,
+        semantic,
+        cross_entity,
+    }
 }
 
 pub fn reusable_workflow_validation_schema() -> ValidationSchema<ReusableWorkflow> {
     let structural = common_structural!(ReusableWorkflow, TrackedReusableWorkflow);
 
-    let mut semantic: std::collections::HashMap<&'static str, Vec<AnySemanticRule<ReusableWorkflow>>> =
-        std::collections::HashMap::new();
+    let mut semantic: std::collections::HashMap<
+        &'static str,
+        Vec<AnySemanticRule<ReusableWorkflow>>,
+    > = std::collections::HashMap::new();
     semantic.insert(
         "steps",
         vec![
@@ -109,8 +131,10 @@ pub fn reusable_workflow_validation_schema() -> ValidationSchema<ReusableWorkflo
         ],
     );
 
-    let mut cross_entity: std::collections::HashMap<&'static str, Vec<AnyCrossEntityRule<ReusableWorkflow>>> =
-        std::collections::HashMap::new();
+    let mut cross_entity: std::collections::HashMap<
+        &'static str,
+        Vec<AnyCrossEntityRule<ReusableWorkflow>>,
+    > = std::collections::HashMap::new();
     cross_entity.insert(
         "steps",
         vec![
@@ -121,18 +145,28 @@ pub fn reusable_workflow_validation_schema() -> ValidationSchema<ReusableWorkflo
     );
     cross_entity.insert(
         "raci",
-        vec![Box::new(|_e: &TrackedReusableWorkflow| Box::pin(async { vec![] }))],
+        vec![Box::new(|_e: &TrackedReusableWorkflow| {
+            Box::pin(async { vec![] })
+        })],
     );
 
-    ValidationSchema { structural, semantic, cross_entity }
+    ValidationSchema {
+        structural,
+        semantic,
+        cross_entity,
+    }
 }
 
 pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflow> {
-    let mut structural: std::collections::HashMap<&'static str, Vec<AnyStructuralRule<EmbeddedWorkflow>>> =
-        std::collections::HashMap::new();
+    let mut structural: std::collections::HashMap<
+        &'static str,
+        Vec<AnyStructuralRule<EmbeddedWorkflow>>,
+    > = std::collections::HashMap::new();
     structural.insert(
         "entity_ref",
-        vec![Box::new(|e: &TrackedEmbeddedWorkflow| camel_case_id(&e.entity_ref))],
+        vec![Box::new(|e: &TrackedEmbeddedWorkflow| {
+            camel_case_id(&e.entity_ref)
+        })],
     );
     structural.insert(
         "name",
@@ -143,13 +177,19 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
     structural.insert(
         "description",
         vec![Box::new(|e: &TrackedEmbeddedWorkflow| {
-            e.description.get().map(|v| opt_non_empty_str(v)).unwrap_or_default()
+            e.description
+                .get()
+                .map(|v| opt_non_empty_str(v))
+                .unwrap_or_default()
         })],
     );
     structural.insert(
         "purpose",
         vec![Box::new(|e: &TrackedEmbeddedWorkflow| {
-            e.purpose.get().map(|v| non_empty_str(v)).unwrap_or_default()
+            e.purpose
+                .get()
+                .map(|v| non_empty_str(v))
+                .unwrap_or_default()
         })],
     );
     structural.insert(
@@ -157,25 +197,38 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
         vec![Box::new(|e: &TrackedEmbeddedWorkflow| {
             e.raci
                 .get()
-                .map(|opt_raci| opt_raci.as_ref().map(|r| raci_structural(r)).unwrap_or_default())
+                .map(|opt_raci| {
+                    opt_raci
+                        .as_ref()
+                        .map(|r| raci_structural(r))
+                        .unwrap_or_default()
+                })
                 .unwrap_or_default()
         })],
     );
     structural.insert(
         "states",
         vec![Box::new(|e: &TrackedEmbeddedWorkflow| {
-            e.states.get().map(|v| states_valid_workflow(v.as_slice())).unwrap_or_default()
+            e.states
+                .get()
+                .map(|v| states_valid_workflow(v.as_slice()))
+                .unwrap_or_default()
         })],
     );
     structural.insert(
         "extensions",
         vec![Box::new(|e: &TrackedEmbeddedWorkflow| {
-            e.extensions.get().map(|v| x_prefix_keys(v)).unwrap_or_default()
+            e.extensions
+                .get()
+                .map(|v| x_prefix_keys(v))
+                .unwrap_or_default()
         })],
     );
 
-    let mut semantic: std::collections::HashMap<&'static str, Vec<AnySemanticRule<EmbeddedWorkflow>>> =
-        std::collections::HashMap::new();
+    let mut semantic: std::collections::HashMap<
+        &'static str,
+        Vec<AnySemanticRule<EmbeddedWorkflow>>,
+    > = std::collections::HashMap::new();
     semantic.insert(
         "steps",
         vec![
@@ -184,8 +237,10 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
         ],
     );
 
-    let mut cross_entity: std::collections::HashMap<&'static str, Vec<AnyCrossEntityRule<EmbeddedWorkflow>>> =
-        std::collections::HashMap::new();
+    let mut cross_entity: std::collections::HashMap<
+        &'static str,
+        Vec<AnyCrossEntityRule<EmbeddedWorkflow>>,
+    > = std::collections::HashMap::new();
     cross_entity.insert(
         "steps",
         vec![
@@ -195,8 +250,14 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
     );
     cross_entity.insert(
         "raci",
-        vec![Box::new(|_e: &TrackedEmbeddedWorkflow| Box::pin(async { vec![] }))],
+        vec![Box::new(|_e: &TrackedEmbeddedWorkflow| {
+            Box::pin(async { vec![] })
+        })],
     );
 
-    ValidationSchema { structural, semantic, cross_entity }
+    ValidationSchema {
+        structural,
+        semantic,
+        cross_entity,
+    }
 }

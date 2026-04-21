@@ -11,7 +11,10 @@ mod tests {
         };
         let error = SubstrateError::corrupt_persistence_state(primitive);
         let message = format!("{error}");
-        assert!(message.contains("corrupt persistence state"), "display: {message}");
+        assert!(
+            message.contains("corrupt persistence state"),
+            "display: {message}"
+        );
         assert!(message.contains("permission denied"), "display: {message}");
     }
 

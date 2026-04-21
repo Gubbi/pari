@@ -1,6 +1,5 @@
-use crate::entity::types::TaskStateEntry;
-use crate::error::primitive::PrimitiveError;
 use super::primitives::min_length;
+use crate::{entity::types::TaskStateEntry, error::primitive::PrimitiveError};
 
 /// State list validation for task states — same rules as workflow but for `TaskSemantic`.
 pub fn states_valid_task(value: &[TaskStateEntry]) -> Vec<PrimitiveError> {

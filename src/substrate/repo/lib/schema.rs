@@ -12,7 +12,7 @@ use crate::{
         pipeline::{
             AssetDef, AssetKind, EntitySchema, FieldMapping, RefAssetDef, Slot, SubstrateSchema,
         },
-        repo::substrate::RepoSubstrate,
+        RepoSubstrate,
     },
 };
 

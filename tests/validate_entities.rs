@@ -125,10 +125,9 @@ async fn role_invalid_id_fails_structural() {
     }
     .into();
 
-    let errors =
-        run_validations::<Role>(&role, &["entity_ref"], &[ValidationKind::Structural])
-            .await
-            .expect("valid field selection");
+    let errors = run_validations::<Role>(&role, &["entity_ref"], &[ValidationKind::Structural])
+        .await
+        .expect("valid field selection");
     assert!(!errors.is_empty(), "Expected errors for bad id");
     assert!(errors.errors.iter().any(|e| e.path == "entity_ref"));
 }
@@ -186,10 +185,9 @@ async fn role_non_x_extension_fails_structural() {
     }
     .into();
 
-    let errors =
-        run_validations::<Role>(&role, &["extensions"], &[ValidationKind::Structural])
-            .await
-            .expect("valid field selection");
+    let errors = run_validations::<Role>(&role, &["extensions"], &[ValidationKind::Structural])
+        .await
+        .expect("valid field selection");
     assert!(
         !errors.is_empty(),
         "Expected error for non-x- extension key"
@@ -307,9 +305,13 @@ async fn run_validations_empty_fields_runs_all() {
 #[tokio::test]
 async fn run_validations_unknown_field_returns_err() {
     let role = valid_role();
-    let result = run_validations::<Role>(&role, &["nonexistent_field"], &[ValidationKind::Structural]).await;
+    let result =
+        run_validations::<Role>(&role, &["nonexistent_field"], &[ValidationKind::Structural]).await;
     assert!(
-        matches!(result, Err(PrimitiveError::InvalidValidationFieldSelection { .. })),
+        matches!(
+            result,
+            Err(PrimitiveError::InvalidValidationFieldSelection { .. })
+        ),
         "Expected InvalidValidationFieldSelection error, got: {:?}",
         result
     );
@@ -476,10 +478,9 @@ async fn relay_empty_state_map_fails_structural() {
 
     let relay = make_relay_with_state_map(HashMap::new());
 
-    let errors =
-        run_validations::<Relay>(&relay, &["state_map"], &[ValidationKind::Structural])
-            .await
-            .expect("valid field selection");
+    let errors = run_validations::<Relay>(&relay, &["state_map"], &[ValidationKind::Structural])
+        .await
+        .expect("valid field selection");
     assert!(!errors.is_empty(), "Expected error for empty state_map");
     assert!(errors.errors.iter().any(|e| e.path.contains("state_map")));
 }
@@ -500,10 +501,9 @@ async fn relay_non_camel_case_state_key_fails_structural() {
 
     let relay = make_relay_with_state_map(state_map);
 
-    let errors =
-        run_validations::<Relay>(&relay, &["state_map"], &[ValidationKind::Structural])
-            .await
-            .expect("valid field selection");
+    let errors = run_validations::<Relay>(&relay, &["state_map"], &[ValidationKind::Structural])
+        .await
+        .expect("valid field selection");
     assert!(
         !errors.is_empty(),
         "Expected error for non-CamelCase state key"

@@ -1,10 +1,16 @@
-use super::super::schema::{AnyStructuralRule, ValidationSchema};
-use super::structural::{
-    hook::hook_inputs_structural,
-    primitives::{kebab_case_id, non_empty_list, non_empty_str, opt_non_empty_str, x_prefix_keys},
+use super::{
+    super::schema::{AnyStructuralRule, ValidationSchema},
+    structural::{
+        hook::hook_inputs_structural,
+        primitives::{
+            kebab_case_id, non_empty_list, non_empty_str, opt_non_empty_str, x_prefix_keys,
+        },
+    },
 };
-use crate::entity::entities::hook::{Hook, TrackedHook};
-use crate::error::primitive::PrimitiveError;
+use crate::{
+    entity::entities::hook::{Hook, TrackedHook},
+    error::primitive::PrimitiveError,
+};
 
 pub fn hook_validation_schema() -> ValidationSchema<Hook> {
     let mut structural: std::collections::HashMap<&'static str, Vec<AnyStructuralRule<Hook>>> =
@@ -23,7 +29,10 @@ pub fn hook_validation_schema() -> ValidationSchema<Hook> {
     structural.insert(
         "description",
         vec![Box::new(|e: &TrackedHook| {
-            e.description.get().map(|v| opt_non_empty_str(v)).unwrap_or_default()
+            e.description
+                .get()
+                .map(|v| opt_non_empty_str(v))
+                .unwrap_or_default()
         })],
     );
     structural.insert(
@@ -50,13 +59,19 @@ pub fn hook_validation_schema() -> ValidationSchema<Hook> {
     structural.insert(
         "inputs",
         vec![Box::new(|e: &TrackedHook| {
-            e.inputs.get().map(|v| hook_inputs_structural(v)).unwrap_or_default()
+            e.inputs
+                .get()
+                .map(|v| hook_inputs_structural(v))
+                .unwrap_or_default()
         })],
     );
     structural.insert(
         "extensions",
         vec![Box::new(|e: &TrackedHook| {
-            e.extensions.get().map(|v| x_prefix_keys(v)).unwrap_or_default()
+            e.extensions
+                .get()
+                .map(|v| x_prefix_keys(v))
+                .unwrap_or_default()
         })],
     );
 
