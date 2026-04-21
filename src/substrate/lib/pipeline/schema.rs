@@ -3,10 +3,9 @@ use std::{
     sync::{LazyLock, Mutex},
 };
 
-use crate::{
-    error::primitive::PrimitiveError,
-    substrate::pipeline::{AssetKind, Slot},
-};
+use crate::error::primitive::PrimitiveError;
+
+use super::{AssetKind, Slot};
 
 #[derive(Clone, Copy)]
 pub struct FieldMapping<S: Slot> {
@@ -181,6 +180,6 @@ impl<S: Slot> EntitySchema<S> {
     }
 }
 
-pub trait SubstrateSchema<Sub: super::super::Substrate>: crate::entity::Entity {
-    const SCHEMA: EntitySchema<<Sub as super::super::Substrate>::Slot>;
+pub trait SubstrateSchema<Sub: crate::substrate::Substrate>: crate::entity::Entity {
+    const SCHEMA: EntitySchema<<Sub as crate::substrate::Substrate>::Slot>;
 }

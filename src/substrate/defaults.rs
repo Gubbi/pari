@@ -5,10 +5,12 @@ use crate::{
     error::primitive::PrimitiveError,
     store::EntityChange,
     substrate::{
+        lib::{
+            schema_registry::SchemaBackedSubstrate,
+            serde::{any_ref_to_stub_json, entity_to_json, merge_field_map_into},
+        },
         pipeline,
         pipeline::{Codec, Executor, LocationResolver},
-        schema_registry::SchemaBackedSubstrate,
-        serde::{any_ref_to_stub_json, entity_to_json, merge_field_map_into},
         SubstrateError,
     },
 };

@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use crate::{
     error::primitive::PrimitiveError,
     substrate::{
+        lib::serde::value_at_path,
         pipeline::{Codec, FieldMapping, ValueSlot},
-        serde::value_at_path,
     },
 };
 

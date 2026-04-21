@@ -4,7 +4,7 @@ use crate::{
     entity::EntityKind,
     substrate::{
         pipeline::LocationResolver, repo::substrate::RepoSubstrate,
-        schema_registry::SchemaBackedSubstrate,
+        SchemaBackedSubstrate,
     },
 };
 

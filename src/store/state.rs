@@ -14,7 +14,7 @@ use crate::{
         CheckoutError, CommitError, LoadError, PersistChanges, PersistError, ResolveError,
         UndoError,
     },
-    substrate::schema_registry::SchemaBackedSubstrate,
+    substrate::SchemaBackedSubstrate,
     validation::{run_validations_for_entity, ValidationKind},
 };
 

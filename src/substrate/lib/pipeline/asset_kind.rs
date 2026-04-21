@@ -1,4 +1,4 @@
-use crate::substrate::pipeline::AssetOp;
+use super::AssetOp;
 
 pub struct AssetKind {
     pub distinguishes_create: bool,

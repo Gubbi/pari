@@ -1,7 +1,6 @@
-use crate::{
-    error::primitive::PrimitiveError,
-    substrate::pipeline::{AssetRequest, AssetResponse},
-};
+use crate::error::primitive::PrimitiveError;
+
+use super::{AssetRequest, AssetResponse};
 
 pub trait Executor {
     type Location;

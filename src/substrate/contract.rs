@@ -1,7 +1,7 @@
 use crate::{
     entity::{AnyEntityRef, EntityKind, TrackedEntity},
     store::EntityChange,
-    substrate::{defaults, pipeline, schema_registry::SchemaBackedSubstrate, SubstrateError},
+    substrate::{defaults, lib::schema_registry::SchemaBackedSubstrate, pipeline, SubstrateError},
 };
 
 pub trait Substrate: Sized + Send + Sync + 'static {

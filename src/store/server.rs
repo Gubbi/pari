@@ -8,7 +8,7 @@ use crate::{
         message::{StoreMessage, StoreRequest, StoreResponse},
         state::Store,
     },
-    substrate::schema_registry::SchemaBackedSubstrate,
+    substrate::SchemaBackedSubstrate,
 };
 
 static GLOBAL_SENDER: OnceLock<mpsc::Sender<StoreMessage>> = OnceLock::new();

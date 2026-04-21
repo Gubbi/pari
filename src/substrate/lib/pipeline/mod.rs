@@ -13,5 +13,7 @@ pub use asset_mapper::AssetMapper;
 pub use codec::Codec;
 pub use executor::Executor;
 pub use resolver::LocationResolver;
-pub use schema::{AssetDef, EntitySchema, FieldMapping, LoadStrategy, RefAssetDef, SchemaAsset, SubstrateSchema};
+pub use schema::{
+    AssetDef, EntitySchema, FieldMapping, LoadStrategy, RefAssetDef, SchemaAsset, SubstrateSchema,
+};
 pub use slot::{Slot, ValueSlot};
