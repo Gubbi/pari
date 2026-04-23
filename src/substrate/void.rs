@@ -113,10 +113,10 @@ impl Substrate for VoidSubstrate {
         ))
     }
 
-    async fn persist(
-        &self,
-        _: impl Iterator<Item = EntityChange<'_>> + Send,
-    ) -> Result<(), Vec<ActivityError>> {
+    async fn persist<'a>(
+        &'a self,
+        _: impl Iterator<Item = EntityChange> + Send + 'a,
+    ) -> Result<(), ActivityError> {
         Ok(())
     }
 }

@@ -1,9 +1,10 @@
 use pari::{
     entities::role::{Role, TrackedRole},
     entity::{AnyEntityRef, EntityRef, TrackedEntity},
+    error::{primitive::PrimitiveError, ActivityError},
     store::EntityServer,
     substrate::{InMemoryStorage, InMemorySubstrate},
-    workspace::{CheckoutError, EntityClient, PersistError, ResolveError, UndoError},
+    workspace::EntityClient,
 };
 
 fn make_role(id: &str) -> Role {
@@ -60,9 +61,7 @@ async fn resolve_absent_entity_creates_stub_via_substrate() {
 async fn resolve_nonexistent_entity_returns_error() {
     EntityServer::with(InMemorySubstrate::new(), || async {
         let result = EntityClient::resolve(role_any_ref("ghost")).await;
-        assert!(
-            matches!(result, Err(ResolveError::NotFound { entity_ref }) if entity_ref == "ghost")
-        );
+        assert!(matches!(result, Err(ActivityError::NonExistentData { .. })));
     })
     .await;
 }
@@ -120,8 +119,11 @@ async fn double_checkout_returns_error() {
         let checkout2 = EntityClient::checkout(role_any_ref("eng-lead")).await;
         assert!(matches!(
             checkout2,
-            Err(CheckoutError::AlreadyCheckedOut { entity_ref: _ })
+            Err(ActivityError::CheckoutLifecycleViolation { .. })
         ));
+        if let Err(ActivityError::CheckoutLifecycleViolation { cause, .. }) = checkout2 {
+            assert!(matches!(cause, PrimitiveError::AlreadyCheckedOut { .. }));
+        }
     })
     .await;
 }
@@ -146,7 +148,7 @@ async fn undo_checkout_releases_lock() {
 }
 
 #[tokio::test]
-async fn undo_checkout_without_active_checkout_returns_wrong_state() {
+async fn undo_checkout_without_active_checkout_returns_lifecycle_violation() {
     EntityServer::with(InMemorySubstrate::new(), || async {
         let role = make_role("eng-lead");
         EntityClient::insert(TrackedEntity::from_role(TrackedRole::from(role)))
@@ -157,7 +159,10 @@ async fn undo_checkout_without_active_checkout_returns_wrong_state() {
             .await
             .unwrap();
         let err = resolved.undo_checkout().await.unwrap_err();
-        assert!(matches!(err, UndoError::WrongState));
+        assert!(matches!(
+            err,
+            ActivityError::CheckoutLifecycleViolation { .. }
+        ));
     })
     .await;
 }
@@ -170,11 +175,11 @@ async fn remove_then_resolve_returns_error() {
             .await
             .unwrap();
 
-        EntityClient::remove(role_any_ref("eng-lead")).await;
+        EntityClient::remove(role_any_ref("eng-lead"))
+            .await
+            .unwrap();
         let result = EntityClient::resolve(role_any_ref("eng-lead")).await;
-        assert!(
-            matches!(result, Err(ResolveError::NotFound { entity_ref }) if entity_ref == "eng-lead")
-        );
+        assert!(matches!(result, Err(ActivityError::NonExistentData { .. })));
     })
     .await;
 }
@@ -193,9 +198,7 @@ async fn persist_fails_with_pending_checkouts() {
         let result = EntityClient::persist().await;
         assert!(matches!(
             result,
-            Err(PersistError::PendingCheckouts {
-                checked_out_count: _
-            })
+            Err(ActivityError::WorkspaceNotClean { .. })
         ));
     })
     .await;
@@ -213,15 +216,13 @@ async fn undo_commit_on_added_entity_removes_it() {
             .await
             .unwrap();
         let result = EntityClient::resolve(role_any_ref("eng-lead")).await;
-        assert!(
-            matches!(result, Err(ResolveError::NotFound { entity_ref }) if entity_ref == "eng-lead")
-        );
+        assert!(matches!(result, Err(ActivityError::NonExistentData { .. })));
     })
     .await;
 }
 
 #[tokio::test]
-async fn undo_commit_on_checked_out_entity_returns_wrong_state() {
+async fn undo_commit_on_checked_out_entity_returns_lifecycle_violation() {
     EntityServer::with(InMemorySubstrate::new(), || async {
         let role = make_role("eng-lead");
         EntityClient::insert(TrackedEntity::from_role(TrackedRole::from(role)))
@@ -234,7 +235,10 @@ async fn undo_commit_on_checked_out_entity_returns_wrong_state() {
         let err = EntityClient::undo_commit(role_any_ref("eng-lead"))
             .await
             .unwrap_err();
-        assert!(matches!(err, UndoError::WrongState));
+        assert!(matches!(
+            err,
+            ActivityError::CheckoutLifecycleViolation { .. }
+        ));
     })
     .await;
 }
@@ -280,22 +284,24 @@ async fn remove_then_reinsert_then_remove_deletes_persisted_entity() {
         EntityClient::resolve(role_any_ref("eng-lead"))
             .await
             .unwrap();
-        EntityClient::remove(role_any_ref("eng-lead")).await;
+        EntityClient::remove(role_any_ref("eng-lead"))
+            .await
+            .unwrap();
 
         let replacement = make_role("eng-lead");
         EntityClient::insert(TrackedEntity::from_role(TrackedRole::from(replacement)))
             .await
             .unwrap();
-        EntityClient::remove(role_any_ref("eng-lead")).await;
+        EntityClient::remove(role_any_ref("eng-lead"))
+            .await
+            .unwrap();
         EntityClient::persist().await.unwrap();
     })
     .await;
 
     EntityServer::with(InMemorySubstrate::with_storage(storage), || async {
         let result = EntityClient::resolve(role_any_ref("eng-lead")).await;
-        assert!(
-            matches!(result, Err(ResolveError::NotFound { entity_ref }) if entity_ref == "eng-lead")
-        );
+        assert!(matches!(result, Err(ActivityError::NonExistentData { .. })));
     })
     .await;
 }
@@ -329,7 +335,7 @@ async fn unload_on_clean_entity_creates_stub() {
 }
 
 #[tokio::test]
-async fn unload_on_checked_out_entity_returns_wrong_state() {
+async fn unload_on_checked_out_entity_returns_lifecycle_violation() {
     let storage = InMemoryStorage::new();
 
     EntityServer::with(InMemorySubstrate::with_storage(storage.clone()), || async {
@@ -351,7 +357,10 @@ async fn unload_on_checked_out_entity_returns_wrong_state() {
         let err = EntityClient::unload(role_any_ref("eng-lead"))
             .await
             .unwrap_err();
-        assert!(matches!(err, UndoError::WrongState));
+        assert!(matches!(
+            err,
+            ActivityError::CheckoutLifecycleViolation { .. }
+        ));
     })
     .await;
 }

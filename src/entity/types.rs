@@ -6,7 +6,7 @@ use crate::entity::{
 };
 
 /// Open-ended metadata. Only `x-` prefixed keys are permitted (enforced by validation).
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, pari_macros::CollectRefs)]
 #[serde(transparent)]
 pub struct Extensions(pub HashMap<String, serde_json::Value>);
 
@@ -62,7 +62,14 @@ impl schemars::JsonSchema for Extensions {
 }
 
 /// Accountability assignment for workflows and tasks.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+    pari_macros::CollectRefs,
+)]
 #[schemars(deny_unknown_fields)]
 pub struct Raci {
     pub responsible: Vec<EntityRef<Role>>,
@@ -72,7 +79,14 @@ pub struct Raci {
 }
 
 /// Task deliverable specification.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+    pari_macros::CollectRefs,
+)]
 #[schemars(deny_unknown_fields)]
 pub struct Artifact {
     pub kind: EntityRef<ArtifactKind>,
@@ -80,7 +94,14 @@ pub struct Artifact {
 }
 
 /// Usage-site reference to a hook with optional input bindings.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+    pari_macros::CollectRefs,
+)]
 #[schemars(deny_unknown_fields)]
 pub struct HookCall {
     pub hook: EntityRef<Hook>,
@@ -89,7 +110,14 @@ pub struct HookCall {
 
 // --- Lifecycle state types ---
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+    pari_macros::CollectRefs,
+)]
 #[schemars(deny_unknown_fields)]
 pub struct WorkflowStateEntry {
     #[schemars(regex(pattern = r"^[A-Z][A-Za-z0-9]*$"))]
@@ -99,7 +127,15 @@ pub struct WorkflowStateEntry {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+    pari_macros::CollectRefs,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum WorkflowSemantic {
@@ -109,7 +145,14 @@ pub enum WorkflowSemantic {
     Failed,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+    pari_macros::CollectRefs,
+)]
 #[schemars(deny_unknown_fields)]
 pub struct TaskStateEntry {
     #[schemars(regex(pattern = r"^[A-Z][A-Za-z0-9]*$"))]
@@ -119,7 +162,15 @@ pub struct TaskStateEntry {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+    pari_macros::CollectRefs,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum TaskSemantic {
@@ -140,6 +191,7 @@ pub enum TaskSemantic {
     serde::Serialize,
     serde::Deserialize,
     schemars::JsonSchema,
+    pari_macros::CollectRefs,
 )]
 pub enum WorkflowTrigger {
     OnStart,
@@ -160,6 +212,7 @@ pub enum WorkflowTrigger {
     serde::Serialize,
     serde::Deserialize,
     schemars::JsonSchema,
+    pari_macros::CollectRefs,
 )]
 pub enum TaskTrigger {
     OnStart,

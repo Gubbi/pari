@@ -4,6 +4,7 @@ use proc_macro::TokenStream;
 use syn::{parse_macro_input, DeriveInput};
 
 mod activity_error_enum;
+mod collect_refs_derive;
 mod entity;
 mod entity_codegen;
 mod entity_registry;
@@ -15,6 +16,12 @@ mod store_codegen;
 mod substrate_codegen;
 mod validation_codegen;
 mod workspace_codegen;
+
+#[proc_macro_derive(CollectRefs)]
+pub fn derive_collect_refs(input: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(input as DeriveInput);
+    collect_refs_derive::derive_collect_refs_impl(ast).into()
+}
 
 #[proc_macro_derive(Entity, attributes(entity))]
 pub fn derive_entity(input: TokenStream) -> TokenStream {

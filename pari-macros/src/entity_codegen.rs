@@ -406,41 +406,34 @@ fn generate_tracked_impl(
         quote! {}
     };
 
-    let all_refs_pushes: Vec<TokenStream2> = domain_fields
+    // Generate collect_refs calls for every domain field using the CollectRefs trait.
+    // Each field contributes its refs (including nested ones) via the trait.
+    let all_refs_with_paths_pushes: Vec<TokenStream2> = domain_fields
         .iter()
-        .filter_map(|f| {
+        .map(|f| {
             let fname = &f.ident;
-            let ty = &f.ty;
-            if let Type::Path(tp) = ty {
-                if tp.qself.is_none() && tp.path.segments.len() == 1 {
-                    let seg = &tp.path.segments[0];
-                    if seg.ident == "EntityRef" {
-                        if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-                            if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                                if let Type::Path(inner_tp) = inner {
-                                    if inner_tp.path.segments.len() == 1 {
-                                        let entity_name = &inner_tp.path.segments[0].ident;
-                                        return Some(quote! {
-                                            if let Some(r) = self.#fname.get() {
-                                                refs.push(::pari::entity::AnyEntityRef::#entity_name(r.clone()));
-                                            }
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
+            let fname_str = fname.as_ref().unwrap().to_string();
+            quote! {
+                if let Some(v) = self.#fname.get() {
+                    ::pari::entity::collect_refs::CollectRefs::collect_refs(
+                        v, #fname_str, &mut pairs,
+                    );
                 }
             }
-            None
         })
         .collect();
 
     let all_refs_method = quote! {
+        /// Returns all cross-entity refs with their dot-notation field paths.
+        pub fn all_refs_with_paths(&self) -> ::std::vec::Vec<(::std::string::String, ::pari::entity::AnyEntityRef)> {
+            let mut pairs: ::std::vec::Vec<(::std::string::String, ::pari::entity::AnyEntityRef)> = ::std::vec::Vec::new();
+            #(#all_refs_with_paths_pushes)*
+            pairs
+        }
+
+        /// Returns all cross-entity refs (paths discarded).
         pub fn all_refs(&self) -> ::std::vec::Vec<::pari::entity::AnyEntityRef> {
-            let mut refs = ::std::vec::Vec::new();
-            #(#all_refs_pushes)*
-            refs
+            self.all_refs_with_paths().into_iter().map(|(_, r)| r).collect()
         }
     };
 

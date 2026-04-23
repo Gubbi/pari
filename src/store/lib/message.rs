@@ -1,13 +1,16 @@
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
-    error::store::StoreError,
-    store::lib::op_error::{
-        CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError,
-    },
+    error::ActivityError,
 };
 
 pub(crate) enum StoreRequest {
     Resolve {
+        any_ref: AnyEntityRef,
+    },
+    /// Check whether an entity exists in the store or substrate.
+    /// If found in the substrate, a stub is inserted into the store so subsequent
+    /// checks do not re-hit the substrate. Returns `Bool(true/false)`.
+    HasRef {
         any_ref: AnyEntityRef,
     },
     Insert {
@@ -44,18 +47,14 @@ pub(crate) enum StoreRequest {
 
 pub(crate) enum StoreResponse {
     Entity(TrackedEntity),
+    Bool(bool),
     Unit,
-    ResolveErr(ResolveError),
-    CommitErr(CommitError),
-    CheckoutErr(CheckoutError),
-    PersistErr(PersistError),
-    LoadErr(LoadError),
-    UndoErr(UndoError),
+    Err(ActivityError),
 }
 
-pub(in crate::store) enum StoreMessage {
+pub(crate) enum StoreMessage {
     Request {
         request: StoreRequest,
-        reply: tokio::sync::oneshot::Sender<Result<StoreResponse, StoreError>>,
+        reply: tokio::sync::oneshot::Sender<StoreResponse>,
     },
 }

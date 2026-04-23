@@ -1,5 +1,6 @@
 //! Entity-layer composition for identity, references, and plain entity types.
 
+pub mod collect_refs;
 pub mod entities;
 mod entity_kind;
 mod entity_ref;
@@ -13,10 +14,7 @@ pub use entity_ref::EntityRef;
 pub use entity_trait::{Entity, Tracked, TrackedFor};
 pub use parent_kind::{NoParent, ParentKind, WorkflowParent};
 
-pub use crate::{
-    store::LoadError,
-    validation::{error::SetterError, ValidationSchema},
-};
+pub use crate::validation::ValidationSchema;
 
 #[cfg(test)]
 mod tests;

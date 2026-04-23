@@ -18,7 +18,14 @@ pub struct Team {
     pub extensions: Extensions,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+    pari_macros::CollectRefs,
+)]
 #[schemars(deny_unknown_fields)]
 pub struct TeamMember {
     #[schemars(regex(pattern = r"^@[a-z0-9._-]+$"))]

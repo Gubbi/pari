@@ -50,4 +50,4 @@ That means:
 
 ## Persist Path
 
-The store exposes changes lazily via `Store::changes()` as `EntityChange<'_>` values and passes them to the substrate. The substrate may depend on that explicit handoff type, but should not depend on store actor internals.
+The store exposes changes lazily via `Store::changes()` as `EntityChange<'_>` values and passes them to the substrate. The substrate may depend on that explicit handoff type, but should not depend on entity server internals.

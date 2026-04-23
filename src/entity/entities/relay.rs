@@ -28,7 +28,14 @@ pub struct Relay {
     pub extensions: Extensions,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+    pari_macros::CollectRefs,
+)]
 #[schemars(deny_unknown_fields)]
 pub struct StateMapEntry {
     pub maps_to: String,
@@ -37,7 +44,15 @@ pub struct StateMapEntry {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+    pari_macros::CollectRefs,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum StateMapSemantic {

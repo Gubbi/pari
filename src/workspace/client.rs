@@ -1,124 +1,101 @@
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
+    error::ActivityError,
     store::{StoreRequest, StoreResponse},
-    workspace::{
-        error::{CheckoutError, CommitError, LoadError, PersistError, ResolveError, UndoError},
-        lib::request::request,
-    },
+    workspace::lib::request::request,
 };
 
 pub struct EntityClient;
 
 impl EntityClient {
-    pub async fn resolve(any_ref: AnyEntityRef) -> Result<TrackedEntity, ResolveError> {
-        // TODO: propagate PrimitiveError via ActivityError once the framework exists.
-        match request(StoreRequest::Resolve { any_ref })
-            .await
-            .expect("entity server unavailable")
-        {
+    pub async fn resolve(any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
+        match request(StoreRequest::Resolve { any_ref }).await? {
             StoreResponse::Entity(e) => Ok(e),
-            StoreResponse::ResolveErr(e) => Err(e),
+            StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
         }
     }
 
-    pub async fn insert(entity: TrackedEntity) -> Result<(), CommitError> {
-        // TODO: propagate PrimitiveError via ActivityError once the framework exists.
-        match request(StoreRequest::Insert { entity })
-            .await
-            .expect("entity server unavailable")
-        {
+    /// Returns `true` if the ref exists in the store (or substrate), `false` if not.
+    /// Inserts a stub so subsequent checks avoid re-hitting the substrate.
+    pub async fn has_ref(any_ref: AnyEntityRef) -> Result<bool, ActivityError> {
+        match request(StoreRequest::HasRef { any_ref }).await? {
+            StoreResponse::Bool(b) => Ok(b),
+            StoreResponse::Err(e) => Err(e),
+            _ => unreachable!(),
+        }
+    }
+
+    pub async fn insert(entity: TrackedEntity) -> Result<(), ActivityError> {
+        match request(StoreRequest::Insert { entity }).await? {
             StoreResponse::Unit => Ok(()),
-            StoreResponse::CommitErr(e) => Err(e),
+            StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
         }
     }
 
-    pub async fn remove(any_ref: AnyEntityRef) -> TrackedEntity {
-        // TODO: propagate PrimitiveError via ActivityError once the framework exists.
-        match request(StoreRequest::Remove { any_ref })
-            .await
-            .expect("entity server unavailable")
-        {
-            StoreResponse::Entity(e) => e,
-            _ => unreachable!(),
-        }
-    }
-
-    pub async fn checkout(any_ref: AnyEntityRef) -> Result<TrackedEntity, CheckoutError> {
-        // TODO: propagate PrimitiveError via ActivityError once the framework exists.
-        match request(StoreRequest::Checkout { any_ref })
-            .await
-            .expect("entity server unavailable")
-        {
+    pub async fn remove(any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
+        match request(StoreRequest::Remove { any_ref }).await? {
             StoreResponse::Entity(e) => Ok(e),
-            StoreResponse::CheckoutErr(e) => Err(e),
+            StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
         }
     }
 
-    pub async fn load(any_ref: AnyEntityRef, field: &str) -> Result<(), LoadError> {
-        // TODO: propagate PrimitiveError via ActivityError once the framework exists.
+    pub async fn checkout(any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
+        match request(StoreRequest::Checkout { any_ref }).await? {
+            StoreResponse::Entity(e) => Ok(e),
+            StoreResponse::Err(e) => Err(e),
+            _ => unreachable!(),
+        }
+    }
+
+    pub async fn load(any_ref: AnyEntityRef, field: &str) -> Result<(), ActivityError> {
         match request(StoreRequest::Load {
             any_ref,
             field: field.to_owned(),
         })
-        .await
-        .expect("entity server unavailable")
+        .await?
         {
             StoreResponse::Unit => Ok(()),
-            StoreResponse::LoadErr(e) => Err(e),
+            StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
         }
     }
 
-    pub async fn ensure_mutable(any_ref: AnyEntityRef, field: &str) -> Result<(), LoadError> {
-        // TODO: propagate PrimitiveError via ActivityError once the framework exists.
+    pub async fn ensure_mutable(any_ref: AnyEntityRef, field: &str) -> Result<(), ActivityError> {
         match request(StoreRequest::EnsureMutable {
             any_ref,
             field: field.to_owned(),
         })
-        .await
-        .expect("entity server unavailable")
+        .await?
         {
             StoreResponse::Unit => Ok(()),
-            StoreResponse::LoadErr(e) => Err(e),
+            StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
         }
     }
 
-    pub async fn persist() -> Result<(), PersistError> {
-        // TODO: propagate PrimitiveError via ActivityError once the framework exists.
-        match request(StoreRequest::Persist)
-            .await
-            .expect("entity server unavailable")
-        {
+    pub async fn persist() -> Result<(), ActivityError> {
+        match request(StoreRequest::Persist).await? {
             StoreResponse::Unit => Ok(()),
-            StoreResponse::PersistErr(e) => Err(e),
+            StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
         }
     }
 
-    pub async fn undo_commit(any_ref: AnyEntityRef) -> Result<(), UndoError> {
-        // TODO: propagate PrimitiveError via ActivityError once the framework exists.
-        match request(StoreRequest::UndoCommit { any_ref })
-            .await
-            .expect("entity server unavailable")
-        {
+    pub async fn undo_commit(any_ref: AnyEntityRef) -> Result<(), ActivityError> {
+        match request(StoreRequest::UndoCommit { any_ref }).await? {
             StoreResponse::Unit => Ok(()),
-            StoreResponse::UndoErr(e) => Err(e),
+            StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
         }
     }
 
-    pub async fn unload(any_ref: AnyEntityRef) -> Result<(), UndoError> {
-        // TODO: propagate PrimitiveError via ActivityError once the framework exists.
-        match request(StoreRequest::Unload { any_ref })
-            .await
-            .expect("entity server unavailable")
-        {
+    pub async fn unload(any_ref: AnyEntityRef) -> Result<(), ActivityError> {
+        match request(StoreRequest::Unload { any_ref }).await? {
             StoreResponse::Unit => Ok(()),
-            StoreResponse::UndoErr(e) => Err(e),
+            StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
         }
     }

@@ -3,11 +3,11 @@
 //! [`ValidationSchema`] — per-entity schema with three rule maps.
 //! [`run_validations`] — async runner that dispatches rules and accumulates errors.
 
-pub mod error;
-mod lib;
+mod kind;
+pub mod lib;
 mod runner;
 
-pub use error::{FieldValidationError, SetterError, ValidationErrors, ValidationKind};
+pub use kind::ValidationKind;
 // Re-export entity rule modules so paths like `crate::validation::workflow::workflow_validation_schema`
 // remain valid for entity schema attributes.
 pub use lib::rules::{artifact_kind, hook, relay, role, task, team, workflow};

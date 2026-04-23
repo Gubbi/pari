@@ -21,7 +21,7 @@ src/
   entity/        entity-layer identity, plain entities, refs,
                  and tracked-field primitives                  -> see src/entity/CLAUDE.md
   workspace/     workspace-layer caller-facing async API        -> see src/workspace/CLAUDE.md
-  store/         store-layer actor/state/orchestration          -> see src/store/CLAUDE.md
+  store/         store-layer server/state/orchestration          -> see src/store/CLAUDE.md
   substrate/     substrate-layer persistence contracts/backends -> see src/substrate/CLAUDE.md
   validation/    validation-layer rules and schemas             -> see src/validation/CLAUDE.md
   error/         error-layer shared error infrastructure        -> see src/error/CLAUDE.md
@@ -44,7 +44,7 @@ When working in a subtree, also look for a `CLAUDE.md` file in that directory or
 - Use `EntityChange` from `src/store/change.rs` for the store-to-substrate persist handoff.
 - The lazy persist-set helper is `PersistChanges` in `src/store/change.rs`; it remains store-owned plumbing behind the `EntityChange<'_>` contract.
 - `workspace` owns caller-facing async operations and operation error types.
-- `store` owns actor message flow, in-memory state, checkout lifecycle, and persist orchestration.
+- `store` owns server message flow, in-memory state, checkout lifecycle, and persist orchestration.
 - `substrate` owns the persistence trait, pipeline, schema-backed defaults, and concrete backends.
 - `validation` owns rule definition and execution over tracked entities.
 - `error` owns cross-cutting classification and aggregation, including `PariError`.
@@ -64,8 +64,8 @@ When working in a subtree, also look for a `CLAUDE.md` file in that directory or
 - `entity` code should not absorb store, substrate, or validation orchestration.
 - `workspace` should stay focused on caller-facing APIs over `EntityServer`.
 - `store` may depend on `entity`, `substrate`, `validation`, and `error`, but should not own persistence layout or caller ergonomics.
-- `substrate` may depend on `entity`, `error`, and explicit store-owned handoff types such as `EntityChange`, but not on store actor internals.
-- `validation` defines rules; it should not own persistence or actor flow.
+- `substrate` may depend on `entity`, `error`, and explicit store-owned handoff types such as `EntityChange`, but not on store server internals.
+- `validation` defines rules; it should not own persistence or server flow.
 - `test` may reach across production layers, but production layers must not depend on test code.
 
 ## Working Preferences

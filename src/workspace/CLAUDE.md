@@ -7,7 +7,7 @@ This directory belongs to the formal `workspace` layer.
 It owns:
 
 - caller-facing async operations via `EntityClient`
-- request helper glue over the store actor
+- request helper glue over the entity server
 - tracked-entity convenience methods such as `commit()` and `undo_checkout()`
 
 The authoritative design docs for this area live under [docs/design/workspace_layer/](/Users/vinuth/code/pari/docs/design/workspace_layer/).

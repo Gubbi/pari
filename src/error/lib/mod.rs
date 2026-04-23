@@ -1,5 +1,3 @@
-mod activity_component;
-mod batch_error;
 mod compose;
 mod error_layer;
 mod error_location;
@@ -9,8 +7,6 @@ mod primitive_detail;
 mod recoverability;
 mod severity;
 
-pub use activity_component::ActivityComponent;
-pub use batch_error::BatchError;
 pub use compose::ErrorCompose;
 pub use error_layer::ErrorLayer;
 pub use error_location::ErrorLocation;

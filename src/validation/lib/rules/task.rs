@@ -80,13 +80,10 @@ pub fn task_validation_schema() -> ValidationSchema<Task> {
 
     let mut cross_entity: std::collections::HashMap<&'static str, Vec<AnyCrossEntityRule<Task>>> =
         std::collections::HashMap::new();
-    cross_entity.insert(
-        "raci",
-        vec![Box::new(|_e: &TrackedTask| Box::pin(async { vec![] }))],
-    );
+    cross_entity.insert("raci", vec![crate::ref_check_rule!(TrackedTask, raci)]);
     cross_entity.insert(
         "artifact",
-        vec![Box::new(|_e: &TrackedTask| Box::pin(async { vec![] }))],
+        vec![crate::ref_check_rule!(TrackedTask, artifact)],
     );
 
     ValidationSchema {

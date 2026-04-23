@@ -2,38 +2,35 @@
 
 use pari_macros::{ErrorCompose, OTelEmit};
 
-use crate::{
-    store::{CheckoutError, CommitError, LoadError, PersistError, ResolveError},
-    validation::error::SetterError,
-};
+use crate::error::ActivityError;
 
 #[derive(thiserror::Error, Debug, ErrorCompose, OTelEmit)]
 pub enum PariError {
     #[error(transparent)]
     #[compose(delegate)]
-    DefinitionRejected(#[from] CommitError),
+    DefinitionRejected(ActivityError),
 
     #[error(transparent)]
     #[compose(delegate)]
-    MutationFailed(CommitError),
+    MutationFailed(ActivityError),
 
     #[error(transparent)]
     #[compose(delegate)]
-    CheckoutFailed(#[from] CheckoutError),
+    CheckoutFailed(ActivityError),
 
     #[error(transparent)]
     #[compose(delegate)]
-    LoadFailed(#[from] LoadError),
+    LoadFailed(ActivityError),
 
     #[error(transparent)]
     #[compose(delegate)]
-    ResolveFailed(#[from] ResolveError),
+    ResolveFailed(ActivityError),
 
     #[error(transparent)]
     #[compose(delegate)]
-    SaveFailed(#[from] PersistError),
+    SaveFailed(ActivityError),
 
     #[error(transparent)]
     #[compose(delegate)]
-    SetterRejected(#[from] SetterError),
+    SetterRejected(ActivityError),
 }

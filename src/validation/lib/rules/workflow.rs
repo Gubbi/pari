@@ -98,15 +98,9 @@ pub fn workflow_validation_schema() -> ValidationSchema<Workflow> {
     > = std::collections::HashMap::new();
     cross_entity.insert(
         "steps",
-        vec![
-            Box::new(|_e: &TrackedWorkflow| Box::pin(async { vec![] })), // work_step_refs_exist
-            Box::new(|_e: &TrackedWorkflow| Box::pin(async { vec![] })), // review_approver_roles_exist
-        ],
+        vec![crate::ref_check_rule!(TrackedWorkflow, steps)],
     );
-    cross_entity.insert(
-        "raci",
-        vec![Box::new(|_e: &TrackedWorkflow| Box::pin(async { vec![] }))], // raci_roles_exist
-    );
+    cross_entity.insert("raci", vec![crate::ref_check_rule!(TrackedWorkflow, raci)]);
 
     ValidationSchema {
         structural,
@@ -137,17 +131,11 @@ pub fn reusable_workflow_validation_schema() -> ValidationSchema<ReusableWorkflo
     > = std::collections::HashMap::new();
     cross_entity.insert(
         "steps",
-        vec![
-            Box::new(|_e: &TrackedReusableWorkflow| Box::pin(async { vec![] })),
-            Box::new(|_e: &TrackedReusableWorkflow| Box::pin(async { vec![] })),
-            Box::new(|_e: &TrackedReusableWorkflow| Box::pin(async { vec![] })), // no_relay_in_tree
-        ],
+        vec![crate::ref_check_rule!(TrackedReusableWorkflow, steps)],
     );
     cross_entity.insert(
         "raci",
-        vec![Box::new(|_e: &TrackedReusableWorkflow| {
-            Box::pin(async { vec![] })
-        })],
+        vec![crate::ref_check_rule!(TrackedReusableWorkflow, raci)],
     );
 
     ValidationSchema {
@@ -243,16 +231,11 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
     > = std::collections::HashMap::new();
     cross_entity.insert(
         "steps",
-        vec![
-            Box::new(|_e: &TrackedEmbeddedWorkflow| Box::pin(async { vec![] })),
-            Box::new(|_e: &TrackedEmbeddedWorkflow| Box::pin(async { vec![] })),
-        ],
+        vec![crate::ref_check_rule!(TrackedEmbeddedWorkflow, steps)],
     );
     cross_entity.insert(
         "raci",
-        vec![Box::new(|_e: &TrackedEmbeddedWorkflow| {
-            Box::pin(async { vec![] })
-        })],
+        vec![crate::ref_check_rule!(TrackedEmbeddedWorkflow, raci)],
     );
 
     ValidationSchema {

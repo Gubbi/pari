@@ -9,7 +9,14 @@ use crate::entity::{
 };
 
 /// A step inside a workflow. Not an entity — no EntityRef, no derive(Entity).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+    pari_macros::CollectRefs,
+)]
 #[schemars(deny_unknown_fields)]
 pub enum Step {
     Task {

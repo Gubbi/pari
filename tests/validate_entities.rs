@@ -11,7 +11,7 @@ use pari::{
         workflow::{Step, TrackedWorkflow, Workflow},
     },
     entity::{EntityRef, WorkflowParent},
-    error::primitive::PrimitiveError,
+    error::{primitive::PrimitiveError, ActivityError},
     types::{Extensions, Raci, WorkflowSemantic, WorkflowStateEntry},
     validation::{run_validations, ValidationKind},
 };
@@ -100,17 +100,33 @@ fn valid_hook() -> TrackedHook {
     .into()
 }
 
+/// Extracts the field-level error map from a `ValidationFailed` result, or
+/// returns an empty map for `Ok(())`.  Panics on any other error variant.
+fn extract_validation_errors(
+    result: Result<(), ActivityError>,
+) -> HashMap<String, Vec<PrimitiveError>> {
+    match result {
+        Ok(()) => HashMap::new(),
+        Err(ActivityError::ValidationFailed { cause, .. }) => {
+            if let PrimitiveError::FieldValidationError { errors, .. } = cause {
+                errors
+            } else {
+                panic!("Expected FieldValidationError inside ValidationFailed, got: {cause:?}");
+            }
+        }
+        Err(other) => panic!("Expected ValidationFailed, got: {other:?}"),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Role structural tests
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
 async fn role_valid_passes_all_structural() {
-    let role = valid_role();
-    let errors = run_validations::<Role>(&role, &[], &[ValidationKind::Structural])
+    run_validations::<Role>(&valid_role(), &[], &[ValidationKind::Structural])
         .await
-        .expect("valid field selection");
-    assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+        .expect("no validation errors for valid role");
 }
 
 #[tokio::test]
@@ -125,11 +141,14 @@ async fn role_invalid_id_fails_structural() {
     }
     .into();
 
-    let errors = run_validations::<Role>(&role, &["entity_ref"], &[ValidationKind::Structural])
-        .await
-        .expect("valid field selection");
+    let result =
+        run_validations::<Role>(&role, &["entity_ref"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
     assert!(!errors.is_empty(), "Expected errors for bad id");
-    assert!(errors.errors.iter().any(|e| e.path == "entity_ref"));
+    assert!(
+        errors.contains_key("entity_ref"),
+        "Expected error on entity_ref"
+    );
 }
 
 #[tokio::test]
@@ -144,11 +163,10 @@ async fn role_empty_name_fails_structural() {
     }
     .into();
 
-    let errors = run_validations::<Role>(&role, &["name"], &[ValidationKind::Structural])
-        .await
-        .expect("valid field selection");
+    let result = run_validations::<Role>(&role, &["name"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
     assert!(!errors.is_empty(), "Expected error for empty name");
-    assert!(errors.errors.iter().any(|e| e.path == "name"));
+    assert!(errors.contains_key("name"), "Expected error on name");
 }
 
 #[tokio::test]
@@ -163,11 +181,10 @@ async fn role_empty_purpose_fails_structural() {
     }
     .into();
 
-    let errors = run_validations::<Role>(&role, &["purpose"], &[ValidationKind::Structural])
-        .await
-        .expect("valid field selection");
+    let result = run_validations::<Role>(&role, &["purpose"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
     assert!(!errors.is_empty(), "Expected error for empty purpose");
-    assert!(errors.errors.iter().any(|e| e.path == "purpose"));
+    assert!(errors.contains_key("purpose"), "Expected error on purpose");
 }
 
 #[tokio::test]
@@ -185,17 +202,17 @@ async fn role_non_x_extension_fails_structural() {
     }
     .into();
 
-    let errors = run_validations::<Role>(&role, &["extensions"], &[ValidationKind::Structural])
-        .await
-        .expect("valid field selection");
+    let result =
+        run_validations::<Role>(&role, &["extensions"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
     assert!(
         !errors.is_empty(),
         "Expected error for non-x- extension key"
     );
-    assert!(errors
-        .errors
-        .iter()
-        .any(|e| e.path.starts_with("extensions")));
+    assert!(
+        errors.keys().any(|k| k.starts_with("extensions")),
+        "Expected error on extensions"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -204,11 +221,9 @@ async fn role_non_x_extension_fails_structural() {
 
 #[tokio::test]
 async fn hook_valid_passes_structural() {
-    let hook = valid_hook();
-    let errors = run_validations::<Hook>(&hook, &[], &[ValidationKind::Structural])
+    run_validations::<Hook>(&valid_hook(), &[], &[ValidationKind::Structural])
         .await
-        .expect("valid field selection");
-    assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+        .expect("no validation errors for valid hook");
 }
 
 #[tokio::test]
@@ -234,9 +249,8 @@ async fn hook_duplicate_input_names_fails_structural() {
     }
     .into();
 
-    let errors = run_validations::<Hook>(&hook, &["inputs"], &[ValidationKind::Structural])
-        .await
-        .expect("valid field selection");
+    let result = run_validations::<Hook>(&hook, &["inputs"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
     assert!(
         !errors.is_empty(),
         "Expected error for duplicate input names"
@@ -260,18 +274,9 @@ async fn run_validations_only_runs_requested_fields() {
     }
     .into();
 
-    let errors = run_validations::<Role>(
-        &role,
-        &["name"], // only name
-        &[ValidationKind::Structural],
-    )
-    .await
-    .expect("valid field selection");
-    // Should pass: name is valid, purpose not checked
-    assert!(
-        errors.is_empty(),
-        "Expected no errors when only validating 'name'"
-    );
+    run_validations::<Role>(&role, &["name"], &[ValidationKind::Structural])
+        .await
+        .expect("should pass when only validating 'name'");
 }
 
 #[tokio::test]
@@ -287,33 +292,26 @@ async fn run_validations_empty_fields_runs_all() {
     }
     .into();
 
-    let errors = run_validations::<Role>(
-        &role,
-        &[], // all fields
-        &[ValidationKind::Structural],
-    )
-    .await
-    .expect("all-fields always succeeds");
-    // Should fail: purpose is empty
+    let result = run_validations::<Role>(&role, &[], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
     assert!(
         !errors.is_empty(),
         "Expected errors when running all fields with invalid purpose"
     );
-    assert!(errors.errors.iter().any(|e| e.path == "purpose"));
+    assert!(errors.contains_key("purpose"), "Expected error on purpose");
 }
 
 #[tokio::test]
 async fn run_validations_unknown_field_returns_err() {
-    let role = valid_role();
-    let result =
-        run_validations::<Role>(&role, &["nonexistent_field"], &[ValidationKind::Structural]).await;
+    let result = run_validations::<Role>(
+        &valid_role(),
+        &["nonexistent_field"],
+        &[ValidationKind::Structural],
+    )
+    .await;
     assert!(
-        matches!(
-            result,
-            Err(PrimitiveError::InvalidValidationFieldSelection { .. })
-        ),
-        "Expected InvalidValidationFieldSelection error, got: {:?}",
-        result
+        matches!(result, Err(ActivityError::PariInvariantViolation { .. })),
+        "Expected PariInvariantViolation for unknown field, got: {result:?}",
     );
 }
 
@@ -395,15 +393,14 @@ async fn workflow_on_reject_valid_passes_when_target_exists() {
 
     let wf = build_workflow_with_reviewing_steps(steps);
 
-    let errors = run_validations::<Workflow>(&wf, &["steps"], &[ValidationKind::Semantic])
-        .await
-        .expect("valid field selection");
-    // on_reject points to existing step — should have no InvalidOnRejectTarget errors
+    let result = run_validations::<Workflow>(&wf, &["steps"], &[ValidationKind::Semantic]).await;
+    let errors = extract_validation_errors(result);
+    // on_reject points to an existing step — no InvalidOnRejectTarget errors
     assert!(
         errors
-            .errors
-            .iter()
-            .all(|e| !matches!(e.error, PrimitiveError::InvalidOnRejectTarget { .. })),
+            .values()
+            .flat_map(|v| v.iter())
+            .all(|e| !matches!(e, PrimitiveError::InvalidOnRejectTarget { .. })),
         "on_reject validation should pass when target exists"
     );
 }
@@ -435,16 +432,14 @@ async fn workflow_reviewing_state_required_when_review_steps_present() {
     }
     .into();
 
-    let errors = run_validations::<Workflow>(&wf, &["steps"], &[ValidationKind::Semantic])
-        .await
-        .expect("valid field selection");
+    let result = run_validations::<Workflow>(&wf, &["steps"], &[ValidationKind::Semantic]).await;
+    let errors = extract_validation_errors(result);
     assert!(
         errors
-            .errors
-            .iter()
-            .any(|e| matches!(e.error, PrimitiveError::WorkflowGraphInconsistency { .. })),
-        "Expected WorkflowGraphInconsistency error for missing Reviewing state, got: {:?}",
-        errors
+            .values()
+            .flat_map(|v| v.iter())
+            .any(|e| matches!(e, PrimitiveError::WorkflowGraphInconsistency { .. })),
+        "Expected WorkflowGraphInconsistency error for missing Reviewing state, got: {errors:?}",
     );
 }
 
@@ -478,11 +473,14 @@ async fn relay_empty_state_map_fails_structural() {
 
     let relay = make_relay_with_state_map(HashMap::new());
 
-    let errors = run_validations::<Relay>(&relay, &["state_map"], &[ValidationKind::Structural])
-        .await
-        .expect("valid field selection");
+    let result =
+        run_validations::<Relay>(&relay, &["state_map"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
     assert!(!errors.is_empty(), "Expected error for empty state_map");
-    assert!(errors.errors.iter().any(|e| e.path.contains("state_map")));
+    assert!(
+        errors.keys().any(|k| k.contains("state_map")),
+        "Expected error on state_map"
+    );
 }
 
 #[tokio::test]
@@ -501,12 +499,15 @@ async fn relay_non_camel_case_state_key_fails_structural() {
 
     let relay = make_relay_with_state_map(state_map);
 
-    let errors = run_validations::<Relay>(&relay, &["state_map"], &[ValidationKind::Structural])
-        .await
-        .expect("valid field selection");
+    let result =
+        run_validations::<Relay>(&relay, &["state_map"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
     assert!(
         !errors.is_empty(),
         "Expected error for non-CamelCase state key"
     );
-    assert!(errors.errors.iter().any(|e| e.path.contains("state_map")));
+    assert!(
+        errors.keys().any(|k| k.contains("state_map")),
+        "Expected error on state_map"
+    );
 }

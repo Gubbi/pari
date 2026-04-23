@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use pari_macros::primitive_errors;
 
 use crate::error::{ErrorLayer, ErrorLocation, OTelEmit, PrimitiveDetail};
@@ -15,6 +17,8 @@ primitive_errors! {
     EmptyBatch { batch_kind: String }
     /// A batch combined failures from incompatible operation contexts.
     HeterogeneousBatch { batch_kind: String, conflict: String }
+    /// Multiple primitive errors aggregated from a single batch operation.
+    BatchedErrors { batch_kind: String, errors: Vec<PrimitiveError> }
 
     /// The selected schema slots cannot be encoded together into one valid asset body.
     UnsupportedSlotComposition { slot: String, field: String }
@@ -231,6 +235,8 @@ primitive_errors! {
     ValidationAggregation { reason: String }
     /// Validation aggregation produced a mix of validation kinds that the contract cannot group.
     IncompatibleValidationKindMix { expected_kind: String, actual_kind: String }
+    /// Field-level validation errors keyed by field path.
+    FieldValidationError { errors: HashMap<String, Vec<PrimitiveError>> }
 
     /// A scalar value did not satisfy the primitive validation format required by the rule.
     MalformedScalarValue { sub_path: Option<String>, rule_kind: String }
@@ -262,6 +268,21 @@ primitive_errors! {
     IncompleteReferenceSet { sub_path: String, missing_reference: String }
     /// A referenced definition existed but did not match the consuming entity's expectations.
     ReferencedDefinitionMismatch { sub_path: String, entity_ref: String, reason: String }
+
+    /// The requested entity was not found in the store or substrate.
+    EntityNotFound { entity_ref: String }
+    /// The entity is already checked out by another operation.
+    AlreadyCheckedOut { entity_ref: String }
+    /// An undo-checkout was requested but the entity was not checked out.
+    EntityNotCheckedOut { entity_ref: String }
+    /// An operation was blocked because the entity is still checked out.
+    EntityStillCheckedOut { entity_ref: String }
+    /// An undo-commit was requested but the entity has no uncommitted changes.
+    NoUncommittedChanges { entity_ref: String }
+    /// An unload was blocked because the entity has unsaved adds or modifications.
+    EntityHasUnsavedChanges { entity_ref: String }
+    /// Persist was blocked because one or more entities are still checked out.
+    PendingCheckouts { count: usize }
 }
 
 impl PrimitiveError {
@@ -516,6 +537,18 @@ impl PrimitiveError {
         }
     }
 
+    pub fn batched_errors(
+        message: impl Into<String>,
+        batch_kind: impl Into<String>,
+        errors: Vec<PrimitiveError>,
+    ) -> Self {
+        Self::BatchedErrors {
+            context: Self::context(message),
+            batch_kind: batch_kind.into(),
+            errors,
+        }
+    }
+
     pub fn entity_projection(
         message: impl Into<String>,
         entity_ref: impl Into<String>,
@@ -735,6 +768,85 @@ impl PrimitiveError {
             context: Self::context(message),
             operation: "store_request".into(),
             boundary: "entity_server".into(),
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Validation layer
+    // -------------------------------------------------------------------------
+
+    pub fn field_validation_error(
+        message: impl Into<String>,
+        errors: HashMap<String, Vec<PrimitiveError>>,
+    ) -> Self {
+        Self::FieldValidationError {
+            context: Self::context(message),
+            errors,
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Store layer
+    // -------------------------------------------------------------------------
+
+    pub fn entity_not_found(message: impl Into<String>, entity_ref: impl Into<String>) -> Self {
+        Self::EntityNotFound {
+            context: Self::context(message),
+            entity_ref: entity_ref.into(),
+        }
+    }
+
+    pub fn already_checked_out(message: impl Into<String>, entity_ref: impl Into<String>) -> Self {
+        Self::AlreadyCheckedOut {
+            context: Self::context(message),
+            entity_ref: entity_ref.into(),
+        }
+    }
+
+    pub fn entity_not_checked_out(
+        message: impl Into<String>,
+        entity_ref: impl Into<String>,
+    ) -> Self {
+        Self::EntityNotCheckedOut {
+            context: Self::context(message),
+            entity_ref: entity_ref.into(),
+        }
+    }
+
+    pub fn entity_still_checked_out(
+        message: impl Into<String>,
+        entity_ref: impl Into<String>,
+    ) -> Self {
+        Self::EntityStillCheckedOut {
+            context: Self::context(message),
+            entity_ref: entity_ref.into(),
+        }
+    }
+
+    pub fn no_uncommitted_changes(
+        message: impl Into<String>,
+        entity_ref: impl Into<String>,
+    ) -> Self {
+        Self::NoUncommittedChanges {
+            context: Self::context(message),
+            entity_ref: entity_ref.into(),
+        }
+    }
+
+    pub fn entity_has_unsaved_changes(
+        message: impl Into<String>,
+        entity_ref: impl Into<String>,
+    ) -> Self {
+        Self::EntityHasUnsavedChanges {
+            context: Self::context(message),
+            entity_ref: entity_ref.into(),
+        }
+    }
+
+    pub fn pending_checkouts(message: impl Into<String>, count: usize) -> Self {
+        Self::PendingCheckouts {
+            context: Self::context(message),
+            count,
         }
     }
 }

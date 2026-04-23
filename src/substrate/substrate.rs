@@ -54,8 +54,8 @@ pub trait Substrate: Sized + Send + Sync + 'static {
 
     fn persist<'a>(
         &'a self,
-        changes: impl Iterator<Item = EntityChange<'a>> + Send + 'a,
-    ) -> impl std::future::Future<Output = Result<(), Vec<ActivityError>>> + Send + 'a
+        changes: impl Iterator<Item = EntityChange> + Send + 'a,
+    ) -> impl std::future::Future<Output = Result<(), ActivityError>> + Send + 'a
     where
         Self: SchemaBackedSubstrate,
     {

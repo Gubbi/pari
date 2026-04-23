@@ -494,10 +494,10 @@ The `workspace` layer owns caller-facing async operations and generated accessor
 - Operation: `EntityClient::resolve(any_ref)`
   - Failure
     - Scenario: request transport unavailable
-      Description: the workspace cannot deliver the resolve request to the store actor boundary.
+      Description: the workspace cannot deliver the resolve request to the Entity Server boundary.
     - Scenario: malformed request payload
       Description: the request shape reaching the boundary is invalid for the operation contract.
-    - Scenario: store actor terminated
+    - Scenario: Entity Server terminated
       Description: the backing actor shuts down or disappears before the request completes.
     - Scenario: entity missing from durable backing store
       Description: the requested identity does not exist in persistence and cannot be resolved into a tracked stub.
@@ -536,7 +536,7 @@ The `workspace` layer owns caller-facing async operations and generated accessor
 - Operation: `EntityClient::load(any_ref, field)`
   - Failure
     - Scenario: request transport unavailable
-      Description: the load request cannot reach the store actor.
+      Description: the load request cannot reach the Entity Server.
     - Scenario: target entity unresolved in store state
       Description: the store has no tracked entry corresponding to the requested identity.
     - Scenario: unknown field name
@@ -554,7 +554,7 @@ The `workspace` layer owns caller-facing async operations and generated accessor
 - Operation: `EntityClient::ensure_mutable(any_ref, field)`
   - Failure
     - Scenario: request transport unavailable
-      Description: the mutability preflight request cannot reach the store actor.
+      Description: the mutability preflight request cannot reach the entity server.
     - Scenario: target entity unresolved in store state
       Description: the store does not have a tracked entity for the requested identity.
     - Scenario: unknown field name
@@ -584,7 +584,7 @@ The `workspace` layer owns caller-facing async operations and generated accessor
 - Operation: `EntityClient::undo_commit(any_ref)`
   - Failure
     - Scenario: request transport unavailable
-      Description: the undo-commit request cannot reach the store actor.
+      Description: the undo-commit request cannot reach the entity server.
     - Scenario: entity not in an undoable state
       Description: the target entity is neither newly added nor modified in a way that supports rollback.
     - Scenario: entity currently checked out
@@ -606,7 +606,7 @@ The `workspace` layer owns caller-facing async operations and generated accessor
 - Operation: generated tracked method `TrackedEntity::commit()`
   - Failure
     - Scenario: request transport unavailable
-      Description: the commit request cannot reach the store actor.
+      Description: the commit request cannot reach the entity server.
     - Scenario: commit blocked by validation failure
       Description: the candidate tracked entity violates required validation rules.
     - Scenario: commit blocked by unresolved cross-entity references
@@ -649,9 +649,9 @@ The `store` layer owns the actor protocol, in-memory entity state, checkout life
 - Operation: `EntityServer::init(substrate)`
   - Failure
     - Scenario: actor spawn failure
-      Description: the runtime cannot create or schedule the backing store actor.
+      Description: the runtime cannot create or schedule the backing entity server.
     - Scenario: double initialization
-      Description: global store actor initialization is attempted more than once.
+      Description: global entity server initialization is attempted more than once.
     - Scenario: substrate boot / constructor failure if boot becomes fallible before actor start
       Description: the actor cannot be started because the chosen substrate fails its own initialization contract.
 - Operation: `EntityServer::request(request)`

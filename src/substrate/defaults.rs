@@ -128,19 +128,18 @@ where
 
 pub(crate) async fn persist<'a, Sub>(
     substrate: &'a Sub,
-    changes: impl Iterator<Item = EntityChange<'a>> + Send + 'a,
-) -> Result<(), Vec<ActivityError>>
+    changes: impl Iterator<Item = EntityChange> + Send + 'a,
+) -> Result<(), ActivityError>
 where
     Sub: SchemaBackedSubstrate,
 {
     let mut ops = Vec::new();
-    let mut errors = Vec::new();
 
     for change in changes {
         match change {
             EntityChange::Removed(any_ref) => {
                 let schema = Sub::schema_for(any_ref.kind());
-                let stub_json = any_ref_to_stub_json(any_ref);
+                let stub_json = any_ref_to_stub_json(&any_ref);
                 for asset in delete_assets(schema) {
                     let location = substrate
                         .resolver()
@@ -153,40 +152,26 @@ where
             }
             EntityChange::Added(entity) => {
                 let schema = Sub::schema_for(entity.any_ref().kind());
-                if let Err(mut es) =
-                    build_write_ops::<Sub>(substrate, entity, schema, None, &mut ops)
-                {
-                    errors.append(&mut es);
-                }
+                build_write_ops::<Sub>(substrate, &entity, schema, None, &mut ops)?;
             }
             EntityChange::Modified(entity, dirty_fields) => {
                 let schema = Sub::schema_for(entity.any_ref().kind());
-                if let Err(mut es) = build_write_ops::<Sub>(
+                build_write_ops::<Sub>(
                     substrate,
-                    entity,
+                    &entity,
                     schema,
                     Some(dirty_fields.as_slice()),
                     &mut ops,
-                ) {
-                    errors.append(&mut es);
-                }
+                )?;
             }
         }
-    }
-
-    if !errors.is_empty() {
-        return Err(errors);
     }
 
     substrate
         .executor()
         .execute(ops)
         .map(|_| ())
-        .map_err(|errs| {
-            errs.into_iter()
-                .map(|e| ActivityError::corrupt_persistence_state(executor_component::<Sub>(), e))
-                .collect()
-        })
+        .map_err(|errs| collapse_executor_errors::<Sub>(errs))
 }
 
 fn build_write_ops<'a, Sub>(
@@ -195,24 +180,17 @@ fn build_write_ops<'a, Sub>(
     schema: &'static pipeline::EntitySchema<Sub::Slot>,
     dirty_fields: Option<&'a [&'static str]>,
     ops: &mut Vec<pipeline::AssetRequest<Sub::Location, Sub::Encoded>>,
-) -> Result<(), Vec<ActivityError>>
+) -> Result<(), ActivityError>
 where
     Sub: SchemaBackedSubstrate,
 {
-    let entity_json = entity_to_json(entity).map_err(|e| {
-        vec![ActivityError::unpersistable_definition(
-            codec_component::<Sub>(),
-            e,
-        )]
-    })?;
+    let entity_json = entity_to_json(entity)
+        .map_err(|e| ActivityError::unpersistable_definition(codec_component::<Sub>(), e))?;
     let is_create = dirty_fields.is_none();
 
-    for asset in pipeline::AssetMapper::select_for_write(schema, dirty_fields).map_err(|e| {
-        vec![ActivityError::invalid_persistence_layout(
-            schema_component::<Sub>(),
-            e,
-        )]
-    })? {
+    for asset in pipeline::AssetMapper::select_for_write(schema, dirty_fields)
+        .map_err(|e| ActivityError::invalid_persistence_layout(schema_component::<Sub>(), e))?
+    {
         let location = substrate
             .resolver()
             .resolve(asset.path_template(), &entity_json);
@@ -222,12 +200,7 @@ where
         let encoded = substrate
             .codec()
             .encode(&entity_json, asset.fields())
-            .map_err(|e| {
-                vec![ActivityError::unpersistable_definition(
-                    codec_component::<Sub>(),
-                    e,
-                )]
-            })?;
+            .map_err(|e| ActivityError::unpersistable_definition(codec_component::<Sub>(), e))?;
         ops.push(pipeline::AssetRequest {
             location,
             op: asset.kind().write_op(is_create, is_partial, encoded),
@@ -254,9 +227,10 @@ fn asset_write_is_partial<S: pipeline::Slot>(
 }
 
 fn collapse_executor_errors<Sub: Substrate>(errors: Vec<PrimitiveError>) -> ActivityError {
-    let source = errors
-        .into_iter()
-        .next()
-        .unwrap_or_else(|| PrimitiveError::empty_batch("empty batch", "executor_errors"));
+    let source = match errors.len() {
+        0 => PrimitiveError::empty_batch("empty executor error batch", "executor_errors"),
+        1 => errors.into_iter().next().unwrap(),
+        _ => PrimitiveError::batched_errors("multiple executor errors", "executor_errors", errors),
+    };
     ActivityError::corrupt_persistence_state(executor_component::<Sub>(), source)
 }

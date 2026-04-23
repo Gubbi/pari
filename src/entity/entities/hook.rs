@@ -16,7 +16,14 @@ pub struct Hook {
     pub extensions: Extensions,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+    pari_macros::CollectRefs,
+)]
 #[schemars(deny_unknown_fields)]
 pub struct HookInput {
     pub name: String,

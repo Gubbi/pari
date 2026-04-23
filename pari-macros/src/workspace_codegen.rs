@@ -14,7 +14,7 @@ pub fn generate_accessors_and_setters(
             let (ret_type, map_expr) = accessor_return_type(ty);
             let fname_str = fname.as_ref().unwrap().to_string();
             quote! {
-                pub async fn #fname(&self) -> ::std::result::Result<#ret_type, ::pari::entity::LoadError> {
+                pub async fn #fname(&self) -> ::std::result::Result<#ret_type, ::pari::error::ActivityError> {
                     if self.#fname.get().is_none() {
                         ::pari::workspace::EntityClient::load(
                             <#entity_name as ::pari::entity::Entity>::to_any_ref(self.entity_ref()),
@@ -36,33 +36,23 @@ pub fn generate_accessors_and_setters(
             let ty = &f.ty;
             let fname_str = fname.as_ref().unwrap().to_string();
             quote! {
-                pub async fn #setter_name(&mut self, value: #ty) -> ::std::result::Result<(), ::pari::entity::SetterError> {
+                pub async fn #setter_name(&mut self, value: #ty) -> ::std::result::Result<(), ::pari::error::ActivityError> {
                     ::pari::workspace::EntityClient::ensure_mutable(
                         <#entity_name as ::pari::entity::Entity>::to_any_ref(self.entity_ref()),
                         #fname_str,
-                    ).await.map_err(|e| match e {
-                        ::pari::workspace::LoadError::Substrate(s) => ::pari::entity::SetterError::Substrate(s),
-                        other => panic!("ensure_mutable failed unexpectedly: {:?}", other),
-                    })?;
+                    ).await?;
 
                     let mut candidate = self.clone();
                     candidate.#fname = ::std::sync::Arc::new(::pari::tracked::TrackedField::mutated(value));
 
-                    let errors = ::pari::validation::run_validations::<#entity_name>(
+                    ::pari::validation::run_validations::<#entity_name>(
                         &candidate,
                         &[#fname_str],
                         &[
                             ::pari::validation::ValidationKind::Structural,
                             ::pari::validation::ValidationKind::Semantic,
                         ],
-                    ).await.expect("generated setter field is always in the validation schema");
-
-                    if !errors.is_empty() {
-                        return Err(::pari::entity::SetterError::Validation {
-                            error_count: errors.errors.len(),
-                            errors,
-                        });
-                    }
+                    ).await?;
 
                     self.#fname = ::std::sync::Arc::clone(&candidate.#fname);
                     Ok(())

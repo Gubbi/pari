@@ -14,7 +14,7 @@ extern crate self as pari;
 pub mod entity;
 pub mod error;
 pub use entity::{entities, tracked, types};
-pub use error::{pari_error::PariError, store as store_error};
+pub use error::pari_error::PariError;
 pub mod store;
 pub mod substrate;
 pub mod validation;

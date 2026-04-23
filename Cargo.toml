@@ -25,6 +25,7 @@ tracing-error = "0.2"
 opentelemetry-semantic-conventions = "0.29"
 indexmap = { version = "2", features = ["serde"] }
 pari-macros = { path = "pari-macros" }
+futures = "0.3"
 tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies]

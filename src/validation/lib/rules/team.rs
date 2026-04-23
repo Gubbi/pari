@@ -53,19 +53,13 @@ pub fn team_validation_schema() -> ValidationSchema<Team> {
         std::collections::HashMap::new();
     cross_entity.insert(
         "members",
-        vec![Box::new(|_e: &TrackedTeam| Box::pin(async { vec![] }))],
+        vec![crate::ref_check_rule!(TrackedTeam, members)],
     );
     cross_entity.insert(
         "include",
-        vec![
-            Box::new(|_e: &TrackedTeam| Box::pin(async { vec![] })),
-            Box::new(|_e: &TrackedTeam| Box::pin(async { vec![] })),
-        ],
+        vec![crate::ref_check_rule!(TrackedTeam, include)],
     );
-    cross_entity.insert(
-        "import",
-        vec![Box::new(|_e: &TrackedTeam| Box::pin(async { vec![] }))],
-    );
+    cross_entity.insert("import", vec![crate::ref_check_rule!(TrackedTeam, import)]);
 
     ValidationSchema {
         structural,

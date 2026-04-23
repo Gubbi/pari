@@ -1,4 +1,4 @@
-use pari::error::{BatchError, ErrorCompose, FixDomain, OTelEmit, Recoverability, Severity};
+use pari::error::{ErrorCompose, FixDomain, OTelEmit, Recoverability, Severity};
 use pari_macros::{ErrorCompose, OTelEmit};
 use thiserror::Error;
 
@@ -123,41 +123,6 @@ fn as_error_finds_inner_type() {
 fn as_error_returns_none_for_wrong_type() {
     let op: &dyn ErrorCompose = &TestOpError::Client(TestClientError);
     assert!(op.as_error::<TestDataError>().is_none());
-}
-
-// --- BatchError worst-case aggregation ---
-
-#[test]
-fn batch_fix_domain_worst_case() {
-    let batch = BatchError::new(vec![
-        TestOpError::Client(TestClientError),
-        TestOpError::Data(TestDataError {
-            message: "x".into(),
-            hint: None,
-        }),
-    ]);
-    // Data > Client
-    assert_eq!(batch.fix_domain(), FixDomain::Data);
-}
-
-#[test]
-fn batch_recoverability_worst_case() {
-    let batch = BatchError::new(vec![
-        TestOpError::Client(TestClientError), // UserAction
-        TestOpError::Data(TestDataError {
-            message: "x".into(),
-            hint: None,
-        }), // OperatorAction
-    ]);
-    // OperatorAction > UserAction
-    assert_eq!(batch.recoverability(), Recoverability::OperatorAction);
-}
-
-#[test]
-fn batch_empty_defaults_to_pari_not_recoverable() {
-    let batch: BatchError<TestOpError> = BatchError::new(vec![]);
-    assert_eq!(batch.fix_domain(), FixDomain::Pari);
-    assert_eq!(batch.recoverability(), Recoverability::NotRecoverable);
 }
 
 // --- OTelEmit compile test (emit() exists and is callable) ---

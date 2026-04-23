@@ -34,7 +34,7 @@ Key points:
 - `load(&TrackedEntity, &[&str])` returns a tracked entity payload
 - `persist(iterator_of_EntityChange)` consumes the explicit store-owned handoff type
 
-The substrate layer may depend on `EntityChange` from `store`, but not on store actor internals.
+The substrate layer may depend on `EntityChange` from `store`, but not on entity server internals.
 
 ## Boundary Rules
 

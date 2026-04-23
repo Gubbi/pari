@@ -70,15 +70,12 @@ pub fn relay_validation_schema() -> ValidationSchema<Relay> {
         std::collections::HashMap::new();
     cross_entity.insert(
         "delegates_to",
-        vec![Box::new(|_e: &TrackedRelay| Box::pin(async { vec![] }))],
+        vec![crate::ref_check_rule!(TrackedRelay, delegates_to)],
     );
-    cross_entity.insert(
-        "raci",
-        vec![Box::new(|_e: &TrackedRelay| Box::pin(async { vec![] }))],
-    );
+    cross_entity.insert("raci", vec![crate::ref_check_rule!(TrackedRelay, raci)]);
     cross_entity.insert(
         "state_map",
-        vec![Box::new(|_e: &TrackedRelay| Box::pin(async { vec![] }))],
+        vec![crate::ref_check_rule!(TrackedRelay, state_map)],
     );
 
     ValidationSchema {

@@ -180,6 +180,11 @@ fn expand_activity_errors(input: ActivityErrorsInput) -> proc_macro2::TokenStrea
         quote! { Self::#ident { cause, .. } => cause, }
     });
 
+    let into_cause_arms = input.variants.iter().map(|v| {
+        let ident = &v.ident;
+        quote! { Self::#ident { cause, .. } => cause, }
+    });
+
     let fix_arms = input.variants.iter().map(|v| {
         let ident = &v.ident;
         let fix = &v.fix;
@@ -261,6 +266,12 @@ fn expand_activity_errors(input: ActivityErrorsInput) -> proc_macro2::TokenStrea
             pub fn cause(&self) -> &PrimitiveError {
                 match self {
                     #(#cause_arms)*
+                }
+            }
+
+            pub fn into_cause(self) -> PrimitiveError {
+                match self {
+                    #(#into_cause_arms)*
                 }
             }
         }
