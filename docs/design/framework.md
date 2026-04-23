@@ -95,7 +95,7 @@ architecture-beta
 
 Alongside these three runtime layers, `entity` supplies the shared vocabulary — identity, tracked types, and schemas — that every core layer and every extension speaks.
 
-Formal ownership and dependency rules live in [layer-model.md](./layer-model.md); this section captures what each layer is, conceptually.
+Formal ownership and dependency rules live in [layer-model.md](./layers/layer-model.md); this section captures what each layer is, conceptually.
 
 ### `entity` — core definitions and schemas
 
@@ -129,7 +129,7 @@ flowchart LR
 - **Assets** — the addressable pieces an entity is split into. Each asset is independently locatable and loadable.
 - **Slots** — the fields within an asset that a backend reads or writes. Slots are the finest-grained unit the pipeline operates on; they are what enables sparse field-level loading in `store`.
 
-Schemas declaratively compose Slots → Assets → Entity in a uniform way, so backends do not hand-code the load/persist logic for each entity-and-asset combination. Backends decide *where* and *how* data is stored; `substrate` defines *what* a backend must be able to do. Pipeline specifics live in [substrate-pipeline.md](./substrate-pipeline.md).
+Schemas declaratively compose Slots → Assets → Entity in a uniform way, so backends do not hand-code the load/persist logic for each entity-and-asset combination. Backends decide *where* and *how* data is stored; `substrate` defines *what* a backend must be able to do. Pipeline specifics live in [substrate.md](./layers/substrate.md).
 
 ## Error Handling at a Glance
 
@@ -182,11 +182,14 @@ Batch failures are surfaced as a dedicated collection type with aggregated (wors
 
 ### Full detail
 
-See [error-handling.md](../error/error-handling.md). The `error` section of [layer-model.md](./layer-model.md) covers composition, propagation, and the derive-macro contracts in depth.
+See [error-handling.md](./layers/error-handling.md) for composition, propagation, OTel emission, and downcasting mechanics.
 
 ## Cross-References
 
-- [layer-model.md](./layer-model.md) — formal ownership, dependency rules, and within-layer structure.
-- [store-components.md](./store-components.md) — `EntityServer` actor + `StoreManager` state machine split.
-- [validation-model.md](./validation-model.md) — three-kind validation model, `ValidationSchema<T>`, runner flow.
-- [substrate-pipeline.md](./substrate-pipeline.md) — `Substrate` trait, asset pipeline, load/persist paths.
+- [layer-model.md](./layers/layer-model.md) — formal ownership, dependency rules, and within-layer structure.
+- [entities.md](./layers/entities.md) — entity layer: identity, macros, tracked versions, schemas.
+- [workspace.md](./layers/workspace.md) — workspace layer: uniform access gateway, transparent expansion, automatic validation.
+- [store.md](./layers/store.md) — store layer: `EntityServer` + `StoreManager` split, actor model, sparse staging.
+- [substrate.md](./layers/substrate.md) — substrate layer: asset pipeline, slot/asset/entity composition, schema-driven load/persist paths.
+- [validation.md](./layers/validation.md) — validation layer: three-kind model, `ValidationSchema<T>`, runner flow.
+- [error-handling.md](./layers/error-handling.md) — error layer: composition, propagation, OTel emission, `as_error<E>()` downcasting, SpanTrace invariants.

@@ -4,6 +4,8 @@ This document is the authoritative architectural reference for Pari's layer mode
 
 The core rule: **each concept has one owning layer, layers collaborate across explicit boundaries, and no layer silently absorbs another's responsibilities.**
 
+For the bird's-eye framework view — extension seams, conceptual roles, error hierarchy for integrators — see [framework.md](../framework.md).
+
 ## Formal Layers
 
 1. `entity`
@@ -110,10 +112,15 @@ Orchestration components live at the layer root. They coordinate across pure com
 
 `mod.rs` files contain only `mod` declarations and `pub use` re-exports — no logic, no `impl` blocks, no free functions. All logic lives in named source files.
 
-## Component-Level Detail
+## Per-Layer Design Docs
 
-L4 component docs go deeper on specific layer internals:
+Each layer has its own design doc covering its internals:
 
-- [store-components.md](./store-components.md) — `EntityServer` actor + `StoreManager` state machine split, message protocol.
-- [validation-model.md](./validation-model.md) — three-kind validation model, `ValidationSchema<T>`, runner flow.
-- [substrate-pipeline.md](./substrate-pipeline.md) — `Substrate` trait, asset pipeline, load/persist paths.
+- [entities.md](./entities.md) — entity layer: identity, macros, tracked versions, schemas.
+- [workspace.md](./workspace.md) — workspace layer: uniform access gateway, transparent expansion, automatic validation.
+- [store.md](./store.md) — store layer: `EntityServer` + `StoreManager` split, actor model, sparse staging.
+- [substrate.md](./substrate.md) — substrate layer: asset pipeline, slot/asset/entity composition, schema-driven load/persist paths.
+- [validation.md](./validation.md) — validation layer: three-kind model, `ValidationSchema<T>`, runner flow.
+- [error-handling.md](./error-handling.md) — error layer: composition (`ErrorCompose`, `activity_error`), propagation, OTel emission, `as_error<E>()` downcasting, SpanTrace invariants.
+
+See also [framework.md](../framework.md) for the framework-level view.

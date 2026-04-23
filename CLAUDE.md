@@ -4,7 +4,7 @@
 
 Rust library (`pari`) for workflow runtime behavior in hybrid human-agent teams.
 
-The authoritative architecture reference is [docs/design/architecture/layer-model.md](/Users/vinuth/code/pari/docs/design/architecture/layer-model.md). Use the formal layer vocabulary from that doc when describing code ownership:
+The authoritative architecture reference is [docs/design/layers/layer-model.md](/Users/vinuth/code/pari/docs/design/layers/layer-model.md). Use the formal layer vocabulary from that doc when describing code ownership:
 
 - `entity`
 - `workspace`
@@ -61,7 +61,7 @@ When working in a subtree, also look for a `CLAUDE.md` file in that directory or
 
 ## Structural Conventions
 
-The authoritative reference for these conventions is [docs/design/architecture/layer-model.md — Within-Layer Structure](/Users/vinuth/code/pari/docs/design/architecture/layer-model.md).
+The authoritative reference for these conventions is [docs/design/layers/layer-model.md — Within-Layer Structure](/Users/vinuth/code/pari/docs/design/layers/layer-model.md).
 
 **Pure vs orchestration split**
 Every layer has pure components in `lib/` (emit only `PrimitiveError`) and orchestration components at the layer root (wrap primitives into activity errors, or forward activity errors from deeper layers unchanged). `entity` is the sole exception — no orchestration layer, `PrimitiveError` at all boundaries.
@@ -88,6 +88,6 @@ Contain only `mod` declarations and `pub use` re-exports — no logic, no `impl`
 
 ## Useful References
 
-- Architecture: [docs/design/architecture/layer-model.md](/Users/vinuth/code/pari/docs/design/architecture/layer-model.md)
+- Architecture: [docs/design/layers/layer-model.md](/Users/vinuth/code/pari/docs/design/layers/layer-model.md)
 - Design index: [docs/design/README.md](/Users/vinuth/code/pari/docs/design/README.md)
 - Root crate wiring: [src/lib.rs](/Users/vinuth/code/pari/src/lib.rs)
