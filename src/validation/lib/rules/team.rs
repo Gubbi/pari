@@ -1,11 +1,17 @@
 use super::{
     super::schema::{AnyCrossEntityRule, AnyStructuralRule, ValidationSchema},
     structural::{
-        primitives::{kebab_case_id, non_empty_str, opt_non_empty_str, x_prefix_keys},
-        team::unique_member_handles,
+        primitives::{
+            kebab_case_id, non_empty_list, non_empty_map, non_empty_str, opt_non_empty_str,
+            x_prefix_keys,
+        },
+        team::members_structural,
     },
 };
-use crate::entity::entities::team::{Team, TrackedTeam};
+use crate::{
+    entity::entities::team::{Team, TrackedTeam},
+    validation::lib::rules::cross_entity::team::{no_import_cycle, no_include_cycle},
+};
 
 pub fn team_validation_schema() -> ValidationSchema<Team> {
     let mut structural: std::collections::HashMap<&'static str, Vec<AnyStructuralRule<Team>>> =
@@ -35,7 +41,35 @@ pub fn team_validation_schema() -> ValidationSchema<Team> {
         vec![Box::new(|e: &TrackedTeam| {
             e.members
                 .get()
-                .map(|v| unique_member_handles(v))
+                .map(|v| members_structural(v))
+                .unwrap_or_default()
+        })],
+    );
+    structural.insert(
+        "include",
+        vec![Box::new(|e: &TrackedTeam| {
+            e.include
+                .get()
+                .map(|opt_map| {
+                    opt_map
+                        .as_ref()
+                        .map(|m| non_empty_map(m))
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default()
+        })],
+    );
+    structural.insert(
+        "import",
+        vec![Box::new(|e: &TrackedTeam| {
+            e.import
+                .get()
+                .map(|opt_list| {
+                    opt_list
+                        .as_ref()
+                        .map(|l| non_empty_list(l.as_slice()))
+                        .unwrap_or_default()
+                })
                 .unwrap_or_default()
         })],
     );
@@ -57,9 +91,36 @@ pub fn team_validation_schema() -> ValidationSchema<Team> {
     );
     cross_entity.insert(
         "include",
-        vec![crate::ref_check_rule!(TrackedTeam, include)],
+        vec![
+            crate::ref_check_rule!(TrackedTeam, include),
+            Box::new(|e: &TrackedTeam| {
+                let self_ref = e.entity_ref.clone();
+                let include = e
+                    .include
+                    .get()
+                    .and_then(|v| v.as_ref())
+                    .cloned()
+                    .unwrap_or_default();
+                Box::pin(async move { no_include_cycle(self_ref, include).await })
+            }),
+        ],
     );
-    cross_entity.insert("import", vec![crate::ref_check_rule!(TrackedTeam, import)]);
+    cross_entity.insert(
+        "import",
+        vec![
+            crate::ref_check_rule!(TrackedTeam, import),
+            Box::new(|e: &TrackedTeam| {
+                let self_ref = e.entity_ref.clone();
+                let import = e
+                    .import
+                    .get()
+                    .and_then(|v| v.as_ref())
+                    .cloned()
+                    .unwrap_or_default();
+                Box::pin(async move { no_import_cycle(self_ref, import).await })
+            }),
+        ],
+    );
 
     ValidationSchema {
         structural,

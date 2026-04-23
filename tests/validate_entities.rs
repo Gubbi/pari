@@ -6,13 +6,21 @@ use indexmap::IndexMap;
 use pari::{
     entities::{
         hook::{Hook, HookInput, TrackedHook},
-        relay::{StateMapEntry, TrackedRelay},
+        relay::{Relay, StateMapEntry, TrackedRelay},
         role::{Role, TrackedRole},
-        workflow::{Step, TrackedWorkflow, Workflow},
+        task::{Task, TrackedTask},
+        team::{Team, TeamMember, TrackedTeam},
+        workflow::{
+            EmbeddedWorkflow, ReusableWorkflow, Step, TrackedEmbeddedWorkflow,
+            TrackedReusableWorkflow, TrackedWorkflow, Workflow,
+        },
     },
     entity::{EntityRef, WorkflowParent},
     error::{primitive::PrimitiveError, ActivityError},
-    types::{Extensions, Raci, WorkflowSemantic, WorkflowStateEntry},
+    types::{
+        Artifact, Extensions, Raci, TaskSemantic, TaskStateEntry, WorkflowSemantic,
+        WorkflowStateEntry,
+    },
     validation::{run_validations, ValidationKind},
 };
 
@@ -448,8 +456,6 @@ async fn workflow_reviewing_state_required_when_review_steps_present() {
 // ---------------------------------------------------------------------------
 
 fn make_relay_with_state_map(state_map: HashMap<String, StateMapEntry>) -> TrackedRelay {
-    use pari::entities::relay::Relay;
-
     Relay {
         entity_ref: EntityRef::with_parent("DelegateTask", workflow_parent("TestWorkflow")),
         name: "Delegate Task".to_string(),
@@ -465,6 +471,21 @@ fn make_relay_with_state_map(state_map: HashMap<String, StateMapEntry>) -> Track
         extensions: Extensions::default(),
     }
     .into()
+}
+
+fn task_states() -> Vec<TaskStateEntry> {
+    vec![
+        TaskStateEntry {
+            id: "Active".to_string(),
+            description: "In progress".to_string(),
+            semantic: None,
+        },
+        TaskStateEntry {
+            id: "Done".to_string(),
+            description: "Complete".to_string(),
+            semantic: Some(TaskSemantic::Done),
+        },
+    ]
 }
 
 #[tokio::test]
@@ -485,8 +506,6 @@ async fn relay_empty_state_map_fails_structural() {
 
 #[tokio::test]
 async fn relay_non_camel_case_state_key_fails_structural() {
-    use pari::entities::relay::{Relay, StateMapEntry};
-
     let mut state_map = HashMap::new();
     state_map.insert(
         "active-state".to_string(), // not CamelCase
@@ -510,4 +529,538 @@ async fn relay_non_camel_case_state_key_fails_structural() {
         errors.keys().any(|k| k.contains("state_map")),
         "Expected error on state_map"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Task structural tests — simple gaps (Task 15)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn task_instructions_empty_item_fails_structural() {
+    let task: TrackedTask = Task {
+        entity_ref: EntityRef::with_parent("WriteDoc", workflow_parent("MyWorkflow")),
+        name: "Write Doc".to_string(),
+        description: None,
+        purpose: "Produce documentation".to_string(),
+        instructions: vec!["Valid step".to_string(), "".to_string()], // empty item
+        criteria: vec!["Done".to_string()],
+        raci: None,
+        artifact: Artifact {
+            kind: EntityRef::new("doc"),
+            template: None,
+        },
+        states: task_states(),
+        intercepts: None,
+        guidance: None,
+        extensions: Extensions::default(),
+    }
+    .into();
+
+    let result =
+        run_validations::<Task>(&task, &["instructions"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(
+        !errors.is_empty(),
+        "Expected error for empty instruction item"
+    );
+    assert!(
+        errors.contains_key("instructions"),
+        "Expected error on instructions"
+    );
+}
+
+#[tokio::test]
+async fn task_criteria_empty_item_fails_structural() {
+    let task: TrackedTask = Task {
+        entity_ref: EntityRef::with_parent("WriteDoc", workflow_parent("MyWorkflow")),
+        name: "Write Doc".to_string(),
+        description: None,
+        purpose: "Produce documentation".to_string(),
+        instructions: vec!["Do it".to_string()],
+        criteria: vec!["Good criterion".to_string(), "   ".to_string()], // whitespace-only item
+        raci: None,
+        artifact: Artifact {
+            kind: EntityRef::new("doc"),
+            template: None,
+        },
+        states: task_states(),
+        intercepts: None,
+        guidance: None,
+        extensions: Extensions::default(),
+    }
+    .into();
+
+    let result = run_validations::<Task>(&task, &["criteria"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(!errors.is_empty(), "Expected error for empty criteria item");
+    assert!(
+        errors.contains_key("criteria"),
+        "Expected error on criteria"
+    );
+}
+
+#[tokio::test]
+async fn task_raci_empty_responsible_fails_structural() {
+    let task: TrackedTask = Task {
+        entity_ref: EntityRef::with_parent("WriteDoc", workflow_parent("MyWorkflow")),
+        name: "Write Doc".to_string(),
+        description: None,
+        purpose: "Produce documentation".to_string(),
+        instructions: vec!["Do it".to_string()],
+        criteria: vec!["Done".to_string()],
+        raci: Some(Raci {
+            responsible: vec![], // empty!
+            accountable: role_ref("pm"),
+            consulted: None,
+            informed: None,
+        }),
+        artifact: Artifact {
+            kind: EntityRef::new("doc"),
+            template: None,
+        },
+        states: task_states(),
+        intercepts: None,
+        guidance: None,
+        extensions: Extensions::default(),
+    }
+    .into();
+
+    let result = run_validations::<Task>(&task, &["raci"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(
+        !errors.is_empty(),
+        "Expected error for empty raci.responsible"
+    );
+    assert!(errors.contains_key("raci"), "Expected error on raci");
+}
+
+#[tokio::test]
+async fn task_empty_guidance_fails_structural() {
+    let task: TrackedTask = Task {
+        entity_ref: EntityRef::with_parent("WriteDoc", workflow_parent("MyWorkflow")),
+        name: "Write Doc".to_string(),
+        description: None,
+        purpose: "Produce documentation".to_string(),
+        instructions: vec!["Do it".to_string()],
+        criteria: vec!["Done".to_string()],
+        raci: None,
+        artifact: Artifact {
+            kind: EntityRef::new("doc"),
+            template: None,
+        },
+        states: task_states(),
+        intercepts: None,
+        guidance: Some("".to_string()), // empty!
+        extensions: Extensions::default(),
+    }
+    .into();
+
+    let result = run_validations::<Task>(&task, &["guidance"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(!errors.is_empty(), "Expected error for empty guidance");
+    assert!(
+        errors.contains_key("guidance"),
+        "Expected error on guidance"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Relay structural tests — simple gaps (Task 15)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn relay_raci_empty_responsible_fails_structural() {
+    let relay: TrackedRelay = {
+        let mut state_map = HashMap::new();
+        state_map.insert(
+            "Done".to_string(),
+            StateMapEntry {
+                maps_to: "Done".to_string(),
+                description: None,
+                semantic: None,
+            },
+        );
+        Relay {
+            entity_ref: EntityRef::with_parent("DelegateTask", workflow_parent("TestWorkflow")),
+            name: "Delegate Task".to_string(),
+            description: None,
+            purpose: "Delegate work".to_string(),
+            raci: Some(Raci {
+                responsible: vec![], // empty!
+                accountable: role_ref("pm"),
+                consulted: None,
+                informed: None,
+            }),
+            delegates_to: EntityRef::new("SomeWorkflow"),
+            briefing: None,
+            debriefing: None,
+            state_map,
+            intercepts: None,
+            guidance: None,
+            extensions: Extensions::default(),
+        }
+        .into()
+    };
+
+    let result = run_validations::<Relay>(&relay, &["raci"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(
+        !errors.is_empty(),
+        "Expected error for empty relay raci.responsible"
+    );
+    assert!(errors.contains_key("raci"), "Expected error on raci");
+}
+
+#[tokio::test]
+async fn relay_empty_briefing_fails_structural() {
+    let relay: TrackedRelay = {
+        let mut state_map = HashMap::new();
+        state_map.insert(
+            "Done".to_string(),
+            StateMapEntry {
+                maps_to: "Done".to_string(),
+                description: None,
+                semantic: None,
+            },
+        );
+        Relay {
+            entity_ref: EntityRef::with_parent("DelegateTask", workflow_parent("TestWorkflow")),
+            name: "Delegate Task".to_string(),
+            description: None,
+            purpose: "Delegate work".to_string(),
+            raci: None,
+            delegates_to: EntityRef::new("SomeWorkflow"),
+            briefing: Some("".to_string()), // empty!
+            debriefing: None,
+            state_map,
+            intercepts: None,
+            guidance: None,
+            extensions: Extensions::default(),
+        }
+        .into()
+    };
+
+    let result =
+        run_validations::<Relay>(&relay, &["briefing"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(!errors.is_empty(), "Expected error for empty briefing");
+    assert!(
+        errors.contains_key("briefing"),
+        "Expected error on briefing"
+    );
+}
+
+#[tokio::test]
+async fn relay_empty_debriefing_fails_structural() {
+    let relay: TrackedRelay = {
+        let mut state_map = HashMap::new();
+        state_map.insert(
+            "Done".to_string(),
+            StateMapEntry {
+                maps_to: "Done".to_string(),
+                description: None,
+                semantic: None,
+            },
+        );
+        Relay {
+            entity_ref: EntityRef::with_parent("DelegateTask", workflow_parent("TestWorkflow")),
+            name: "Delegate Task".to_string(),
+            description: None,
+            purpose: "Delegate work".to_string(),
+            raci: None,
+            delegates_to: EntityRef::new("SomeWorkflow"),
+            briefing: None,
+            debriefing: Some("".to_string()), // empty!
+            state_map,
+            intercepts: None,
+            guidance: None,
+            extensions: Extensions::default(),
+        }
+        .into()
+    };
+
+    let result =
+        run_validations::<Relay>(&relay, &["debriefing"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(!errors.is_empty(), "Expected error for empty debriefing");
+    assert!(
+        errors.contains_key("debriefing"),
+        "Expected error on debriefing"
+    );
+}
+
+#[tokio::test]
+async fn relay_empty_guidance_fails_structural() {
+    let relay: TrackedRelay = {
+        let mut state_map = HashMap::new();
+        state_map.insert(
+            "Done".to_string(),
+            StateMapEntry {
+                maps_to: "Done".to_string(),
+                description: None,
+                semantic: None,
+            },
+        );
+        Relay {
+            entity_ref: EntityRef::with_parent("DelegateTask", workflow_parent("TestWorkflow")),
+            name: "Delegate Task".to_string(),
+            description: None,
+            purpose: "Delegate work".to_string(),
+            raci: None,
+            delegates_to: EntityRef::new("SomeWorkflow"),
+            briefing: None,
+            debriefing: None,
+            state_map,
+            intercepts: None,
+            guidance: Some("".to_string()), // empty!
+            extensions: Extensions::default(),
+        }
+        .into()
+    };
+
+    let result =
+        run_validations::<Relay>(&relay, &["guidance"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(
+        !errors.is_empty(),
+        "Expected error for empty relay guidance"
+    );
+    assert!(
+        errors.contains_key("guidance"),
+        "Expected error on guidance"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Workflow structural tests — non-empty steps + guidance (Task 15)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn workflow_empty_steps_fails_structural() {
+    let wf: TrackedWorkflow = Workflow {
+        entity_ref: EntityRef::new("MyWorkflow"),
+        name: "My Workflow".to_string(),
+        description: None,
+        purpose: "Testing".to_string(),
+        raci: make_raci(),
+        states: workflow_states_with_done(),
+        steps: IndexMap::new(), // empty!
+        intercepts: None,
+        guidance: None,
+        extensions: Extensions::default(),
+    }
+    .into();
+
+    let result = run_validations::<Workflow>(&wf, &["steps"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(!errors.is_empty(), "Expected error for empty steps");
+    assert!(errors.contains_key("steps"), "Expected error on steps");
+}
+
+#[tokio::test]
+async fn reusable_workflow_empty_steps_fails_structural() {
+    let wf: TrackedReusableWorkflow = ReusableWorkflow {
+        entity_ref: EntityRef::new("MyReusable"),
+        name: "My Reusable".to_string(),
+        description: None,
+        purpose: "Testing".to_string(),
+        raci: make_raci(),
+        states: workflow_states_with_done(),
+        steps: IndexMap::new(), // empty!
+        intercepts: None,
+        guidance: None,
+        extensions: Extensions::default(),
+    }
+    .into();
+
+    let result =
+        run_validations::<ReusableWorkflow>(&wf, &["steps"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(
+        !errors.is_empty(),
+        "Expected error for empty reusable workflow steps"
+    );
+    assert!(errors.contains_key("steps"), "Expected error on steps");
+}
+
+#[tokio::test]
+async fn embedded_workflow_empty_steps_fails_structural() {
+    let wf: TrackedEmbeddedWorkflow = EmbeddedWorkflow {
+        entity_ref: EntityRef::with_parent("MyEmbedded", workflow_parent("ParentWorkflow")),
+        name: "My Embedded".to_string(),
+        description: None,
+        purpose: "Testing".to_string(),
+        raci: None,
+        states: workflow_states_with_done(),
+        steps: IndexMap::new(), // empty!
+        intercepts: None,
+        guidance: None,
+        extensions: Extensions::default(),
+    }
+    .into();
+
+    let result =
+        run_validations::<EmbeddedWorkflow>(&wf, &["steps"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(
+        !errors.is_empty(),
+        "Expected error for empty embedded workflow steps"
+    );
+    assert!(errors.contains_key("steps"), "Expected error on steps");
+}
+
+#[tokio::test]
+async fn workflow_empty_guidance_fails_structural() {
+    let wf: TrackedWorkflow = Workflow {
+        entity_ref: EntityRef::new("MyWorkflow"),
+        name: "My Workflow".to_string(),
+        description: None,
+        purpose: "Testing".to_string(),
+        raci: make_raci(),
+        states: workflow_states_with_done(),
+        steps: {
+            let mut s = IndexMap::new();
+            s.insert(
+                "Step1".to_string(),
+                Step::Review {
+                    approver: vec![role_ref("eng-lead")],
+                    on_reject: "Step1".to_string(),
+                },
+            );
+            s
+        },
+        intercepts: None,
+        guidance: Some("".to_string()), // empty!
+        extensions: Extensions::default(),
+    }
+    .into();
+
+    let result =
+        run_validations::<Workflow>(&wf, &["guidance"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(
+        !errors.is_empty(),
+        "Expected error for empty workflow guidance"
+    );
+    assert!(
+        errors.contains_key("guidance"),
+        "Expected error on guidance"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Team structural tests — handle regex + non-empty include/import (Task 15)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn team_member_invalid_handle_fails_structural() {
+    let team: TrackedTeam = Team {
+        entity_ref: EntityRef::new("eng-team"),
+        name: "Engineering Team".to_string(),
+        description: None,
+        members: Some(vec![TeamMember {
+            handle: "NotAHandle".to_string(), // missing leading @
+            role: role_ref("eng-lead"),
+        }]),
+        include: None,
+        import: None,
+        extensions: Extensions::default(),
+    }
+    .into();
+
+    let result = run_validations::<Team>(&team, &["members"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(
+        !errors.is_empty(),
+        "Expected error for invalid member handle"
+    );
+    assert!(errors.contains_key("members"), "Expected error on members");
+}
+
+#[tokio::test]
+async fn team_include_present_but_empty_fails_structural() {
+    let team: TrackedTeam = Team {
+        entity_ref: EntityRef::new("eng-team"),
+        name: "Engineering Team".to_string(),
+        description: None,
+        members: None,
+        include: Some(HashMap::new()), // present but empty!
+        import: None,
+        extensions: Extensions::default(),
+    }
+    .into();
+
+    let result = run_validations::<Team>(&team, &["include"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(!errors.is_empty(), "Expected error for empty include map");
+    assert!(errors.contains_key("include"), "Expected error on include");
+}
+
+#[tokio::test]
+async fn team_import_present_but_empty_fails_structural() {
+    let team: TrackedTeam = Team {
+        entity_ref: EntityRef::new("eng-team"),
+        name: "Engineering Team".to_string(),
+        description: None,
+        members: None,
+        include: None,
+        import: Some(vec![]), // present but empty!
+        extensions: Extensions::default(),
+    }
+    .into();
+
+    let result = run_validations::<Team>(&team, &["import"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(!errors.is_empty(), "Expected error for empty import list");
+    assert!(errors.contains_key("import"), "Expected error on import");
+}
+
+// ---------------------------------------------------------------------------
+// Hook input description tests (Task 15)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn hook_input_empty_description_fails_structural() {
+    let hook: TrackedHook = Hook {
+        entity_ref: EntityRef::new("my-hook"),
+        name: "My Hook".to_string(),
+        description: None,
+        instructions: vec!["Do it".to_string()],
+        inputs: Some(vec![HookInput {
+            name: "param1".to_string(),
+            description: Some("".to_string()), // present but empty!
+            required: true,
+        }]),
+        extensions: Extensions::default(),
+    }
+    .into();
+
+    let result = run_validations::<Hook>(&hook, &["inputs"], &[ValidationKind::Structural]).await;
+    let errors = extract_validation_errors(result);
+    assert!(
+        !errors.is_empty(),
+        "Expected error for empty input description"
+    );
+    assert!(errors.contains_key("inputs"), "Expected error on inputs");
+}
+
+#[tokio::test]
+async fn hook_input_absent_description_passes_structural() {
+    let hook: TrackedHook = Hook {
+        entity_ref: EntityRef::new("my-hook"),
+        name: "My Hook".to_string(),
+        description: None,
+        instructions: vec!["Do it".to_string()],
+        inputs: Some(vec![HookInput {
+            name: "param1".to_string(),
+            description: None, // absent — should pass
+            required: true,
+        }]),
+        extensions: Extensions::default(),
+    }
+    .into();
+
+    run_validations::<Hook>(&hook, &[], &[ValidationKind::Structural])
+        .await
+        .expect("no validation errors when input description is None");
 }

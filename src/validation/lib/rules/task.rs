@@ -2,12 +2,19 @@ use super::{
     super::schema::{AnyCrossEntityRule, AnyStructuralRule, ValidationSchema},
     structural::{
         primitives::{
-            camel_case_id, non_empty_list, non_empty_str, opt_non_empty_str, x_prefix_keys,
+            camel_case_id, each_item_non_empty, non_empty_list, non_empty_str, opt_non_empty_str,
+            x_prefix_keys,
         },
+        raci::raci_structural,
         task::states_valid_task,
     },
 };
-use crate::entity::entities::task::{Task, TrackedTask};
+use crate::{
+    entity::entities::task::{Task, TrackedTask},
+    validation::lib::rules::cross_entity::intercepts::{
+        intercept_hooks_exist, intercept_inputs_valid,
+    },
+};
 
 pub fn task_validation_schema() -> ValidationSchema<Task> {
     let mut structural: std::collections::HashMap<&'static str, Vec<AnyStructuralRule<Task>>> =
@@ -46,7 +53,11 @@ pub fn task_validation_schema() -> ValidationSchema<Task> {
         vec![Box::new(|e: &TrackedTask| {
             e.instructions
                 .get()
-                .map(|v| non_empty_list(v.as_slice()))
+                .map(|v| {
+                    let mut violations = non_empty_list(v.as_slice());
+                    violations.extend(each_item_non_empty(v.as_slice()));
+                    violations
+                })
                 .unwrap_or_default()
         })],
     );
@@ -55,7 +66,34 @@ pub fn task_validation_schema() -> ValidationSchema<Task> {
         vec![Box::new(|e: &TrackedTask| {
             e.criteria
                 .get()
-                .map(|v| non_empty_list(v.as_slice()))
+                .map(|v| {
+                    let mut violations = non_empty_list(v.as_slice());
+                    violations.extend(each_item_non_empty(v.as_slice()));
+                    violations
+                })
+                .unwrap_or_default()
+        })],
+    );
+    structural.insert(
+        "raci",
+        vec![Box::new(|e: &TrackedTask| {
+            e.raci
+                .get()
+                .map(|opt_raci| {
+                    opt_raci
+                        .as_ref()
+                        .map(|r| raci_structural(r))
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default()
+        })],
+    );
+    structural.insert(
+        "guidance",
+        vec![Box::new(|e: &TrackedTask| {
+            e.guidance
+                .get()
+                .map(|v| opt_non_empty_str(v))
                 .unwrap_or_default()
         })],
     );
@@ -84,6 +122,29 @@ pub fn task_validation_schema() -> ValidationSchema<Task> {
     cross_entity.insert(
         "artifact",
         vec![crate::ref_check_rule!(TrackedTask, artifact)],
+    );
+    cross_entity.insert(
+        "intercepts",
+        vec![
+            Box::new(|e: &TrackedTask| {
+                let map = e
+                    .intercepts
+                    .get()
+                    .and_then(|v| v.as_ref())
+                    .cloned()
+                    .unwrap_or_default();
+                Box::pin(async move { intercept_hooks_exist(map, "intercepts").await })
+            }),
+            Box::new(|e: &TrackedTask| {
+                let map = e
+                    .intercepts
+                    .get()
+                    .and_then(|v| v.as_ref())
+                    .cloned()
+                    .unwrap_or_default();
+                Box::pin(async move { intercept_inputs_valid(map, "intercepts").await })
+            }),
+        ],
     );
 
     ValidationSchema {

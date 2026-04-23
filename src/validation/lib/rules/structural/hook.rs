@@ -13,6 +13,15 @@ pub fn hook_inputs_structural(value: &Option<Vec<HookInput>>) -> Vec<PrimitiveEr
                         "non_empty",
                     ));
                 }
+                if let Some(desc) = &input.description {
+                    if desc.trim().is_empty() {
+                        v.push(PrimitiveError::empty_required_value(
+                            "must not be empty",
+                            Some(format!("[{i}].description")),
+                            "non_empty",
+                        ));
+                    }
+                }
             }
             let mut seen = std::collections::HashSet::new();
             for (i, inp) in inputs.iter().enumerate() {

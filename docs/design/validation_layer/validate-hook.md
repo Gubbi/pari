@@ -19,8 +19,8 @@ static HOOK_VALIDATION_SCHEMA: ValidationSchema = ValidationSchema {
     structural: {
         "entity_ref":  [kebab_case_id],
         "name":        [non_empty_str],
-        "description": [non_empty_str],
-        "inputs":      [each_name_non_empty, each_description_non_empty, unique_input_names],
+        "description": [opt_non_empty_str],
+        "inputs":      [each_name_non_empty, each_opt_description_non_empty, unique_input_names],
         "extensions":  [x_prefix_keys],
     },
     semantic:     {},
@@ -32,7 +32,7 @@ static HOOK_VALIDATION_SCHEMA: ValidationSchema = ValidationSchema {
 
 `each_name_non_empty` — iterates `inputs`, returns a `RuleViolation` with `sub_path: Some("[{i}].name")` for each entry where `name` is empty.
 
-`each_description_non_empty` — same pattern, `sub_path: Some("[{i}].description")` for each empty `description`.
+`each_opt_description_non_empty` — same pattern but for `Option<String>`; skips entries where `description` is absent, returns a `RuleViolation` with `sub_path: Some("[{i}].description")` for each entry where `description` is `Some("")` or whitespace-only.
 
 `unique_input_names` — checks `name` uniqueness across all inputs; returns a `RuleViolation` with `sub_path: None` if duplicates exist.
 

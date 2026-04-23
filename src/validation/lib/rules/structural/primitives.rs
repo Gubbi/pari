@@ -88,6 +88,33 @@ pub fn non_empty_list<T>(value: &[T]) -> Vec<PrimitiveError> {
     }
 }
 
+/// Each string item in the slice must be non-empty (not whitespace-only)
+pub fn each_item_non_empty(value: &[String]) -> Vec<PrimitiveError> {
+    let mut violations = vec![];
+    for (i, item) in value.iter().enumerate() {
+        if item.trim().is_empty() {
+            violations.push(PrimitiveError::empty_required_value(
+                "must not be empty",
+                Some(format!("[{i}]")),
+                "non_empty",
+            ));
+        }
+    }
+    violations
+}
+
+/// Map must have at least one entry
+pub fn non_empty_map<K, V>(value: &std::collections::HashMap<K, V>) -> Vec<PrimitiveError> {
+    if value.is_empty() {
+        vec![PrimitiveError::malformed_collection_value(
+            "must not be empty",
+            "non_empty",
+        )]
+    } else {
+        vec![]
+    }
+}
+
 /// Slice must have at least `min` elements
 pub fn min_length<T>(value: &[T], min: usize) -> Vec<PrimitiveError> {
     if value.len() < min {

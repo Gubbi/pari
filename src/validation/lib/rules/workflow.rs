@@ -1,9 +1,9 @@
 use super::{
     super::schema::{AnyCrossEntityRule, AnySemanticRule, AnyStructuralRule, ValidationSchema},
     semantic::workflow::{
-        depends_on_valid, depends_on_valid_reusable, on_reject_valid, on_reject_valid_embedded,
-        on_reject_valid_reusable, reviewing_state_required, reviewing_state_required_embedded,
-        reviewing_state_required_reusable,
+        depends_on_valid, depends_on_valid_embedded, depends_on_valid_reusable, on_reject_valid,
+        on_reject_valid_embedded, on_reject_valid_reusable, reviewing_state_required,
+        reviewing_state_required_embedded, reviewing_state_required_reusable,
     },
     structural::{
         primitives::{camel_case_id, non_empty_str, opt_non_empty_str, x_prefix_keys},
@@ -11,9 +11,15 @@ use super::{
         workflow::states_valid_workflow,
     },
 };
-use crate::entity::entities::workflow::{
-    EmbeddedWorkflow, ReusableWorkflow, TrackedEmbeddedWorkflow, TrackedReusableWorkflow,
-    TrackedWorkflow, Workflow,
+use crate::{
+    entity::entities::workflow::{
+        EmbeddedWorkflow, ReusableWorkflow, TrackedEmbeddedWorkflow, TrackedReusableWorkflow,
+        TrackedWorkflow, Workflow,
+    },
+    validation::lib::rules::cross_entity::{
+        intercepts::{intercept_hooks_exist, intercept_inputs_valid},
+        workflow::no_relay_in_tree,
+    },
 };
 
 macro_rules! common_structural {
@@ -65,6 +71,35 @@ macro_rules! common_structural {
             })],
         );
         structural.insert(
+            "steps",
+            vec![Box::new(|e: &$Tracked| {
+                e.steps
+                    .get()
+                    .map(|v| {
+                        if v.is_empty() {
+                            vec![
+                                crate::error::primitive::PrimitiveError::malformed_collection_value(
+                                    "must not be empty",
+                                    "non_empty",
+                                ),
+                            ]
+                        } else {
+                            vec![]
+                        }
+                    })
+                    .unwrap_or_default()
+            })],
+        );
+        structural.insert(
+            "guidance",
+            vec![Box::new(|e: &$Tracked| {
+                e.guidance
+                    .get()
+                    .map(|v| opt_non_empty_str(v))
+                    .unwrap_or_default()
+            })],
+        );
+        structural.insert(
             "extensions",
             vec![Box::new(|e: &$Tracked| {
                 e.extensions
@@ -101,6 +136,29 @@ pub fn workflow_validation_schema() -> ValidationSchema<Workflow> {
         vec![crate::ref_check_rule!(TrackedWorkflow, steps)],
     );
     cross_entity.insert("raci", vec![crate::ref_check_rule!(TrackedWorkflow, raci)]);
+    cross_entity.insert(
+        "intercepts",
+        vec![
+            Box::new(|e: &TrackedWorkflow| {
+                let map = e
+                    .intercepts
+                    .get()
+                    .and_then(|v| v.as_ref())
+                    .cloned()
+                    .unwrap_or_default();
+                Box::pin(async move { intercept_hooks_exist(map, "intercepts").await })
+            }),
+            Box::new(|e: &TrackedWorkflow| {
+                let map = e
+                    .intercepts
+                    .get()
+                    .and_then(|v| v.as_ref())
+                    .cloned()
+                    .unwrap_or_default();
+                Box::pin(async move { intercept_inputs_valid(map, "intercepts").await })
+            }),
+        ],
+    );
 
     ValidationSchema {
         structural,
@@ -131,11 +189,40 @@ pub fn reusable_workflow_validation_schema() -> ValidationSchema<ReusableWorkflo
     > = std::collections::HashMap::new();
     cross_entity.insert(
         "steps",
-        vec![crate::ref_check_rule!(TrackedReusableWorkflow, steps)],
+        vec![
+            crate::ref_check_rule!(TrackedReusableWorkflow, steps),
+            Box::new(|e: &TrackedReusableWorkflow| {
+                let steps = e.steps.get().cloned().unwrap_or_default();
+                Box::pin(async move { no_relay_in_tree(steps).await })
+            }),
+        ],
     );
     cross_entity.insert(
         "raci",
         vec![crate::ref_check_rule!(TrackedReusableWorkflow, raci)],
+    );
+    cross_entity.insert(
+        "intercepts",
+        vec![
+            Box::new(|e: &TrackedReusableWorkflow| {
+                let map = e
+                    .intercepts
+                    .get()
+                    .and_then(|v| v.as_ref())
+                    .cloned()
+                    .unwrap_or_default();
+                Box::pin(async move { intercept_hooks_exist(map, "intercepts").await })
+            }),
+            Box::new(|e: &TrackedReusableWorkflow| {
+                let map = e
+                    .intercepts
+                    .get()
+                    .and_then(|v| v.as_ref())
+                    .cloned()
+                    .unwrap_or_default();
+                Box::pin(async move { intercept_inputs_valid(map, "intercepts").await })
+            }),
+        ],
     );
 
     ValidationSchema {
@@ -204,6 +291,35 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
         })],
     );
     structural.insert(
+        "steps",
+        vec![Box::new(|e: &TrackedEmbeddedWorkflow| {
+            e.steps
+                .get()
+                .map(|v| {
+                    if v.is_empty() {
+                        vec![
+                            crate::error::primitive::PrimitiveError::malformed_collection_value(
+                                "must not be empty",
+                                "non_empty",
+                            ),
+                        ]
+                    } else {
+                        vec![]
+                    }
+                })
+                .unwrap_or_default()
+        })],
+    );
+    structural.insert(
+        "guidance",
+        vec![Box::new(|e: &TrackedEmbeddedWorkflow| {
+            e.guidance
+                .get()
+                .map(|v| opt_non_empty_str(v))
+                .unwrap_or_default()
+        })],
+    );
+    structural.insert(
         "extensions",
         vec![Box::new(|e: &TrackedEmbeddedWorkflow| {
             e.extensions
@@ -220,6 +336,7 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
     semantic.insert(
         "steps",
         vec![
+            Box::new(|e: &TrackedEmbeddedWorkflow| Box::pin(depends_on_valid_embedded(e))),
             Box::new(|e: &TrackedEmbeddedWorkflow| Box::pin(on_reject_valid_embedded(e))),
             Box::new(|e: &TrackedEmbeddedWorkflow| Box::pin(reviewing_state_required_embedded(e))),
         ],
@@ -236,6 +353,29 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
     cross_entity.insert(
         "raci",
         vec![crate::ref_check_rule!(TrackedEmbeddedWorkflow, raci)],
+    );
+    cross_entity.insert(
+        "intercepts",
+        vec![
+            Box::new(|e: &TrackedEmbeddedWorkflow| {
+                let map = e
+                    .intercepts
+                    .get()
+                    .and_then(|v| v.as_ref())
+                    .cloned()
+                    .unwrap_or_default();
+                Box::pin(async move { intercept_hooks_exist(map, "intercepts").await })
+            }),
+            Box::new(|e: &TrackedEmbeddedWorkflow| {
+                let map = e
+                    .intercepts
+                    .get()
+                    .and_then(|v| v.as_ref())
+                    .cloned()
+                    .unwrap_or_default();
+                Box::pin(async move { intercept_inputs_valid(map, "intercepts").await })
+            }),
+        ],
     );
 
     ValidationSchema {

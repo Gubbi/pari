@@ -2,10 +2,17 @@ use super::{
     super::schema::{AnyCrossEntityRule, AnyStructuralRule, ValidationSchema},
     structural::{
         primitives::{camel_case_id, non_empty_str, opt_non_empty_str, x_prefix_keys},
+        raci::raci_structural,
         relay::{camel_case_state_keys, non_empty_map_state_map},
     },
 };
-use crate::entity::entities::relay::{Relay, TrackedRelay};
+use crate::{
+    entity::entities::relay::{Relay, TrackedRelay},
+    validation::lib::rules::cross_entity::{
+        intercepts::{intercept_hooks_exist, intercept_inputs_valid},
+        relay::maps_to_states_exist,
+    },
+};
 
 pub fn relay_validation_schema() -> ValidationSchema<Relay> {
     let mut structural: std::collections::HashMap<&'static str, Vec<AnyStructuralRule<Relay>>> =
@@ -36,6 +43,47 @@ pub fn relay_validation_schema() -> ValidationSchema<Relay> {
             e.purpose
                 .get()
                 .map(|v| non_empty_str(v))
+                .unwrap_or_default()
+        })],
+    );
+    structural.insert(
+        "raci",
+        vec![Box::new(|e: &TrackedRelay| {
+            e.raci
+                .get()
+                .map(|opt_raci| {
+                    opt_raci
+                        .as_ref()
+                        .map(|r| raci_structural(r))
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default()
+        })],
+    );
+    structural.insert(
+        "briefing",
+        vec![Box::new(|e: &TrackedRelay| {
+            e.briefing
+                .get()
+                .map(|v| opt_non_empty_str(v))
+                .unwrap_or_default()
+        })],
+    );
+    structural.insert(
+        "debriefing",
+        vec![Box::new(|e: &TrackedRelay| {
+            e.debriefing
+                .get()
+                .map(|v| opt_non_empty_str(v))
+                .unwrap_or_default()
+        })],
+    );
+    structural.insert(
+        "guidance",
+        vec![Box::new(|e: &TrackedRelay| {
+            e.guidance
+                .get()
+                .map(|v| opt_non_empty_str(v))
                 .unwrap_or_default()
         })],
     );
@@ -75,7 +123,41 @@ pub fn relay_validation_schema() -> ValidationSchema<Relay> {
     cross_entity.insert("raci", vec![crate::ref_check_rule!(TrackedRelay, raci)]);
     cross_entity.insert(
         "state_map",
-        vec![crate::ref_check_rule!(TrackedRelay, state_map)],
+        vec![
+            crate::ref_check_rule!(TrackedRelay, state_map),
+            Box::new(|e: &TrackedRelay| {
+                let delegates_to_id = e
+                    .delegates_to
+                    .get()
+                    .map(|r| r.id().to_owned())
+                    .unwrap_or_default();
+                let state_map = e.state_map.get().cloned().unwrap_or_default();
+                Box::pin(async move { maps_to_states_exist(&delegates_to_id, state_map).await })
+            }),
+        ],
+    );
+    cross_entity.insert(
+        "intercepts",
+        vec![
+            Box::new(|e: &TrackedRelay| {
+                let map = e
+                    .intercepts
+                    .get()
+                    .and_then(|v| v.as_ref())
+                    .cloned()
+                    .unwrap_or_default();
+                Box::pin(async move { intercept_hooks_exist(map, "intercepts").await })
+            }),
+            Box::new(|e: &TrackedRelay| {
+                let map = e
+                    .intercepts
+                    .get()
+                    .and_then(|v| v.as_ref())
+                    .cloned()
+                    .unwrap_or_default();
+                Box::pin(async move { intercept_inputs_valid(map, "intercepts").await })
+            }),
+        ],
     );
 
     ValidationSchema {
