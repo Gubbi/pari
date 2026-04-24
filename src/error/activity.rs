@@ -17,9 +17,10 @@
 //!   surfaced the failure. Fixed per variant, not per instance. Exposed to OTel
 //!   as the shared `error.component` field so integrators can filter or route
 //!   on it without touching the variant name.
-//! - **`hint`** — a `&'static str` of corrective guidance, fixed per variant.
-//!   Optional at the macro call site; omitted variants emit no hint. Exposed to
-//!   OTel as `error.hint`.
+//! - **`hint`** — a `&'static str` of corrective guidance, fixed per variant
+//!   and required at the macro call site. Every Activity variant ships a hint
+//!   so integrators always receive remediation direction. Exposed to OTel as
+//!   `error.hint`.
 //! - **`cause: PrimitiveError`** — the concrete leaf that triggered this
 //!   activity outcome. Auto-added. Reachable via `std::error::Error::source()`
 //!   and carries the diagnostics (message, location, span trace, backtrace).
@@ -34,7 +35,7 @@
 //!
 //! `activity_errors! { ... }` exists to make the cost of adding a new variant
 //! small and the shape of variants uniform. A new activity outcome requires
-//! one block with classification and an optional hint; every boilerplate
+//! one block with classification and a hint; every boilerplate
 //! concern — `thiserror`, `ErrorCompose`, `OTelEmit`, `component`, `cause`,
 //! the accessors callers read — is generated.
 //!
@@ -68,11 +69,13 @@ activity_errors! {
     UnpersistableDefinition {
         fix = Data,
         recoverability = OperatorAction,
+        hint = "check the entity's Serialize/Deserialize derive and schema for type mismatches",
     }
     /// Persistence state is corrupt or inconsistent.
     CorruptPersistenceState {
         fix = Infra,
         recoverability = OperatorAction,
+        hint = "inspect the persistence layout for partial writes or external edits and restore from a known-good state",
     }
     /// Field-level validation rules were violated by entity data.
     ValidationFailed {
@@ -84,6 +87,7 @@ activity_errors! {
     CheckoutLifecycleViolation {
         fix = Client,
         recoverability = UserAction,
+        hint = "ensure the entity is checked out before mutating and committed before dropping the handle",
     }
     /// Persist was blocked because the workspace has open checkouts.
     WorkspaceNotClean {
@@ -95,15 +99,18 @@ activity_errors! {
     NonExistentData {
         fix = Client,
         recoverability = UserAction,
+        hint = "verify the entity id and parent ref, and confirm the entity has been created and persisted",
     }
     /// The entity store channel was unavailable or dropped.
     StoreUnavailable {
         fix = Pari,
         recoverability = NotRecoverable,
+        hint = "the entity store task has stopped; restart the workspace to recover",
     }
     /// An internal Pari invariant was violated.
     PariInvariantViolation {
         fix = Pari,
         recoverability = NotRecoverable,
+        hint = "file a bug with the emitted span trace and backtrace — this indicates a defect in Pari itself",
     }
 }

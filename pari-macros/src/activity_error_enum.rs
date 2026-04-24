@@ -2,7 +2,7 @@
 //!
 //! This macro is the integration point for authoring Pari's Activity tier.
 //! It takes a list of variants — each with a doc comment, classification, and
-//! an optional hint — and expands to:
+//! a hint — and expands to:
 //!
 //! - a centralized `ActivityError` enum with one variant per declaration,
 //! - `component: String` and `cause: PrimitiveError` fields on every variant
@@ -39,8 +39,9 @@
 //! }
 //! ```
 //!
-//! `hint` is optional. `fix` and `recoverability` are required — an Activity
-//! variant without classification would break propagation to the Job tier.
+//! `fix`, `recoverability`, and `hint` are all required. Classification without
+//! a hint would ship an Activity outcome with no corrective guidance for
+//! integrators; classification itself is needed for propagation to the Job tier.
 //!
 //! # At the call site
 //!
@@ -71,7 +72,7 @@ struct ActivityVariant {
     ident: Ident,
     fix: Ident,
     recoverability: Ident,
-    hint: Option<String>,
+    hint: String,
 }
 
 impl Parse for ActivityErrorsInput {
@@ -129,6 +130,12 @@ impl Parse for ActivityVariant {
             syn::Error::new(
                 ident.span(),
                 "missing `recoverability = ...` in activity error variant",
+            )
+        })?;
+        let hint = hint.ok_or_else(|| {
+            syn::Error::new(
+                ident.span(),
+                "missing `hint = \"...\"` in activity error variant",
             )
         })?;
 
@@ -193,14 +200,8 @@ fn expand_activity_errors(input: ActivityErrorsInput) -> proc_macro2::TokenStrea
 
     let hint_arms = input.variants.iter().map(|v| {
         let ident = &v.ident;
-        let hint_expr = match &v.hint {
-            Some(h) => {
-                let lit = LitStr::new(h, Span::call_site());
-                quote! { ::std::option::Option::Some(#lit) }
-            }
-            None => quote! { ::std::option::Option::None },
-        };
-        quote! { Self::#ident { .. } => #hint_expr, }
+        let lit = LitStr::new(&v.hint, Span::call_site());
+        quote! { Self::#ident { .. } => #lit, }
     });
 
     let cause_arms = input.variants.iter().map(|v| {
@@ -228,13 +229,7 @@ fn expand_activity_errors(input: ActivityErrorsInput) -> proc_macro2::TokenStrea
     let emit_arms = input.variants.iter().map(|v| {
         let ident = &v.ident;
         let error_type = camel_to_snake(&ident.to_string());
-        let hint_expr = match &v.hint {
-            Some(h) => {
-                let lit = LitStr::new(h, Span::call_site());
-                quote! { ::std::option::Option::Some(#lit) }
-            }
-            None => quote! { ::std::option::Option::<&'static str>::None },
-        };
+        let hint_lit = LitStr::new(&v.hint, Span::call_site());
         let is_warn = matches!(
             (
                 v.fix.to_string().as_str(),
@@ -253,7 +248,7 @@ fn expand_activity_errors(input: ActivityErrorsInput) -> proc_macro2::TokenStrea
                     exception.type    = #error_type,
                     exception.message = %cause,
                     "error.component" = %component,
-                    "error.hint"      = ?#hint_expr,
+                    "error.hint"      = #hint_lit,
                 );
                 OTelEmit::emit(cause);
             }
@@ -285,7 +280,7 @@ fn expand_activity_errors(input: ActivityErrorsInput) -> proc_macro2::TokenStrea
                 }
             }
 
-            pub fn hint(&self) -> ::std::option::Option<&'static str> {
+            pub fn hint(&self) -> &'static str {
                 match self {
                     #(#hint_arms)*
                 }
