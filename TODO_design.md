@@ -33,13 +33,13 @@ for agents, not sources of truth.
 - [x] `src/error/CLAUDE.md` — refreshed to match new tier model
 - [x] `layers/entities.md` + L4 rustdoc pass + `src/entity/CLAUDE.md` refresh
 - [x] `layers/workspace.md` + L4 rustdoc pass + `src/workspace/CLAUDE.md` refresh
+- [x] `layers/store.md` + L4 rustdoc pass + `src/store/CLAUDE.md` refresh
 
 ### Pending — per-layer design docs (L3)
 
 Each needs an L3 doc under `docs/design/layers/` plus an L4 rustdoc pass
 covering the infra types, key contracts, and relevant macros in `pari-macros/`.
 
-- [ ] `layers/store.md` — `EntityServer` + `StoreManager` split, actor model, checkout lifecycle, sparse staging
 - [ ] `layers/substrate.md` — asset pipeline (slot / asset / entity composition), schema-driven load/persist paths, backend implementations
 - [ ] `layers/validation.md` — three-kind model (structural / semantic / cross-entity), `ValidationSchema<T>`, runner flow, `EntityClient`-calling cross-entity rule pattern
 
@@ -48,7 +48,6 @@ covering the infra types, key contracts, and relevant macros in `pari-macros/`.
 These drifted during implementation — plan to refresh as each layer's design
 doc is authored (so the CLAUDE.md reflects the same reality).
 
-- [ ] `src/store/CLAUDE.md` — module map references removed files (`server.rs`, `state.rs`, `op_error.rs`); should reference `entity_server.rs`, `manager.rs`
 - [ ] `src/validation/CLAUDE.md` — fix `ValidationKind` source to `src/validation/kind.rs`
 - [ ] `src/substrate/CLAUDE.md` — update design doc links
 - [x] `CLAUDE.md` (root) — update "Useful References" to new `docs/design/` paths  *(already current)*

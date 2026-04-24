@@ -1,53 +1,30 @@
-# src/store — Store Layer Actor And State
+# src/store — Store Layer
 
-## Ownership
+Formal `store` layer: in-memory tracked entity state, actor flow, checkout and persist lifecycles, and load orchestration.
 
-This directory belongs to the formal `store` layer.
+Authoritative design doc: [docs/design/layers/store.md](/Users/vinuth/code/pari/docs/design/layers/store.md). When this file and the design doc disagree, the design doc wins.
 
-It owns:
+## Local Orientation
 
-- in-memory tracked entity state
-- actor message flow
-- checkout and undo lifecycle
-- load orchestration inside the actor
-- persist orchestration and the store-to-substrate handoff
+- Orchestration actor — substrate + validation sequencing, load/persist flow: [entity_server.rs](/Users/vinuth/code/pari/src/store/entity_server.rs).
+- State-custodian actor — sole owner of `entities`, `added`, `modified`, `removed`, `checked_out`: [manager.rs](/Users/vinuth/code/pari/src/store/manager.rs).
+- Workspace-facing message types: [lib/message.rs](/Users/vinuth/code/pari/src/store/lib/message.rs).
+- Store → substrate persist handoff enum: [lib/change.rs](/Users/vinuth/code/pari/src/store/lib/change.rs).
 
-The authoritative design docs for this area live under [docs/design/store_layer/](/Users/vinuth/code/pari/docs/design/store_layer/) plus the store-owned load docs in [docs/design/workspace_layer/load/](/Users/vinuth/code/pari/docs/design/workspace_layer/load/).
+## What Does Not Live Here
 
-## Module Map
+- Caller-facing async API and setter ergonomics → `workspace`
+- Asset layout, codecs, resolvers, load strategies → `substrate`
+- Rule definition and execution logic → `validation`
+- Cross-layer error classification and aggregation → `error`
 
-- [src/store/server.rs](/Users/vinuth/code/pari/src/store/server.rs): `EntityServer`, sender management, `init()`, and test-scoped `with()`
-- [src/store/state.rs](/Users/vinuth/code/pari/src/store/state.rs): `Store<S>` state machine and orchestration
-- [src/store/message.rs](/Users/vinuth/code/pari/src/store/message.rs): internal request/response message types
-- [src/store/op_error.rs](/Users/vinuth/code/pari/src/store/op_error.rs): store-owned operation error enums
-- [src/store/change.rs](/Users/vinuth/code/pari/src/store/change.rs): `EntityChange<'a>` persistence handoff enum
+If an edit starts to describe file layout, resolver logic, or rule authoring, it belongs in another layer.
 
-## Current Core Types
+## Conventions Worth Repeating Locally
 
-- Type-erased entity wrapper: `TrackedEntity`
-- Persist handoff type: `EntityChange<'a>`
-- Operation error types: `CheckoutError`, `CommitError`, `LoadError`, `PersistError`, `ResolveError`, `UndoError`
-- Channel boundary failure type: `StoreError` in [src/error/store.rs](/Users/vinuth/code/pari/src/error/store.rs)
-
-Do not reintroduce stale names such as `StoreEntity` or `StoreEntityChange`.
-
-## Boundary Rules
-
-- `workspace` owns the public async API and caller ergonomics.
-- `store` owns the internal `StoreRequest` / `StoreResponse` protocol, actor execution, and the corresponding operation error types.
-- `substrate` owns persistence contracts and storage details.
-- `validation` owns rule execution logic, but the store decides when validations run.
-
-That means:
-
-- no caller-facing ergonomics should be added here if they belong in `workspace`
-- no file layout, codec, or resolver logic should be added here
-- no new validation rules should be authored here
-
-## Test Helper
-
-`EntityServer::with(substrate, || async { ... })` is the current isolated test entry point. Do not document `with_test()` or other removed helpers.
-
-## Persist Path
-
-The store exposes changes lazily via `Store::changes()` as `EntityChange<'_>` values and passes them to the substrate. The substrate may depend on that explicit handoff type, but should not depend on entity server internals.
+- `EntityServer` is orchestration (`ActivityError`); `StoreManager` is state-custodian pure tier (`PrimitiveError` only).
+- All caller operations flow workspace → `EntityServer` → (`StoreManager` ∨ `substrate` ∨ `validation`) → reply.
+- `EntityServer::with(substrate, || async { ... })` is the isolated test entry point. Do not document removed helpers.
+- The store, not the caller, picks which `ValidationKind`s run at each operation — see the design doc's validation-decision table.
+- `EntityChange` is the only type substrates see from the store's change-tracking; they must not depend on `StoreManager` internals.
+- Dirty state resets only after `substrate.persist` succeeds — a substrate error leaves change lists intact for retry.

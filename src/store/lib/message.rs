@@ -1,8 +1,17 @@
+//! Message types for the workspace ↔ `EntityServer` actor channel.
+//!
+//! Every caller operation from [`workspace`](crate::workspace) maps to
+//! exactly one [`StoreRequest`] variant; the server replies with a
+//! [`StoreResponse`] carrying either the typed payload or an
+//! [`ActivityError`].
+
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
     error::ActivityError,
 };
 
+/// One per caller operation — the workspace-facing request surface of
+/// the entity server.
 pub(crate) enum StoreRequest {
     Resolve {
         any_ref: AnyEntityRef,
@@ -45,6 +54,10 @@ pub(crate) enum StoreRequest {
     },
 }
 
+/// Typed reply payload. `Err` carries application-level failures
+/// across the channel unchanged — channel failure is handled by
+/// [`workspace::lib::request`](crate::workspace) wrapping send/recv
+/// errors into `ActivityError::store_unavailable`.
 pub(crate) enum StoreResponse {
     Entity(TrackedEntity),
     Bool(bool),
@@ -52,6 +65,8 @@ pub(crate) enum StoreResponse {
     Err(ActivityError),
 }
 
+/// Wrapper placed on the server's `mpsc::Receiver`. One-shot reply
+/// channel pairs each request with its response.
 pub(crate) enum StoreMessage {
     Request {
         request: StoreRequest,

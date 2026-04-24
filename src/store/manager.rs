@@ -1,3 +1,10 @@
+//! [`StoreManager`] — state-custodian half of the store layer.
+//!
+//! Owns the five collections that make up the store's in-memory state
+//! and serves [`StoreManagerRequest`]s one at a time. No substrate, no
+//! validation, no `ActivityError` — every failure is a
+//! [`PrimitiveError`] for the orchestrator above to classify.
+
 use std::collections::{HashMap, HashSet};
 
 use futures::{
@@ -15,6 +22,10 @@ use crate::{
 // Message types
 // ---------------------------------------------------------------------------
 
+/// Internal request surface between [`EntityServer`](super::entity_server::EntityServer)
+/// and the manager. Each variant corresponds to one state mutation or
+/// query; the orchestrator composes these into the caller-facing
+/// [`StoreRequest`](super::StoreRequest) operations.
 pub(in crate::store) enum StoreManagerRequest {
     // Reads
     GetEntity {
@@ -85,6 +96,13 @@ pub(in crate::store) struct StoreManagerMessage {
 // Actor
 // ---------------------------------------------------------------------------
 
+/// Sole custodian of the store's in-memory state.
+///
+/// `entities` holds every ref the store knows about — loaded, stubbed,
+/// or locally added. The three change-tracking sets (`added`,
+/// `modified`, `removed`) drive the persist snapshot. `checked_out`
+/// enforces the single-checkout rule and gates `persist`,
+/// `undo_commit`, `remove`, and `unload`.
 pub(in crate::store) struct StoreManager {
     entities: HashMap<AnyEntityRef, TrackedEntity>,
     added: HashSet<AnyEntityRef>,
@@ -104,6 +122,8 @@ impl StoreManager {
         }
     }
 
+    /// Actor loop — processes messages strictly sequentially. No
+    /// interleaving, no locking.
     pub(in crate::store) async fn run(mut self, mut rx: mpsc::Receiver<StoreManagerMessage>) {
         while let Some(msg) = rx.next().await {
             let response = self.handle(msg.request);
@@ -215,6 +235,11 @@ impl StoreManager {
         }
     }
 
+    /// Merge a committed entity's dirty fields into the canonical store
+    /// copy and update the change-tracking sets. For `added` entities
+    /// with dirty fields, resets dirty after merge — added entities are
+    /// always written in full on persist, so per-field dirty bits carry
+    /// no additional information.
     fn commit_checkout(&mut self, entity: TrackedEntity) {
         let any_ref = entity.any_ref();
         self.checked_out.remove(&any_ref);
@@ -328,6 +353,9 @@ impl StoreManager {
         }
     }
 
+    /// Produce the list of changes to hand to the substrate. Does not
+    /// mutate state — dirty-flag resets happen in
+    /// [`Self::commit_persist`] only after the substrate succeeds.
     fn take_persist_snapshot(&self) -> Vec<EntityChange> {
         self.added
             .iter()
@@ -346,6 +374,9 @@ impl StoreManager {
             .collect()
     }
 
+    /// Clear change-tracking state after a successful substrate
+    /// persist: reset dirty flags on modified entities and empty all
+    /// three change sets.
     fn commit_persist(&mut self) {
         let modified_refs: Vec<AnyEntityRef> = self.modified.iter().cloned().collect();
         for any_ref in modified_refs {

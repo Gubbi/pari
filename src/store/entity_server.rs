@@ -1,3 +1,15 @@
+//! [`EntityServer`] — orchestration half of the store layer.
+//!
+//! Receives [`StoreRequest`]s from the workspace layer, decides which
+//! manager operations, substrate calls, and validation runs each
+//! request needs, and forwards typed replies back. State mutations
+//! themselves live in the sibling `StoreManager` actor.
+//!
+//! Two senders provide the workspace entry point: a process-wide
+//! `GLOBAL_SENDER` set by [`EntityServer::init`], and a thread-local
+//! `OVERRIDE_SENDER` used by [`EntityServer::with`] for isolated test
+//! scopes. [`store_sender`] prefers the override when present.
+
 use std::{
     cell::RefCell,
     future::Future,
@@ -34,6 +46,11 @@ thread_local! {
 // EntityServer
 // ---------------------------------------------------------------------------
 
+/// Orchestration actor for the store layer.
+///
+/// Holds a sender to the `StoreManager` actor and a
+/// shared reference to the substrate. Cheap to clone — every clone
+/// shares the same manager channel and substrate.
 pub struct EntityServer<S> {
     store_tx: fmpsc::Sender<StoreManagerMessage>,
     substrate: Arc<S>,
@@ -76,6 +93,8 @@ where
         (server, tx)
     }
 
+    /// Spawn the server + manager pair and publish their sender as the
+    /// process-wide workspace entry point. Panics if called twice.
     pub fn init(substrate: S) {
         let (_, tx) = Self::new(substrate);
         GLOBAL_SENDER
@@ -83,6 +102,10 @@ where
             .expect("EntityServer already initialized");
     }
 
+    /// Scoped test entry point: spawn a fresh server + manager, run `f`
+    /// with the test-local sender installed, and restore the previous
+    /// sender on drop. Tests using this path are isolated from the
+    /// process-wide server and from each other.
     pub async fn with<F, Fut>(substrate: S, f: F)
     where
         F: FnOnce() -> Fut,
@@ -98,6 +121,10 @@ where
     // Actor loop
     // -----------------------------------------------------------------------
 
+    /// Actor loop — pulls messages off the workspace-facing channel and
+    /// spawns each dispatch onto a `FuturesUnordered` so long-running
+    /// orchestration (substrate round-trips, validation) interleaves
+    /// across requests.
     async fn run(self, mut rx: mpsc::Receiver<StoreMessage>) {
         let mut in_flight: FuturesUnordered<BoxFuture<'static, ()>> = FuturesUnordered::new();
 
@@ -357,6 +384,12 @@ where
         }
     }
 
+    /// Prepare `field` on `any_ref` for overwrite by generated setters.
+    ///
+    /// Loads any declared prerequisites unconditionally; loads the field
+    /// itself only when the substrate's load strategy reports
+    /// `!mutable_without_load`. Prerequisites run even when the field
+    /// itself needs no pre-load, so path resolution remains sound.
     async fn ensure_mutable(
         &self,
         any_ref: &AnyEntityRef,
@@ -379,6 +412,20 @@ where
     // load_fields — recursive, boxed for async recursion
     // -----------------------------------------------------------------------
 
+    /// Progressive load orchestration.
+    ///
+    /// Pulls uninitialized `fields` from the substrate across one or
+    /// more rounds. Each round: determine what is still pending,
+    /// resolve prerequisites (recursively), fetch from the substrate,
+    /// validate the loaded snapshot before merge, initialize the
+    /// store's canonical entity in place, and stub any newly surfaced
+    /// cross-entity refs confirmed by `substrate.exists`.
+    ///
+    /// Validation failures on loaded data wrap as
+    /// [`ActivityError::unpersistable_definition`]; the failing data
+    /// is not merged.
+    ///
+    /// Boxed to satisfy async recursion (prerequisite resolution).
     fn load_fields<'a>(
         &'a self,
         any_ref: &'a AnyEntityRef,
@@ -551,6 +598,10 @@ where
 // Sender access — single entry point for workspace request dispatch
 // ---------------------------------------------------------------------------
 
+/// The workspace layer's single entry point to whichever
+/// [`EntityServer`] is currently installed. Prefers the thread-local
+/// override (set by [`EntityServer::with`]) over the process-wide
+/// sender.
 pub(crate) fn store_sender() -> mpsc::Sender<StoreMessage> {
     OVERRIDE_SENDER
         .with(|o| o.borrow().clone())
@@ -566,6 +617,9 @@ pub(crate) fn store_sender() -> mpsc::Sender<StoreMessage> {
 // PrimitiveError → ActivityError mapping for store data operations
 // ---------------------------------------------------------------------------
 
+/// Classify a `StoreManager`-emitted [`PrimitiveError`] into the
+/// appropriate [`ActivityError`] kind for the orchestrating data
+/// operation.
 fn map_store_primitive(e: PrimitiveError, component: &'static str) -> ActivityError {
     match &e {
         PrimitiveError::EntityNotFound { .. } => ActivityError::non_existent_data(component, e),
