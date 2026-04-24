@@ -1,7 +1,30 @@
+//! Code generation for the `workspace` layer's per-field accessors and
+//! setters.
+//!
+//! The generated items belong to the `workspace` layer: they are the
+//! runtime expression of the access and mutation patterns described in
+//! `docs/design/layers/workspace.md`. The macro crate only hosts the
+//! generation; the semantics are owned by `workspace`.
+
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{Field, Ident, Type};
 
+/// Emit the per-field `fn name(&self)` accessor and `fn set_name(&mut self, value)`
+/// setter for every domain field of a plain entity.
+///
+/// **Accessor shape** — checks the field's `OnceLock`, issues
+/// `EntityClient::load` when empty, then returns the loaded value with
+/// small ergonomic projections (`String` → `&str`, `Vec<T>` → `&[T]`,
+/// `Option<_>` variants analogously). This is the transparent-load half of
+/// the access pattern.
+///
+/// **Setter shape** — four steps, synchronous within the caller's task:
+/// `ensure_mutable` for store-side prep, build a candidate by cloning
+/// `self` and swapping the field's `Arc<TrackedField<T>>`, run structural
+/// and semantic [`validation`](../../src/validation) against the
+/// candidate, then `Arc::clone` the candidate's field into `self`. This
+/// is the mutation pattern's call-site validation step.
 pub fn generate_accessors_and_setters(
     entity_name: &Ident,
     domain_fields: &[&Field],

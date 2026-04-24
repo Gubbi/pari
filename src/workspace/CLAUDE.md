@@ -1,35 +1,29 @@
-# src/workspace — Workspace Layer Caller API
+# src/workspace — Workspace Layer
 
-## Ownership
+Formal `workspace` layer: caller-facing async API over the entity server.
 
-This directory belongs to the formal `workspace` layer.
+Authoritative design doc: [docs/design/layers/workspace.md](/Users/vinuth/code/pari/docs/design/layers/workspace.md). When this file and the design doc disagree, the design doc wins.
 
-It owns:
+## Local Orientation
 
-- caller-facing async operations via `EntityClient`
-- request helper glue over the entity server
-- tracked-entity convenience methods such as `commit()` and `undo_checkout()`
+- Typed operations keyed by `AnyEntityRef`: [client.rs](/Users/vinuth/code/pari/src/workspace/client.rs).
+- Checked-out entity methods (`commit`, `undo_checkout`): [tracked_entity.rs](/Users/vinuth/code/pari/src/workspace/tracked_entity.rs).
+- Pure actor round-trip helper: [lib/request.rs](/Users/vinuth/code/pari/src/workspace/lib/request.rs).
+- Generated accessors and setters — `#[derive(Entity)]` output: `generate_accessors_and_setters` in [pari-macros/src/workspace_codegen.rs](/Users/vinuth/code/pari/pari-macros/src/workspace_codegen.rs).
 
-The authoritative design docs for this area live under [docs/design/workspace_layer/](/Users/vinuth/code/pari/docs/design/workspace_layer/).
+## What Does Not Live Here
 
-## Module Map
+- Actor state, message protocol, load/persist orchestration → `store`
+- Asset layout, file formats, backend implementations → `substrate`
+- Rule definition and execution → `validation`
+- Cross-layer error classification and aggregation → `error`
 
-- [src/workspace/client.rs](/Users/vinuth/code/pari/src/workspace/client.rs): `EntityClient` — orchestration component
-- [src/workspace/error.rs](/Users/vinuth/code/pari/src/workspace/error.rs): re-exports of store-owned operation errors for caller convenience
-- [src/workspace/lib/request.rs](/Users/vinuth/code/pari/src/workspace/lib/request.rs): pure `request` function — emits `PrimitiveError` on channel failure
-- [src/workspace/tracked_entity.rs](/Users/vinuth/code/pari/src/workspace/tracked_entity.rs): `TrackedEntity::commit()` and `TrackedEntity::undo_checkout()` — orchestration components
+If an edit starts to describe actor requests, asset layout, or rule authoring, it belongs in another layer.
 
-## Boundary Rules
+## Conventions Worth Repeating Locally
 
-- `workspace` owns caller ergonomics, not actor internals.
-- `store` owns `StoreRequest`, `StoreResponse`, actor state, orchestration, and operation error types.
-- `workspace` should not absorb persistence layout or substrate mechanics.
-- `workspace` may trigger store-owned load orchestration, but does not own that algorithm.
-
-## Current API Shape
-
-- `EntityClient::{resolve, insert, remove, checkout, load, ensure_mutable, persist, undo_commit, unload}`
-- returned operation errors are store-owned and re-exported here: `CheckoutError`, `CommitError`, `LoadError`, `PersistError`, `ResolveError`, `UndoError`
-- channel-level failure (`PrimitiveError` from `lib::request`) currently panics in orchestrators with a TODO — will propagate via `ActivityError` once that framework is defined
-
-If documentation here starts describing actor state machines or persistence asset mapping, it has crossed out of the workspace layer.
+- Every entry point is `async fn` returning `Result<_, ActivityError>`.
+- Channel failures in `lib::request` emit `PrimitiveError` and are wrapped into `ActivityError::store_unavailable("entity_server", …)` at the orchestration sites. Application-level errors arrive via `StoreResponse::Err` and are forwarded unchanged.
+- Setters are synchronous validation sites: they run `ValidationKind::Structural` + `ValidationKind::Semantic` against a candidate before swapping the `Arc<TrackedField<T>>`. Cross-entity validation runs at store-managed boundaries (commit, persist), not in setters.
+- Transparent load covers both user accessors and validator-driven ref existence checks (`resolve`, `has_ref`).
+- Do not document removed concepts: `workspace/error.rs` (file removed; operation errors are now aggregated via `ActivityError`).

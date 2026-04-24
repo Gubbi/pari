@@ -1,3 +1,10 @@
+//! [`EntityClient`] — typed wrapper over the store's message protocol.
+//!
+//! Every method builds one [`StoreRequest`], awaits the actor's reply, and
+//! returns the typed result. Channel failures are translated into
+//! [`ActivityError::store_unavailable`]; application-level failures carried
+//! inside `StoreResponse::Err` are forwarded unchanged.
+
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
     error::ActivityError,
@@ -5,9 +12,19 @@ use crate::{
     workspace::lib::request::request,
 };
 
+/// Zero-sized handle for issuing store operations.
+///
+/// There is no client state — each call takes the `AnyEntityRef` (or other
+/// inputs) it needs and hits the single entity-server actor. Methods are
+/// all `async fn` and return `Result<_, ActivityError>`.
 pub struct EntityClient;
 
 impl EntityClient {
+    /// Fetch a snapshot of the entity at `any_ref`.
+    ///
+    /// The returned [`TrackedEntity`] may be a stub — existence has been
+    /// confirmed but no fields are necessarily loaded. Subsequent accessor
+    /// calls trigger transparent loads on demand.
     pub async fn resolve(any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
         match request(StoreRequest::Resolve { any_ref }).await? {
             StoreResponse::Entity(e) => Ok(e),
@@ -16,8 +33,13 @@ impl EntityClient {
         }
     }
 
-    /// Returns `true` if the ref exists in the store (or substrate), `false` if not.
-    /// Inserts a stub so subsequent checks avoid re-hitting the substrate.
+    /// Confirm whether an entity exists at `any_ref`.
+    ///
+    /// Returns `true` if found in the store or (on a miss) the substrate;
+    /// returns `false` otherwise. On a confirmed hit a stub is inserted
+    /// into the store so later lookups avoid the substrate round-trip.
+    /// This is the pathway validators use for cross-entity existence
+    /// checks.
     pub async fn has_ref(any_ref: AnyEntityRef) -> Result<bool, ActivityError> {
         match request(StoreRequest::HasRef { any_ref }).await? {
             StoreResponse::Bool(b) => Ok(b),
@@ -26,6 +48,9 @@ impl EntityClient {
         }
     }
 
+    /// Add a new entity to the store.
+    ///
+    /// Fails if an entity with the same ref already exists.
     pub async fn insert(entity: TrackedEntity) -> Result<(), ActivityError> {
         match request(StoreRequest::Insert { entity }).await? {
             StoreResponse::Unit => Ok(()),
@@ -34,6 +59,10 @@ impl EntityClient {
         }
     }
 
+    /// Evict an entity from the store.
+    ///
+    /// Returns the removed [`TrackedEntity`] — pass it back to [`Self::insert`]
+    /// to undo the removal.
     pub async fn remove(any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
         match request(StoreRequest::Remove { any_ref }).await? {
             StoreResponse::Entity(e) => Ok(e),
@@ -42,6 +71,12 @@ impl EntityClient {
         }
     }
 
+    /// Acquire per-entity exclusive mutation rights.
+    ///
+    /// Returns a [`TrackedEntity`] whose setters are callable; subsequent
+    /// checkout attempts for the same ref fail until the caller releases
+    /// it via [`TrackedEntity::commit`] or
+    /// [`TrackedEntity::undo_checkout`](crate::entity::TrackedEntity).
     pub async fn checkout(any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
         match request(StoreRequest::Checkout { any_ref }).await? {
             StoreResponse::Entity(e) => Ok(e),
@@ -50,6 +85,11 @@ impl EntityClient {
         }
     }
 
+    /// Explicitly load a field.
+    ///
+    /// Generated accessors call this transparently on first access; direct
+    /// use is rare and mainly appears in the progressive-load loop and in
+    /// validation-driven ref resolution.
     pub async fn load(any_ref: AnyEntityRef, field: &str) -> Result<(), ActivityError> {
         match request(StoreRequest::Load {
             any_ref,
@@ -63,6 +103,12 @@ impl EntityClient {
         }
     }
 
+    /// Prepare `field` for overwrite.
+    ///
+    /// Called by generated setters before the candidate swap. The store
+    /// loads any declared prerequisites and, if the substrate requires it,
+    /// the field itself — so a later load cannot silently clobber the
+    /// pending mutation. Direct use outside generated code is rare.
     pub async fn ensure_mutable(any_ref: AnyEntityRef, field: &str) -> Result<(), ActivityError> {
         match request(StoreRequest::EnsureMutable {
             any_ref,
@@ -76,6 +122,10 @@ impl EntityClient {
         }
     }
 
+    /// Flush the store's pending changes to the substrate.
+    ///
+    /// Fails if any entity is currently checked out — callers must either
+    /// commit or undo every checkout first.
     pub async fn persist() -> Result<(), ActivityError> {
         match request(StoreRequest::Persist).await? {
             StoreResponse::Unit => Ok(()),
@@ -84,6 +134,11 @@ impl EntityClient {
         }
     }
 
+    /// Revert the entity to its last persisted state.
+    ///
+    /// Removes the entity if it was freshly added; resets it to a stub if
+    /// it had been committed but not yet persisted. Requires the entity
+    /// not be checked out.
     pub async fn undo_commit(any_ref: AnyEntityRef) -> Result<(), ActivityError> {
         match request(StoreRequest::UndoCommit { any_ref }).await? {
             StoreResponse::Unit => Ok(()),
@@ -92,6 +147,10 @@ impl EntityClient {
         }
     }
 
+    /// Reset a clean entity back to a stub.
+    ///
+    /// Drops loaded fields so the next accessor triggers a fresh fetch.
+    /// Requires the entity not be checked out and have no pending changes.
     pub async fn unload(any_ref: AnyEntityRef) -> Result<(), ActivityError> {
         match request(StoreRequest::Unload { any_ref }).await? {
             StoreResponse::Unit => Ok(()),
