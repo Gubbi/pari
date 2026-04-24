@@ -1,3 +1,14 @@
+//! Entity-layer parts of the generated code.
+//!
+//! Produces the tracked companion struct (domain fields wrapped in
+//! `Arc<TrackedField<T>>`), the [`Entity`](pari::entity::Entity) and
+//! [`TrackedFor`](pari::entity::TrackedFor) impls, custom serde for the
+//! companion, plus the registry-side aggregates (`EntityKind`,
+//! `AnyEntityRef`, `TrackedEntity`). Separate from
+//! `workspace_codegen` / `store_codegen` / `substrate_codegen` /
+//! `validation_codegen` so each owning layer can evolve its generated
+//! surface on its own.
+
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{Data, DeriveInput, Field, Fields, Ident, Type};

@@ -1,18 +1,25 @@
+//! [`TrackedField<T>`] — the only change-tracking primitive in the layer.
+
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     OnceLock,
 };
 
-/// OnceLock-backed field with an atomic dirty flag.
+/// A single trackable field: a write-once value plus a dirty flag.
 ///
-/// All domain fields on tracked entities are `Arc<TrackedField<T>>`.
-/// The Arc enables cheap clone at checkout and COW replacement at mutation.
+/// Every domain field on a tracked entity is an `Arc<TrackedField<T>>`. The
+/// `Arc` makes checkout-time clone cheap and mutation copy-on-write: setters
+/// do not mutate the existing field, they build a new
+/// [`TrackedField::mutated`] and swap the `Arc`. Previous clones held by
+/// in-flight readers keep observing the old value; the dirty flag on the
+/// replacement tells the store which fields still need to persist.
 ///
-/// Two write paths:
-/// - `initialize()` — write-once, used by the load path and deserializer.
-///   Silently ignores if the field is already initialized.
-/// - COW replacement — setters create a new `TrackedField::mutated(v)`
-///   and swap the Arc pointer on the tracked entity. The old Arc is untouched.
+/// The four constructors model the four ways a field comes into being:
+/// [`new`](Self::new) for an empty slot filled later by
+/// [`initialize`](Self::initialize) on the load path;
+/// [`loaded`](Self::loaded) for a clean field built from a plain entity;
+/// [`mutated`](Self::mutated) for the setter-side replacement carrying the
+/// dirty flag.
 pub struct TrackedField<T> {
     value: OnceLock<T>,
     dirty: AtomicBool,

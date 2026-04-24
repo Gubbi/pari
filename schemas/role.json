@@ -23,6 +23,7 @@
       "type": "object"
     }
   },
+  "description": "A named responsibility within a team.\n\nRoles are the vocabulary teams use to say *who does what* without naming specific people. They are referenced by [`Raci`](crate::entity::types::Raci) assignments, team rosters, and review approvers — so a workflow can declare \"the accountable role is `pm`\" and the resolution to an actual handle happens through [`Team`](crate::entity::entities::team::Team).",
   "patternProperties": {
     "^x-": true
   },

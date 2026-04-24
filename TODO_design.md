@@ -31,13 +31,13 @@ for agents, not sources of truth.
 - [x] Dropped intermediary-op tier from design and from `ErrorLayer` enum
 - [x] `docs/design/CLAUDE.md` — authoring guidance + "CLAUDE.md is derived, not source of truth"
 - [x] `src/error/CLAUDE.md` — refreshed to match new tier model
+- [x] `layers/entities.md` + L4 rustdoc pass + `src/entity/CLAUDE.md` refresh
 
 ### Pending — per-layer design docs (L3)
 
 Each needs an L3 doc under `docs/design/layers/` plus an L4 rustdoc pass
 covering the infra types, key contracts, and relevant macros in `pari-macros/`.
 
-- [ ] `layers/entities.md` — identity, tracked fields, schemas, `#[derive(Entity)]` codegen
 - [ ] `layers/workspace.md` — uniform access gateway, generated accessors/setters, transparent expansion, automatic validation
 - [ ] `layers/store.md` — `EntityServer` + `StoreManager` split, actor model, checkout lifecycle, sparse staging
 - [ ] `layers/substrate.md` — asset pipeline (slot / asset / entity composition), schema-driven load/persist paths, backend implementations
@@ -52,7 +52,7 @@ doc is authored (so the CLAUDE.md reflects the same reality).
 - [ ] `src/workspace/CLAUDE.md` — remove reference to `workspace/error.rs` (file was removed; errors re-exported from store layer)
 - [ ] `src/validation/CLAUDE.md` — fix `ValidationKind` source to `src/validation/kind.rs`
 - [ ] `src/substrate/CLAUDE.md` — update design doc links
-- [ ] `CLAUDE.md` (root) — update "Useful References" to new `docs/design/` paths
+- [x] `CLAUDE.md` (root) — update "Useful References" to new `docs/design/` paths  *(already current)*
 
 ### Pending — cleanup
 

@@ -8,7 +8,14 @@ use crate::entity::{
     EntityKind, EntityRef, WorkflowParent,
 };
 
-/// A step inside a workflow. Not an entity — no EntityRef, no derive(Entity).
+/// One position in a workflow's ordered step map.
+///
+/// `Step` is structural glue, not an entity: it has no `EntityRef` and no
+/// tracked companion. Each variant carries a reference to the embedded entity
+/// that actually runs at that position ([`Task`], [`Relay`],
+/// [`EmbeddedWorkflow`]), plus per-step scheduling metadata like
+/// `depends_on`. The `Review` variant is the exception — it is resolved
+/// inline against roles, not against a separate entity.
 #[derive(
     Debug,
     Clone,
@@ -37,6 +44,13 @@ pub enum Step {
     },
 }
 
+/// A top-level procedure that a team checks out and executes.
+///
+/// `Workflow` is the unit of delivery: it owns a set of lifecycle states, an
+/// ordered step map, RACI assignments, and optional intercepts. It is
+/// top-level (`NoParent`) because it is the root of an execution — every
+/// other workflow-family entity is either embedded underneath one, or
+/// invoked from one via a [`crate::entity::entities::relay::Relay`].
 #[derive(
     Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema, pari_macros::Entity,
 )]
@@ -58,6 +72,12 @@ pub struct Workflow {
     pub extensions: Extensions,
 }
 
+/// A workflow meant to be invoked by a [`Relay`], not scheduled directly.
+///
+/// `ReusableWorkflow` has the same shape as [`Workflow`] but a different role
+/// in the system: it is a library definition. Teams publish one so other
+/// workflows can delegate to it, which is how recurring procedures (review,
+/// sign-off, standard sub-processes) are kept DRY.
 #[derive(
     Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema, pari_macros::Entity,
 )]
@@ -79,6 +99,14 @@ pub struct ReusableWorkflow {
     pub extensions: Extensions,
 }
 
+/// A workflow nested inline inside another workflow's step map.
+///
+/// Unlike a [`crate::entity::entities::relay::Relay`] — which points
+/// at a separately-defined [`ReusableWorkflow`] — an `EmbeddedWorkflow` is
+/// authored in place and identified relative to its parent. This makes it
+/// the right choice for one-off nested procedures that do not need to be
+/// shared. Its [`WorkflowParent`] is itself recursive so embeddings can nest
+/// arbitrarily deep.
 #[derive(
     Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema, pari_macros::Entity,
 )]

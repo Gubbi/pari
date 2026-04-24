@@ -6,6 +6,14 @@ use crate::entity::{
     EntityKind, EntityRef, WorkflowParent,
 };
 
+/// A handoff step that delegates a portion of a workflow to a
+/// [`ReusableWorkflow`].
+///
+/// Relays let a workflow plug in a standard sub-procedure — code review,
+/// procurement, onboarding — without inlining or copying it. `delegates_to`
+/// names the reusable workflow to run; `state_map` translates the callee's
+/// lifecycle states back into the caller's vocabulary so the relay looks like
+/// any other step from the outside.
 #[derive(
     Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema, pari_macros::Entity,
 )]

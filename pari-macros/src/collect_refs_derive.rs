@@ -1,3 +1,12 @@
+//! `#[derive(CollectRefs)]` — walk a plain struct or enum and push every
+//! contained [`EntityRef`](pari::entity::EntityRef) into an accumulator with
+//! a dot-notation path.
+//!
+//! The blanket impls for containers (`Option`, `Vec`, `HashMap`,
+//! `IndexMap<String, _>`) and for primitive leaves live in
+//! `src/entity/collect_refs.rs`; this derive handles user-defined types by
+//! delegating to each field's impl and composing paths.
+
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields};

@@ -1,3 +1,12 @@
+//! Shared value types embedded inside entities.
+//!
+//! These are plain serde structs and enums — not entities. They have no
+//! identity, no tracked companion, and no lifecycle; they exist only as
+//! fields on entities (`Raci` on a task, `Extensions` on any entity, …).
+//! Every type here implements [`CollectRefs`](super::collect_refs::CollectRefs)
+//! so entity refs buried inside them surface uniformly with a dot-notation
+//! path.
+
 use std::collections::HashMap;
 
 use crate::entity::{

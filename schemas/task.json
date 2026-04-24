@@ -276,9 +276,10 @@
           "$ref": "#/definitions/EmbeddedWorkflowEntityRef"
         }
       ],
-      "description": "Closed parent hierarchy for embedded entities in the workflow tree."
+      "description": "Closed parent hierarchy for entities embedded in the workflow tree.\n\nThe enum recurses through [`EmbeddedWorkflow`] so an embedded workflow can itself be a parent of further tasks, relays, and embeddings — the tree has no fixed depth. Variants are untagged in serde so the `parent` object is just the parent ref, with no wrapper discriminator."
     }
   },
+  "description": "A leaf unit of work inside a workflow that produces a single artifact.\n\n`Task` is the atomic thing a role actually executes: it carries instructions, acceptance criteria, a declared deliverable, and its own lifecycle states. Tasks are embedded — their identity includes the enclosing workflow via [`WorkflowParent`] — because the same task id under two workflows is two distinct tasks with independent state.",
   "patternProperties": {
     "^x-": true
   },

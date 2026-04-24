@@ -2,6 +2,13 @@ use std::collections::HashMap;
 
 use crate::entity::{entities::role::Role, types::Extensions, EntityKind, EntityRef};
 
+/// A roster binding concrete handles (people or agents) to roles.
+///
+/// Where [`Role`] describes *what* a position does, `Team` describes *who*
+/// fills it. Composition via `include` and `import` lets larger orgs build
+/// teams from smaller ones without duplicating membership. Workflow execution
+/// resolves a `Role` reference to an actual handle by consulting the active
+/// team.
 #[derive(
     Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema, pari_macros::Entity,
 )]

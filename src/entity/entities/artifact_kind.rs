@@ -1,5 +1,12 @@
 use crate::entity::{types::Extensions, EntityKind, EntityRef};
 
+/// A category of deliverable that a task can produce.
+///
+/// Tasks declare an [`Artifact`](crate::entity::types::Artifact) referencing
+/// an `ArtifactKind` (e.g. `design-doc`, `pull-request`) rather than encoding
+/// service details inline. This keeps the *what to produce* on the task and
+/// the *where/how it lives* — service, access rules, authoring guidance — on
+/// a reusable definition shared across workflows.
 #[derive(
     Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema, pari_macros::Entity,
 )]

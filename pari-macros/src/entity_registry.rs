@@ -1,3 +1,13 @@
+//! `entity_registry!` — the one macro invocation that fans the entity list
+//! out across four layers.
+//!
+//! Given `Name => Parent` entries, this macro emits the `entity`-layer
+//! aggregates (`EntityKind`, `AnyEntityRef`, `TrackedEntity`) together with
+//! the `TrackedEntity` dispatch impls owned by `store`, `substrate`, and
+//! `validation`. Keeping the fan-out in one macro means adding a new entity
+//! is a one-line edit and every layer's dispatch stays exhaustive
+//! automatically.
+
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{Ident, Token};

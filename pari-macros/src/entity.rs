@@ -1,3 +1,15 @@
+//! `#[derive(Entity)]` — multi-layer code generation for plain entity structs.
+//!
+//! Each application expands to a bundle of items whose ownership is split
+//! across formal layers: the tracked companion and `Entity` / `TrackedFor`
+//! impls (`entity`), async accessors and setters on the companion
+//! (`workspace`), validation schema access (`validation`), and custom serde
+//! impls that funnel the load path through
+//! [`TrackedField::initialize`](pari::entity::tracked::TrackedField::initialize)
+//! (`entity`). This file stitches the parts together; the per-layer codegen
+//! lives in sibling `*_codegen.rs` modules so each layer's output can evolve
+//! independently.
+
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::DeriveInput;

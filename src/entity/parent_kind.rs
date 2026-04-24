@@ -1,3 +1,9 @@
+//! Parent-kind marker trait and its two concrete inhabitants.
+//!
+//! The trait is sealed: only this module can implement it. That keeps the
+//! set of parent shapes closed so generated code (serde, schema,
+//! dispatch) can assume the two cases below are exhaustive.
+
 use super::{
     entities::workflow::{EmbeddedWorkflow, ReusableWorkflow, Workflow},
     AnyEntityRef, EntityRef,
@@ -8,7 +14,12 @@ pub(crate) mod private {
     pub trait Sealed {}
 }
 
-/// Marker trait for parent type parameters on EntityRef.
+/// Marker trait for the `P` parameter on [`EntityRef`].
+///
+/// Each impl knows how to serialize itself into the ref's JSON object,
+/// deserialize itself back from the `parent` key, and surface an optional
+/// value for runtime inspection. Implementors are sealed — add a new parent
+/// shape only by extending this file.
 pub trait ParentKind:
     private::Sealed + Clone + PartialEq + Eq + std::hash::Hash + std::fmt::Debug
 {
@@ -22,7 +33,7 @@ pub trait ParentKind:
     fn value(&self) -> Option<&Self>;
 }
 
-/// Top-level entities have no parent.
+/// Unit type marking a top-level entity. Serializes as no `parent` key.
 #[derive(
     Debug,
     Clone,
@@ -61,7 +72,12 @@ impl ParentKind for NoParent {
     }
 }
 
-/// Closed parent hierarchy for embedded entities in the workflow tree.
+/// Closed parent hierarchy for entities embedded in the workflow tree.
+///
+/// The enum recurses through [`EmbeddedWorkflow`] so an embedded workflow
+/// can itself be a parent of further tasks, relays, and embeddings — the
+/// tree has no fixed depth. Variants are untagged in serde so the `parent`
+/// object is just the parent ref, with no wrapper discriminator.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]

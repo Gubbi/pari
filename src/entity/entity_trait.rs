@@ -1,5 +1,18 @@
+//! The [`Entity`] trait and its tracked-companion roundtrip.
+//!
+//! `#[derive(Entity)]` produces all the impls here. Hand-writing an [`Entity`]
+//! is not supported — too much of the generated surface (tracked companion,
+//! serde, dispatch) would need to be replicated by hand.
+
 use super::{AnyEntityRef, EntityKind, EntityRef, ParentKind, TrackedEntity};
 
+/// Every plain entity struct in the system implements this.
+///
+/// Associates each entity with its [`EntityKind`] discriminant, its parent
+/// kind, its validation schema, and its tracked companion. Provides the two
+/// dispatch hooks that let typed code move between [`EntityRef`]s and the
+/// type-erased [`AnyEntityRef`] / [`TrackedEntity`] enums without per-kind
+/// match arms outside the generated registry.
 pub trait Entity: Sized + 'static {
     const KIND: EntityKind;
     fn validation_schema() -> &'static crate::validation::ValidationSchema<Self>;
@@ -16,12 +29,12 @@ pub trait Entity: Sized + 'static {
     fn extract(entity: &TrackedEntity) -> Option<&Self::Tracked>;
 }
 
-/// Implemented by every tracked entity struct.
-/// Provides the roundtrip: `TrackedRole::Entity = Role`
-/// and therefore `Role::Tracked::Entity = Role`.
+/// Inverse of [`Entity::Tracked`]. Lets generic code start from a tracked
+/// companion and recover its plain entity type: `T::Entity::Tracked = T`.
 pub trait TrackedFor {
     type Entity: Entity<Tracked = Self>;
 }
 
-/// Ergonomic alias: `Tracked<Role>` instead of `<Role as Entity>::Tracked`.
+/// Ergonomic alias: `Tracked<Role>` reads better than
+/// `<Role as Entity>::Tracked` at call sites.
 pub type Tracked<T> = <T as Entity>::Tracked;

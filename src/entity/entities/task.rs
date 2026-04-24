@@ -5,6 +5,13 @@ use crate::entity::{
     EntityKind, EntityRef, WorkflowParent,
 };
 
+/// A leaf unit of work inside a workflow that produces a single artifact.
+///
+/// `Task` is the atomic thing a role actually executes: it carries
+/// instructions, acceptance criteria, a declared deliverable, and its own
+/// lifecycle states. Tasks are embedded — their identity includes the
+/// enclosing workflow via [`WorkflowParent`] — because the same task id
+/// under two workflows is two distinct tasks with independent state.
 #[derive(
     Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema, pari_macros::Entity,
 )]

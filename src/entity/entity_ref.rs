@@ -1,15 +1,27 @@
+//! [`EntityRef`] — typed, parent-aware handle for every entity in the system.
+//!
+//! `EntityRef` is the one handle type passed around between layers. Carrying
+//! both entity type and parent kind in the type parameters keeps the
+//! runtime cost to a `String` + parent value while preventing whole classes
+//! of mix-ups at the type level — a `EntityRef<Task, WorkflowParent>` cannot
+//! be swapped for a `EntityRef<Role>` in any API that consumes it.
+
 use std::marker::PhantomData;
 
 use super::{Entity, EntityKind, NoParent, ParentKind};
 use crate::error::primitive::PrimitiveError;
 
-/// A typed reference to an entity: its string id and optional parent context.
+/// A typed reference to an entity: its string id plus its parent context.
 ///
-/// `T: Entity` ensures only declared entity types can form refs.
-/// `P = NoParent` default covers top-level entities.
+/// The two constructors model the two identity shapes in the system:
+/// [`EntityRef::new`] for top-level entities (`P = NoParent`) and
+/// [`EntityRef::with_parent`] for embedded entities. Hash and `Eq`
+/// incorporate `T::KIND` and the full parent, so refs of different kinds —
+/// or the same kind under different parents — never collide as map keys.
 ///
-/// Hash and Eq incorporate `T::KIND` so refs of different entity types with
-/// the same id do not collide as HashMap keys.
+/// Serde produces a uniform `{ id, kind, parent? }` object regardless of
+/// instantiation; the generated JSON Schema constrains the id pattern per
+/// entity kind.
 pub struct EntityRef<T: Entity, P: ParentKind = NoParent> {
     pub(crate) id: String,
     pub(crate) parent: P,
