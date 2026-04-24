@@ -1,12 +1,29 @@
-//! `activity_errors!` macro implementation.
+//! `activity_errors! { ... }` — declares the centralized `ActivityError` enum.
 //!
-//! Generates the centralized `ActivityError` enum. Each variant carries a
-//! `component: String` (set at construction time) and a `cause: PrimitiveError`.
-//! Classification (`fix`, `recoverability`) and corrective `hint` are fixed per
-//! variant and declared in the macro body.
+//! This macro is the integration point for authoring Pari's Activity tier.
+//! It takes a list of variants — each with a doc comment, classification, and
+//! an optional hint — and expands to:
 //!
-//! Syntax:
-//! ```rust,ignore
+//! - a centralized `ActivityError` enum with one variant per declaration,
+//! - `component: String` and `cause: PrimitiveError` fields on every variant
+//!   (auto-injected; not written at the call site),
+//! - `ErrorCompose` and `OTelEmit` impls plumbing the variant into the chain,
+//! - accessors (`error_layer()`, `fix_domain()`, `hint()`, etc.) read by
+//!   callers and by the OTel cascade.
+//!
+//! # Why authors only see outcomes + classification
+//!
+//! An activity variant is a **product-language outcome**:
+//! "validation failed", "workspace not clean", "persistence is corrupt". The
+//! macro's role is to keep the declaration of a new outcome limited to those
+//! product-meaningful properties — name, classification, hint — so that
+//! adding a new activity is cheap and every activity ends up with the same
+//! shape. Plumbing (the `component`, the `cause`, the propagation hooks)
+//! never shows up in the declaration because it is not a per-variant choice.
+//!
+//! # Input shape
+//!
+//! ```ignore
 //! activity_errors! {
 //!     /// Schema or pipeline field-mapping error.
 //!     InvalidPersistenceLayout {
@@ -21,6 +38,17 @@
 //!     }
 //! }
 //! ```
+//!
+//! `hint` is optional. `fix` and `recoverability` are required — an Activity
+//! variant without classification would break propagation to the Job tier.
+//!
+//! # At the call site
+//!
+//! Orchestration code constructs an activity variant by supplying only the
+//! per-instance values: the `component` string identifying the subsystem
+//! surfacing the failure, and the concrete `PrimitiveError` that triggered
+//! this outcome. Everything classification-related is already baked into the
+//! variant by this macro.
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;

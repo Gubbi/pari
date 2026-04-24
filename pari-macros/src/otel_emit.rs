@@ -1,4 +1,41 @@
-//! `#[derive(OTelEmit)]` proc macro implementation.
+//! `#[derive(OTelEmit)]` — generates the observability-emission contract.
+//!
+//! This derive fills in the [`OTelEmit`] trait so that a single `err.emit()`
+//! call at the Job tier produces one structured event carrying fields from
+//! every tier in the chain. Without this derive, every new error type would
+//! need hand-written emission, which is how integrations drift apart.
+//!
+//! # What the generated `emit()` does
+//!
+//! 1. Emits the current tier's fields — type identifier, classification,
+//!    any tier-specific values — into the active tracing span.
+//! 2. For delegating variants (`#[compose(delegate)]`), calls `emit()` on
+//!    the wrapped inner error, cascading emission down the chain.
+//! 3. For primitive errors, also emits the fixed diagnostics (`message`,
+//!    location, backtrace, span trace) and each typed detail field.
+//!
+//! All emission happens within a single event at the call site — the cascade
+//! does not start nested spans.
+//!
+//! # Field-name policy
+//!
+//! The macro maps to [`opentelemetry_semantic_conventions`] wherever a
+//! standard field exists (`exception.*`, `code.*`). Shared semantic fields
+//! used across tiers keep stable names (`error.component`, `error.hint`).
+//! Everything else — a primitive's typed detail fields, an activity variant's
+//! structured fields — is emitted under `error.<error_type>.<snake_case_field>`
+//! so multiple tiers can contribute fields to the same event without
+//! collisions. The full convention lives in the L3 design doc.
+//!
+//! # Why separate from `ErrorCompose`
+//!
+//! Observability and classification evolve on different rhythms. Keeping the
+//! two derives apart means tests for classification do not need a tracing
+//! subscriber set up, and changes to emission conventions don't ripple into
+//! the caller-facing classification API.
+//!
+//! [`OTelEmit`]: pari::error::OTelEmit
+//! [`opentelemetry_semantic_conventions`]: https://crates.io/crates/opentelemetry-semantic-conventions
 
 use darling::{ast, FromDeriveInput, FromField, FromVariant};
 use proc_macro2::TokenStream;

@@ -1,4 +1,17 @@
-//! `#[primitive_error(...)]` attribute macro implementation.
+//! Per-struct attribute macros that back the `primitive_errors!` enum macro.
+//!
+//! These are support primitives — the integration point consumers actually
+//! use is [`primitive_errors!`](super::primitive_error_enum), which reaches
+//! into this module for each variant's generated struct. The macros here are
+//! responsible for the fixed-diagnostic capture, constructor synthesis
+//! (`new` / `new_with_location`), and per-struct `OTelEmit` body that
+//! collectively define the [primitive contract][contract].
+//!
+//! Prefer documenting *contract* changes (field shape, constructor semantics,
+//! emission convention) on the enum macro or the generated types themselves.
+//! This file's job is the generation mechanics.
+//!
+//! [contract]: pari::error::primitive
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};

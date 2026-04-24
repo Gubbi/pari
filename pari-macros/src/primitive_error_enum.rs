@@ -1,3 +1,51 @@
+//! `primitive_errors! { ... }` — declares the centralized `PrimitiveError` enum.
+//!
+//! This macro is the integration point for authoring Pari's Primitive tier.
+//! It takes a brace-delimited list of variant declarations — each a doc
+//! comment plus a struct-like field list — and expands to:
+//!
+//! - one generated struct per variant (message + typed detail fields,
+//!   plus the fixed [`PrimitiveContext`] for diagnostics),
+//! - auto-capturing constructors (`new` / `new_with_location`),
+//! - a centralized `PrimitiveError` enum wrapping all variants,
+//! - the `ErrorCompose` and `OTelEmit` impls that splice primitives into the
+//!   wider error chain.
+//!
+//! # Why authors only see variants
+//!
+//! The contract behind a primitive — what diagnostics are fixed, how
+//! construction captures them, how emission is shaped — is stable across every
+//! primitive in the system. A new primitive should cost exactly one
+//! declaration with only the *variant-specific* information: the doc comment
+//! that becomes the `Display` message source, and the typed detail fields.
+//! Everything else is supplied by this macro.
+//!
+//! # Input shape
+//!
+//! ```ignore
+//! primitive_errors! {
+//!     /// Doc comment — becomes the variant's canonical description.
+//!     VariantName { field_a: TypeA, field_b: TypeB }
+//!
+//!     /// Another variant.
+//!     OtherName { path: String, line: usize }
+//! }
+//! ```
+//!
+//! The macro accepts no `message` field — `message: String` is always part of
+//! the generated shape and is supplied at construction time. It accepts no
+//! classification — primitives do not declare classification (the Activity
+//! tier does).
+//!
+//! # Relationship to the per-struct macros
+//!
+//! Mechanical generation for one variant — the struct body, the constructors,
+//! the emission body — lives in [`super::primitive_error`]. This enum macro
+//! orchestrates those per-variant expansions and stitches them into the
+//! centralized enum.
+//!
+//! [`PrimitiveContext`]: pari::error::primitive::PrimitiveContext
+
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{

@@ -1,4 +1,42 @@
-//! `#[derive(ErrorCompose)]` proc macro implementation.
+//! `#[derive(ErrorCompose)]` — generates the structural error contract.
+//!
+//! This derive fills in the [`ErrorCompose`] trait so that callers get uniform
+//! classification (`fix_domain`, `recoverability`, `severity`) and chain
+//! downcasting (`as_error::<E>()`) without every error type hand-writing
+//! them. Observability is emphatically *not* this macro's concern — the
+//! parallel [`OTelEmit`] derive owns that, so test coverage and evolution of
+//! the two contracts stay independent.
+//!
+//! # Two shapes of input, two code paths
+//!
+//! - **Structs.** Used for Activity-tier errors. The struct itself is the
+//!   outcome — there are no alternatives to switch over — so classification is
+//!   declared as a type-level attribute: `#[compose(fix = ..., recoverability = ...)]`.
+//!   Omitting these is a compile error; Activity errors without classification
+//!   would break propagation.
+//!
+//! - **Enums.** Used for Job-tier umbrellas (`PariError`) and for the
+//!   centralized Activity enum. Each variant is annotated one of two ways:
+//!   - `#[compose(delegate)]` — the variant forwards classification to its
+//!     single wrapped inner error. Used for "pass-through" variants whose
+//!     Job-tier framing is purely a client-intent rename over an Activity
+//!     outcome.
+//!   - `#[compose(fix = ..., recoverability = ...)]` — the variant declares
+//!     classification directly. Used for true leaf variants at the Job tier
+//!     (e.g. a Job-level invariant violation) that do not wrap a lower tier.
+//!
+//! # Why `as_any_inner` is generated for enums only
+//!
+//! Downcasting through one hop of wrapping is the common need for delegating
+//! enums — `err.as_error::<ActivityError>()` from a `PariError` handle, for
+//! instance. Struct activity errors have no wrapping to see through, so the
+//! trait's default `None` is correct and nothing is generated. Keeping the
+//! hop shallow (one level, not recursive) is intentional; see the trait
+//! rustdoc on [`ErrorCompose::as_error`] for the full rationale.
+//!
+//! [`ErrorCompose`]: pari::error::ErrorCompose
+//! [`ErrorCompose::as_error`]: pari::error::ErrorCompose#method.as_error
+//! [`OTelEmit`]: pari::error::OTelEmit
 
 use darling::{ast, FromDeriveInput, FromField, FromVariant};
 use proc_macro2::TokenStream;

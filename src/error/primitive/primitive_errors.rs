@@ -1,9 +1,80 @@
+//! `PrimitiveError` — the Primitive tier of Pari's error chain.
+//!
+//! Primitives are the leaf-most evidence in Pari's three-tier error model.
+//! Where an `ActivityError` says *what subsystem outcome* occurred and how a
+//! caller should react, a `PrimitiveError` says *exactly what broke* and where.
+//! A primitive is always the tail of a `source()` chain — nothing is wrapped
+//! below it.
+//!
+//! # Contract
+//!
+//! Every primitive variant shares the same fixed diagnostic shape, held in
+//! [`PrimitiveContext`]:
+//!
+//! | Field | Who provides it | Purpose |
+//! |---|---|---|
+//! | `message: String` | Caller, at construction | Human-readable explanation of the leaf failure. |
+//! | `location: ErrorLocation` | Auto-captured (or overridden) | The source location the failure points at. |
+//! | `span_trace: SpanTrace` | Auto-captured at construction | Tracing context the moment the primitive was built. |
+//! | `backtrace: Backtrace` | Auto-captured at construction | Stack backtrace the moment the primitive was built. |
+//!
+//! Beyond the fixed diagnostics, each variant declares its own **typed detail
+//! fields** — `path: String`, `line: usize`, `raw_snippet: String`, and so on.
+//! These are the primitive-specific evidence, and they are the only thing an
+//! author writes when adding a new primitive. Everything else — `thiserror`
+//! plumbing, `Display`, the diagnostic fields, the OTel emission, the
+//! constructors, the accessors — is generated.
+//!
+//! # Why capture is at construction
+//!
+//! `SpanTrace` and `Backtrace` are only useful when they reflect the moment
+//! the failure was observed. Capturing them at higher tiers (Activity, Job)
+//! would point at wrapping code instead of the real leaf. So the primitive
+//! captures them once, at construction, and no other tier re-captures — the
+//! chain carries that original evidence up to the caller untouched.
+//!
+//! # Construction
+//!
+//! Each variant has two generated constructors:
+//!
+//! - `new(message, ...fields)` — auto-captures `location` at the call site
+//!   via `#[track_caller]`. Use this when the construction site *is* the
+//!   meaningful location.
+//! - `new_with_location(location, message, ...fields)` — caller supplies the
+//!   location. Use this when the meaningful location is elsewhere (a line
+//!   inside a parsed document, a failing asset path) and the construction
+//!   site would mislead.
+//!
+//! # Why one centralized enum
+//!
+//! Primitives are reused across layers — the same `AssetWrite` variant can be
+//! the leaf of a persist activity or a cleanup activity, for instance. Keeping
+//! them in one enum avoids duplicating identity-check, transport, codec, and
+//! I/O leaf types per subsystem. It also makes `err.as_error::<PrimitiveError>()`
+//! a single, stable typed entry point for callers that want leaf-level
+//! inspection.
+//!
+//! # Usage
+//!
+//! Pure `lib/` components return `PrimitiveError` directly. Orchestration code
+//! wraps those into `ActivityError` variants at the layer boundary. Tests can
+//! assert against concrete primitive variants via `err.as_error::<...>()` or
+//! by matching on the enum.
+//!
+//! Generation mechanics live in
+//! [`pari-macros::primitive_error_enum`](../../../../pari-macros/src/primitive_error_enum.rs).
+
 use std::collections::HashMap;
 
 use pari_macros::primitive_errors;
 
 use crate::error::{ErrorLayer, ErrorLocation, OTelEmit, PrimitiveDetail};
 
+/// The fixed diagnostic payload carried by every primitive variant.
+///
+/// Authors never construct this directly — primitive generation stores and
+/// populates it automatically. It is exposed so callers can read the common
+/// diagnostics uniformly regardless of which specific primitive they have.
 #[derive(Debug)]
 pub struct PrimitiveContext {
     pub(crate) message: String,
