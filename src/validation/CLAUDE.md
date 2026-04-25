@@ -1,46 +1,45 @@
-# src/validation — Validation Layer Rules And Schemas
+# src/validation — Validation Layer
 
-## Ownership
+Formal `validation` layer: per-entity rule schemas, the runner that
+dispatches them, and the structural / semantic / cross-entity rule
+primitives themselves.
 
-This directory belongs to the formal `validation` layer.
+Authoritative design doc: [docs/design/layers/validation.md](/Users/vinuth/code/pari/docs/design/layers/validation.md).
+When this file and the design doc disagree, the design doc wins.
 
-It owns:
+## Local Orientation
 
-- per-entity `ValidationSchema<T>`
-- structural, semantic, and cross-entity rules
-- validation error data
-- the shared validation runner over tracked entities
+- Orchestration entry points (wrap pure runner into `ActivityError`):
+  [runner.rs](/Users/vinuth/code/pari/src/validation/runner.rs).
+- Pure runner (dispatches rules, accumulates `PrimitiveError`):
+  [lib/runner.rs](/Users/vinuth/code/pari/src/validation/lib/runner.rs).
+- Schema types (`ValidationSchema`, `ValidatableTracked`, rule type
+  aliases, field-selection check):
+  [lib/schema.rs](/Users/vinuth/code/pari/src/validation/lib/schema.rs).
+- Rule kind enum (`Structural` / `Semantic` / `CrossEntity`):
+  [kind.rs](/Users/vinuth/code/pari/src/validation/kind.rs).
+- Per-entity schemas and rule primitives:
+  [lib/rules/](/Users/vinuth/code/pari/src/validation/lib/rules).
 
-The authoritative design docs for this area live under [docs/design/validation_layer/](/Users/vinuth/code/pari/docs/design/validation_layer/).
+## What Does Not Live Here
 
-## Current Model
+- When validations fire (setter / load / commit) — decided by
+  `workspace` (generated setters) and `store` (`EntityServer`).
+- Caller-facing error transport — `workspace` and `error`.
+- Persistence layout or asset codecs — `substrate`.
 
-- `Entity::validation_schema()` returns `&'static ValidationSchema<T>`
-- rules operate on tracked entities, not plain entities
-- `run_validations<T>(entity, fields, kinds)` accumulates `ValidationErrors`
-- `run_validations_for_entity(&TrackedEntity, ...)` dispatches through the tracked wrapper
+## Conventions Worth Repeating Locally
 
-There is no `ValidationContext` type in the current source. Do not document one unless it is reintroduced in code.
-
-## Rule Kinds
-
-- `Structural`
-- `Semantic`
-- `CrossEntity`
-
-Each kind is represented in [src/validation/error.rs](/Users/vinuth/code/pari/src/validation/error.rs) as `ValidationKind`.
-
-## Boundary Rules
-
-- Validation defines what is valid; it does not own when validations are triggered.
-- The `store` layer decides when load-time, commit-time, and other validation runs happen.
-- The `workspace` layer owns caller-facing error transport around those operations.
-- The `substrate` layer must not absorb validation policy.
-
-## Error Types
-
-- `ValidationErrors`: aggregated plain data
-- `FieldValidationError`
-- `SetterError`: mutation-time failure returned by generated setters
-
-`ValidationErrors` is plain data, not `ErrorCompose`.
+- All rule bodies emit `PrimitiveError`. Orchestration wrapping into
+  `ActivityError` happens once, at the top of `validation::runner`.
+- `InvalidValidationFieldSelection` → `pari_invariant_violation`
+  (programmer bug). Everything else → `validation_failed`.
+- Structural rules are sync and value-only. Semantic rules are async
+  and entity-local. Cross-entity rules are async and may call
+  `EntityClient::has_ref`.
+- Use the `ref_check_rule!` macro for plain ref-existence checks on a
+  field; reserve hand-written cross-entity rules for more elaborate
+  checks (hook input binding, cycle detection, embedded-tree shape).
+- Per-entity schema builders live next to the entity's rule primitives
+  in `lib/rules/<entity>.rs` and are dispatched by
+  `#[derive(Entity)]`'s generated `validation_schema()`.

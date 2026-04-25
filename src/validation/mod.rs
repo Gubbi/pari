@@ -1,7 +1,18 @@
-//! Validation framework.
+//! Validation layer — owns *what* is valid, not *when* validation runs.
 //!
-//! [`ValidationSchema`] — per-entity schema with three rule maps.
-//! [`run_validations`] — async runner that dispatches rules and accumulates errors.
+//! Each entity declares a static [`ValidationSchema`] of field-level
+//! rules split across three kinds: structural (sync, value-only),
+//! semantic (async, entity-local), and cross-entity (async, queries
+//! the store via `EntityClient::has_ref`). The runner
+//! ([`run_validations`] for typed callers, [`run_validations_for_entity`]
+//! for the type-erased `TrackedEntity` wrapper) executes the selected
+//! `(fields × kinds)` combination and accumulates failures.
+//!
+//! Callers choose the `(fields, kinds)` tuple that matches their
+//! context: generated setters run Structural+Semantic on the one
+//! field they touch; `EntityServer` runs the full gate at insert,
+//! load, and commit. See `docs/design/layers/validation.md` for the
+//! full decision table.
 
 mod kind;
 pub mod lib;

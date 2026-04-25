@@ -34,22 +34,15 @@ for agents, not sources of truth.
 - [x] `layers/entities.md` + L4 rustdoc pass + `src/entity/CLAUDE.md` refresh
 - [x] `layers/workspace.md` + L4 rustdoc pass + `src/workspace/CLAUDE.md` refresh
 - [x] `layers/store.md` + L4 rustdoc pass + `src/store/CLAUDE.md` refresh
+- [x] `layers/substrate.md` + L4 rustdoc pass + `src/substrate/CLAUDE.md` refresh
+- [x] `layers/validation.md` + L4 rustdoc pass + `src/validation/CLAUDE.md` refresh
 
 ### Pending — per-layer design docs (L3)
 
-Each needs an L3 doc under `docs/design/layers/` plus an L4 rustdoc pass
-covering the infra types, key contracts, and relevant macros in `pari-macros/`.
-
-- [ ] `layers/substrate.md` — asset pipeline (slot / asset / entity composition), schema-driven load/persist paths, backend implementations
-- [ ] `layers/validation.md` — three-kind model (structural / semantic / cross-entity), `ValidationSchema<T>`, runner flow, `EntityClient`-calling cross-entity rule pattern
+_All layers done._
 
 ### Pending — stale CLAUDE.md refreshes
 
-These drifted during implementation — plan to refresh as each layer's design
-doc is authored (so the CLAUDE.md reflects the same reality).
-
-- [ ] `src/validation/CLAUDE.md` — fix `ValidationKind` source to `src/validation/kind.rs`
-- [ ] `src/substrate/CLAUDE.md` — update design doc links
 - [x] `CLAUDE.md` (root) — update "Useful References" to new `docs/design/` paths  *(already current)*
 
 ### Pending — cleanup
