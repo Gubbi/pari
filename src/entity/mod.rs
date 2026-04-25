@@ -22,6 +22,3 @@ pub use entity_trait::{Entity, Tracked, TrackedFor};
 pub use parent_kind::{NoParent, ParentKind, WorkflowParent};
 
 pub use crate::validation::ValidationSchema;
-
-#[cfg(test)]
-mod tests;

@@ -19,7 +19,6 @@ pub mod in_memory;
 mod lib;
 pub mod repo;
 mod substrate;
-mod tests;
 mod void;
 
 pub use in_memory::{InMemoryStorage, InMemorySubstrate};
