@@ -9,7 +9,7 @@ Each phase ends with a CLAUDE.md sweep across affected layers.
 
 Land the prerequisites before writing any new test.
 
-### 0.1 Adopt rstest
+### 0.1 Adopt rstest ✅
 
 - Add `rstest` to `[dev-dependencies]` in `Cargo.toml`.
 - Used for substrate parameterization and parameterized scenarios.
