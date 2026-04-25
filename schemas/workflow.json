@@ -388,7 +388,7 @@
       "type": "object"
     }
   },
-  "description": "A top-level procedure that a team checks out and executes.\n\n`Workflow` is the unit of delivery: it owns a set of lifecycle states, an ordered step map, RACI assignments, and optional intercepts. It is top-level (`NoParent`) because it is the root of an execution — every other workflow-family entity is either embedded underneath one, or invoked from one via a [`Relay`](crate::entity::entities::relay::Relay).",
+  "description": "A top-level procedure that a team checks out and executes.\n\n`Workflow` is the unit of delivery: it owns a set of lifecycle states, an ordered step map, RACI assignments, and optional intercepts. It is top-level (`NoParent`) because it is the root of an execution — every other workflow-family entity is either embedded underneath one, or invoked from one via a [`crate::entity::entities::relay::Relay`].",
   "patternProperties": {
     "^x-": true
   },

@@ -388,7 +388,7 @@
       "type": "object"
     }
   },
-  "description": "A workflow nested inline inside another workflow's step map.\n\nUnlike a [`Relay`](crate::entity::entities::relay::Relay) — which points at a separately-defined [`ReusableWorkflow`] — an `EmbeddedWorkflow` is authored in place and identified relative to its parent. This makes it the right choice for one-off nested procedures that do not need to be shared. Its [`WorkflowParent`] is itself recursive so embeddings can nest arbitrarily deep.",
+  "description": "A workflow nested inline inside another workflow's step map.\n\nUnlike a [`crate::entity::entities::relay::Relay`] — which points at a separately-defined [`ReusableWorkflow`] — an `EmbeddedWorkflow` is authored in place and identified relative to its parent. This makes it the right choice for one-off nested procedures that do not need to be shared. Its [`WorkflowParent`] is itself recursive so embeddings can nest arbitrarily deep.",
   "patternProperties": {
     "^x-": true
   },
