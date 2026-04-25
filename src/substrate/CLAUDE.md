@@ -11,14 +11,14 @@ It owns:
 - asset pipeline traits and vocabulary
 - concrete backends such as `RepoSubstrate`, `InMemorySubstrate`, and `VoidSubstrate`
 
-The authoritative design docs for this area live under [docs/design/substrate_layer/](/Users/vinuth/code/pari/docs/design/substrate_layer/).
+The authoritative L3 design doc is [docs/design/layers/substrate.md](/Users/vinuth/code/pari/docs/design/layers/substrate.md).
 
 ## Primary Entry Points
 
-- [src/substrate/contract.rs](/Users/vinuth/code/pari/src/substrate/contract.rs): `Substrate` trait
+- [src/substrate/substrate.rs](/Users/vinuth/code/pari/src/substrate/substrate.rs): `Substrate` trait
 - [src/substrate/defaults.rs](/Users/vinuth/code/pari/src/substrate/defaults.rs): default schema-driven `load_strategy`, `exists`, `load`, and `persist`
-- [src/substrate/schema_registry.rs](/Users/vinuth/code/pari/src/substrate/schema_registry.rs): schema lookup across entity kinds
-- [src/substrate/pipeline/](/Users/vinuth/code/pari/src/substrate/pipeline): pipeline traits and schema vocabulary
+- [src/substrate/lib/schema_registry.rs](/Users/vinuth/code/pari/src/substrate/lib/schema_registry.rs): `SchemaBackedSubstrate` — schema dispatch across entity kinds
+- [src/substrate/lib/pipeline/](/Users/vinuth/code/pari/src/substrate/lib/pipeline): pipeline traits (`Resolver`, `Codec`, `Executor`) and schema vocabulary
 - [src/substrate/repo/](/Users/vinuth/code/pari/src/substrate/repo): filesystem-backed backend
 - [src/substrate/in_memory/](/Users/vinuth/code/pari/src/substrate/in_memory): in-memory backend
 - [src/substrate/void.rs](/Users/vinuth/code/pari/src/substrate/void.rs): no-op backend
@@ -29,7 +29,7 @@ The crate-wide substrate trait is `crate::substrate::Substrate`.
 
 Key points:
 
-- `load_strategy(entity_kind, field)` returns `Result<LoadStrategy, SubstrateError>`
+- `load_strategy(entity_kind, field)` returns `Result<LoadStrategy, ActivityError>`
 - `exists(&[AnyEntityRef])` is batched
 - `load(&TrackedEntity, &[&str])` returns a tracked entity payload
 - `persist(iterator_of_EntityChange)` consumes the explicit store-owned handoff type

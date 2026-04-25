@@ -8,6 +8,10 @@ use crate::{
     },
 };
 
+/// No-op backend for tests that only need the `Substrate` contract
+/// surface. Overrides the schema-driven defaults with trivial behaviors:
+/// `exists` always returns `false`, `persist` is a no-op, and `load`
+/// reports an unsupported-load error.
 pub struct VoidSubstrate;
 
 #[derive(Clone, Copy)]

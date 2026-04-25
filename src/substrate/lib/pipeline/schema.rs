@@ -6,18 +6,27 @@ use std::{
 use super::{AssetKind, Slot};
 use crate::error::primitive::PrimitiveError;
 
+/// One domain field's placement inside an asset. `slot` is
+/// backend-specific — the default `ValueSlot::Value` covers backends
+/// whose assets hold a single value slot per field.
 #[derive(Clone, Copy)]
 pub struct FieldMapping<S: Slot> {
     pub key: &'static str,
     pub slot: S,
 }
 
+/// Declares the always-present identity asset for an entity kind. Its
+/// `path_template` must resolve from stub JSON — the ref asset is the
+/// only asset the store can locate from an `AnyEntityRef` alone.
 pub struct RefAssetDef<S: Slot> {
     pub path_template: &'static str,
     pub kind: &'static AssetKind,
     pub fields: &'static [FieldMapping<S>],
 }
 
+/// Declares a secondary asset. `path_deps` lists ref-asset fields the
+/// `path_template` refers to; those fields become prerequisites of any
+/// operation on this asset.
 pub struct AssetDef<S: Slot> {
     pub path_template: &'static str,
     pub kind: &'static AssetKind,
@@ -25,11 +34,21 @@ pub struct AssetDef<S: Slot> {
     pub path_deps: &'static [&'static str],
 }
 
+/// Per-entity-kind schema: one ref asset plus zero or more secondary
+/// assets. Each field appears in exactly one asset — duplicate
+/// registrations panic at first lookup.
 pub struct EntitySchema<S: Slot> {
     pub ref_asset: RefAssetDef<S>,
     pub assets: &'static [AssetDef<S>],
 }
 
+/// What the store needs to do before touching `field`.
+///
+/// `prerequisites` must be loaded first (usually so the asset's
+/// `path_template` can be resolved). `mutable_without_load` is `true`
+/// when the field's asset can be written without reading first — either
+/// the asset kind supports partial writes, or the asset has exactly one
+/// field so a full overwrite is equivalent.
 pub struct LoadStrategy {
     pub prerequisites: Vec<&'static str>,
     pub mutable_without_load: bool,
@@ -179,6 +198,12 @@ impl<S: Slot> EntitySchema<S> {
     }
 }
 
+/// Per-backend schema binding for an entity kind.
+///
+/// An entity opts a backend in by implementing this trait with a
+/// concrete `SCHEMA` constant. The `SchemaBackedSubstrate` blanket impl
+/// then dispatches `EntityKind` → `&'static EntitySchema` for every
+/// schema-backed operation.
 pub trait SubstrateSchema<Sub: crate::substrate::Substrate>: crate::entity::Entity {
     const SCHEMA: EntitySchema<<Sub as crate::substrate::Substrate>::Slot>;
 }

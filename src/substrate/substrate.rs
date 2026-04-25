@@ -1,3 +1,5 @@
+//! The [`Substrate`] trait — persistence contract the store calls into.
+
 use crate::{
     entity::{AnyEntityRef, EntityKind, TrackedEntity},
     error::ActivityError,
@@ -5,6 +7,17 @@ use crate::{
     substrate::{defaults, lib::schema_registry::SchemaBackedSubstrate, pipeline},
 };
 
+/// The persistence contract.
+///
+/// Backends pin a `Resolver` / `Codec` / `Executor` trio through the
+/// associated types, expose them via `resolver()` / `codec()` /
+/// `executor()`, and — once every entity implements
+/// `pipeline::SubstrateSchema<Self>` — inherit default implementations
+/// of [`Self::load_strategy`], [`Self::exists`], [`Self::load`], and
+/// [`Self::persist`] from the layer's `defaults` module.
+///
+/// `substrate_name()` identifies the backend in error component strings
+/// (`"repo_substrate.codec"`, `"in_memory_substrate.executor"`, etc.).
 pub trait Substrate: Sized + Send + Sync + 'static {
     type Slot: pipeline::Slot;
     type Location: Send;

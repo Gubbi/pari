@@ -1,3 +1,10 @@
+//! Pipeline vocabulary and traits used by schema-driven substrates.
+//!
+//! A substrate composes three pipeline components — a resolver, a
+//! codec, and an executor — around an [`EntitySchema`]. The traits here
+//! are pure (`PrimitiveError` only); orchestration wrapping into
+//! `ActivityError` happens in the substrate layer's `defaults` module.
+
 pub mod asset_io;
 pub mod asset_kind;
 pub mod asset_mapper;

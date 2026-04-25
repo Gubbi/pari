@@ -12,6 +12,10 @@ use crate::{
     substrate::{pipeline, Substrate},
 };
 
+/// Dispatches `EntityKind` → `&'static EntitySchema` for the receiving
+/// backend. Automatically implemented for any [`Substrate`] whose entity
+/// set — currently the fixed nine kinds — all have a
+/// [`pipeline::SubstrateSchema<Self>`] impl.
 pub trait SchemaBackedSubstrate: Substrate {
     fn schema_for(kind: EntityKind) -> &'static pipeline::EntitySchema<Self::Slot>;
 }

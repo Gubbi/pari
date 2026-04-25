@@ -1,3 +1,5 @@
+/// Turns a path template plus entity JSON into a backend-specific
+/// location. Backends decide the `Location` type (e.g. `PathBuf`).
 pub trait LocationResolver {
     type Location;
 

@@ -3,6 +3,9 @@ use std::collections::HashMap;
 use super::{FieldMapping, Slot};
 use crate::error::primitive::PrimitiveError;
 
+/// Encodes entity JSON into the backend's on-the-wire shape and
+/// decodes responses into `field → Value` maps. Schema drives the set
+/// of fields in each direction.
 pub trait Codec {
     type Slot: Slot;
     type Encoded;

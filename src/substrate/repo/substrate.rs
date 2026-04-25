@@ -14,6 +14,8 @@ use crate::{
     },
 };
 
+/// Filesystem-backed substrate. `Location = PathBuf`, `Encoded = Vec<u8>`.
+/// Uses the default schema-driven pipeline for every data method.
 pub struct RepoSubstrate {
     resolver: RepoLocationResolver,
     codec: RepoCodec,

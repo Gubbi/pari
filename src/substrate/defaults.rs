@@ -1,3 +1,20 @@
+//! Schema-driven default implementations of the [`Substrate`] trait.
+//!
+//! Each function maps one trait method onto the backend's pipeline
+//! components:
+//!
+//! - [`load_strategy`] is a pure schema lookup — no executor call.
+//! - [`exists`] emits one `Head` per ref against the ref asset's
+//!   resolved location and batches them through the executor.
+//! - [`load`] resolves asset locations from the entity's own JSON,
+//!   fetches the chosen assets with `Get`, and merges codec-decoded
+//!   field maps into a clone of the input entity.
+//! - [`persist`] turns a stream of [`EntityChange`]s into a single
+//!   executor batch of `Put`/`Post`/`Patch`/`Delete` ops — write-op
+//!   selection is driven by the asset's [`pipeline::AssetKind`] plus
+//!   whether the change is a create and whether the write covers only
+//!   a subset of the asset's fields.
+
 use std::collections::HashSet;
 
 use crate::{

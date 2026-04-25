@@ -1,6 +1,9 @@
 use super::{EntitySchema, SchemaAsset, Slot};
 use crate::error::primitive::PrimitiveError;
 
+/// Selects the subset of assets a read or write operation needs to
+/// touch. Used by the default pipeline to turn a field list (or dirty
+/// set) into a batch of executor requests.
 pub struct AssetMapper;
 
 impl AssetMapper {
