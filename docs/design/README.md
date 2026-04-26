@@ -28,3 +28,7 @@ Design docs follow the [C4 model](https://c4model.com). Each C4 level has a home
 - [layers/substrate.md](./layers/substrate.md) — substrate layer: asset pipeline, slot/asset/entity composition, schema-driven load/persist paths.
 - [layers/validation.md](./layers/validation.md) — validation layer: three-kind model, `ValidationSchema<T>`, runner flow.
 - [layers/error-handling.md](./layers/error-handling.md) — error layer: composition, propagation, OTel emission, `as_error<E>()` downcasting, SpanTrace invariants.
+
+### Cross-cutting
+
+- [test.md](./test.md) — testing strategy: black-box principles, three-tier coverage funnel, layout, fixture style, substrate parameterization.

@@ -4,7 +4,7 @@
 //! link cost is paid once. Functional tests live under
 //! `tests/functional/<user_job>.rs`, fixtures under
 //! `tests/fixtures/<entity>.rs`, and shared helpers under
-//! `tests/common/`. See [docs/design/layers/test.md](../docs/design/layers/test.md).
+//! `tests/common/`. See [docs/design/test.md](../docs/design/test.md).
 
 #[path = "common/mod.rs"]
 mod common;

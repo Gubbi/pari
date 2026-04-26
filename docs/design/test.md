@@ -1,15 +1,17 @@
 # Test
 
-The `test` layer covers everything the project does to verify its own
-behavior. It is governed by one philosophy applied at every scope:
-**black-box tests, no mocks, real implementations**. Granularity
-varies — unit, integration, functional — but the style does not.
+Testing covers everything the project does to verify its own behavior.
+It is a cross-cutting concern rather than a formal layer — this doc
+sits alongside the per-layer designs, not under `layers/`. The
+philosophy applies at every scope: **black-box tests, no mocks, real
+implementations**. Granularity varies — unit, integration, functional —
+but the style does not.
 
-The framework-level view is in [../framework.md](../framework.md). The
-layering rules are in [layer-model.md](layer-model.md). This document
-covers the L3 design of the test layer: principles, the coverage
-funnel, the three tiers and what each is for, layout, and the
-substrate strategy for functional tests.
+The framework-level view is in [framework.md](framework.md). The
+layering rules are in [layers/layer-model.md](layers/layer-model.md).
+This document covers principles, the coverage funnel, the three tiers
+and what each is for, layout, and the substrate strategy for functional
+tests.
 
 ## Two Principles
 
@@ -67,7 +69,7 @@ worth pinning, the integration and unit folders may stay empty.
 | Unit | `src/<layer>/<file>.rs` — `#[cfg(test)] mod tests` in the same file | The function/type under test |
 | Integration | `tests/integration/<composition>.rs` | One composition — any combination of layers/seams useful for the boundary-failure case being pinned |
 | Functional | `tests/functional/<user_job>.rs` | One user job per file; multiple scenarios per file. Filenames are ad-hoc and named as user jobs appear (`author_workflow.rs`, `check_in_changes.rs`, etc.) |
-| Fixtures | `tests/fixtures/<entity>.rs` | One file per entity kind. Owns builders and canonical sample data only — no assertion helpers, no setup orchestration. |
+| Fixtures | `tests/fixtures/<entity>.rs` | One file per entity kind. Owns named constructor functions for canonical sample data — no builders, no assertion helpers, no setup orchestration. |
 
 ### Cargo Wiring
 
@@ -90,6 +92,30 @@ Each directory's `mod.rs` declares its child files in turn
 (`pub mod author_role;`, etc.), so the tier paths in the table above
 are the on-disk layout the binary actually loads. Shared helpers
 live under `tests/common/`.
+
+### Fixture Style
+
+Fixtures are simple named functions, not builders. Each function returns
+a fully-formed value with a descriptive name that reads at the call
+site (`a_minimal_role(id)`, `a_role_with_traits(id)`). Variants compose
+internally from smaller partial helpers; callers see only the named
+result.
+
+Builders are rejected because they push assembly detail into every
+test, obscure the "this is the canonical X" intent, and grow chained
+configuration surface that drifts from real usage. Named functions
+keep the call site declarative and the fixture file the single place
+variants are defined.
+
+## Substrate Output Is Public
+
+For substrates whose persisted artifacts are consumed by other systems
+(`RepoSubstrate` files read by humans and tooling; a hypothetical
+`JiraSubstrate` writing to tickets others act on), the output format
+is part of the user-observable contract. Functional tests assert on
+that output — file paths, layout, content shape — alongside API
+results. Substrates whose storage is purely internal
+(`InMemorySubstrate`) have no such surface to assert on.
 
 ## Substrate Strategy For Functional Tests
 

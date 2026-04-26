@@ -1,7 +1,7 @@
 # TODO — Test Implementation Plan
 
 Phased plan for rebuilding test coverage from scratch, following the
-principles in [docs/design/layers/test.md](docs/design/layers/test.md).
+principles in [docs/design/test.md](docs/design/test.md).
 
 Each phase ends with a CLAUDE.md sweep across affected layers.
 
