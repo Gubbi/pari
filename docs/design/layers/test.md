@@ -69,6 +69,28 @@ worth pinning, the integration and unit folders may stay empty.
 | Functional | `tests/functional/<user_job>.rs` | One user job per file; multiple scenarios per file. Filenames are ad-hoc and named as user jobs appear (`author_workflow.rs`, `check_in_changes.rs`, etc.) |
 | Fixtures | `tests/fixtures/<entity>.rs` | One file per entity kind. Owns builders and canonical sample data only — no assertion helpers, no setup orchestration. |
 
+### Cargo Wiring
+
+Cargo treats every `tests/*.rs` file as its own integration binary,
+each linked against the library independently. All non-unit tests
+land in a single binary at `tests/tests.rs` so that link is paid
+once.
+
+`tests/tests.rs` declares the layout's directories as submodule trees
+via `#[path]`:
+
+```rust
+#[path = "common/mod.rs"]    mod common;
+#[path = "fixtures/mod.rs"]  mod fixtures;
+#[path = "functional/mod.rs"] mod functional;
+// #[path = "integration/mod.rs"] mod integration;  // added when populated
+```
+
+Each directory's `mod.rs` declares its child files in turn
+(`pub mod author_role;`, etc.), so the tier paths in the table above
+are the on-disk layout the binary actually loads. Shared helpers
+live under `tests/common/`.
+
 ## Substrate Strategy For Functional Tests
 
 `RepoSubstrate` is the only end-user backend currently shipped, so it

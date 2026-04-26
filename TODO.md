@@ -57,13 +57,18 @@ Change surface:
     dispatcher; `StoreManager` is the singleton actor.
   - [docs/design/layers/workspace.md](docs/design/layers/workspace.md) — diagram update.
 
-### 0.3 Test scaffolding
+### 0.3 Test scaffolding ✅
 
+- Single integration binary at `tests/tests.rs` declaring `common`,
+  `fixtures`, and `functional` submodules via `#[path]`. Link cost paid
+  once.
 - `tests/fixtures/<entity>.rs` — one file per entity kind. Builders and
   canonical sample data only. No assertion helpers, no setup
-  orchestration.
-- Substrate parameterization helper — an `rstest` fixture yielding both
-  `RepoSubstrate` (over a tempdir) and `InMemorySubstrate`. At least one
+  orchestration. Files added as user jobs require them.
+- Substrate parameterization helper at `tests/common/substrate.rs` —
+  `SubstrateKind` enum and `run_with(kind, scenario)` driving
+  `RepoSubstrate` (over a tempdir) and `InMemorySubstrate`. Tests use
+  `rstest` `#[case]` to fan a scenario across both. At least one
   scenario per user job runs against both.
 
 ### 0.4 CLAUDE.md sweep
