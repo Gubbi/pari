@@ -1,9 +1,9 @@
-//! [`EntityClient`] — typed wrapper over the store's message protocol.
+//! [`EntityClient`] — typed wrapper over the entity-server dispatch surface.
 //!
-//! Every method builds one [`StoreRequest`], awaits the actor's reply, and
-//! returns the typed result. Channel failures are translated into
-//! [`ActivityError::store_unavailable`]; application-level failures carried
-//! inside `StoreResponse::Err` are forwarded unchanged.
+//! Every method builds one [`StoreRequest`], dispatches it through the
+//! active entity server, and returns the typed result. Application-level
+//! failures arrive inside `StoreResponse::Err` and are forwarded
+//! unchanged.
 
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
@@ -15,8 +15,8 @@ use crate::{
 /// Zero-sized handle for issuing store operations.
 ///
 /// There is no client state — each call takes the `AnyEntityRef` (or other
-/// inputs) it needs and hits the single entity-server actor. Methods are
-/// all `async fn` and return `Result<_, ActivityError>`.
+/// inputs) it needs and dispatches through the active entity server.
+/// Methods are all `async fn` and return `Result<_, ActivityError>`.
 pub struct EntityClient;
 
 impl EntityClient {
@@ -26,7 +26,7 @@ impl EntityClient {
     /// confirmed but no fields are necessarily loaded. Subsequent accessor
     /// calls trigger transparent loads on demand.
     pub async fn resolve(any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
-        match request(StoreRequest::Resolve { any_ref }).await? {
+        match request(StoreRequest::Resolve { any_ref }).await {
             StoreResponse::Entity(e) => Ok(e),
             StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
@@ -41,7 +41,7 @@ impl EntityClient {
     /// This is the pathway validators use for cross-entity existence
     /// checks.
     pub async fn has_ref(any_ref: AnyEntityRef) -> Result<bool, ActivityError> {
-        match request(StoreRequest::HasRef { any_ref }).await? {
+        match request(StoreRequest::HasRef { any_ref }).await {
             StoreResponse::Bool(b) => Ok(b),
             StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
@@ -52,7 +52,7 @@ impl EntityClient {
     ///
     /// Fails if an entity with the same ref already exists.
     pub async fn insert(entity: TrackedEntity) -> Result<(), ActivityError> {
-        match request(StoreRequest::Insert { entity }).await? {
+        match request(StoreRequest::Insert { entity }).await {
             StoreResponse::Unit => Ok(()),
             StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
@@ -64,7 +64,7 @@ impl EntityClient {
     /// Returns the removed [`TrackedEntity`] — pass it back to [`Self::insert`]
     /// to undo the removal.
     pub async fn remove(any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
-        match request(StoreRequest::Remove { any_ref }).await? {
+        match request(StoreRequest::Remove { any_ref }).await {
             StoreResponse::Entity(e) => Ok(e),
             StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
@@ -78,7 +78,7 @@ impl EntityClient {
     /// it via [`TrackedEntity::commit`] or
     /// [`TrackedEntity::undo_checkout`](crate::entity::TrackedEntity).
     pub async fn checkout(any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
-        match request(StoreRequest::Checkout { any_ref }).await? {
+        match request(StoreRequest::Checkout { any_ref }).await {
             StoreResponse::Entity(e) => Ok(e),
             StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
@@ -95,7 +95,7 @@ impl EntityClient {
             any_ref,
             field: field.to_owned(),
         })
-        .await?
+        .await
         {
             StoreResponse::Unit => Ok(()),
             StoreResponse::Err(e) => Err(e),
@@ -114,7 +114,7 @@ impl EntityClient {
             any_ref,
             field: field.to_owned(),
         })
-        .await?
+        .await
         {
             StoreResponse::Unit => Ok(()),
             StoreResponse::Err(e) => Err(e),
@@ -127,7 +127,7 @@ impl EntityClient {
     /// Fails if any entity is currently checked out — callers must either
     /// commit or undo every checkout first.
     pub async fn persist() -> Result<(), ActivityError> {
-        match request(StoreRequest::Persist).await? {
+        match request(StoreRequest::Persist).await {
             StoreResponse::Unit => Ok(()),
             StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
@@ -140,7 +140,7 @@ impl EntityClient {
     /// it had been committed but not yet persisted. Requires the entity
     /// not be checked out.
     pub async fn undo_commit(any_ref: AnyEntityRef) -> Result<(), ActivityError> {
-        match request(StoreRequest::UndoCommit { any_ref }).await? {
+        match request(StoreRequest::UndoCommit { any_ref }).await {
             StoreResponse::Unit => Ok(()),
             StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
@@ -152,7 +152,7 @@ impl EntityClient {
     /// Drops loaded fields so the next accessor triggers a fresh fetch.
     /// Requires the entity not be checked out and have no pending changes.
     pub async fn unload(any_ref: AnyEntityRef) -> Result<(), ActivityError> {
-        match request(StoreRequest::Unload { any_ref }).await? {
+        match request(StoreRequest::Unload { any_ref }).await {
             StoreResponse::Unit => Ok(()),
             StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),

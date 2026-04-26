@@ -21,7 +21,7 @@ Authoritative design doc: [docs/design/layers/entities.md](/Users/vinuth/code/pa
 - Rule definition and runner flow → `validation`
 - Cross-cutting error classification → `error`
 
-If an edit starts to discuss actor requests, asset writes, or rule execution order, it probably belongs in another layer.
+If an edit starts to discuss store dispatch, asset writes, or rule execution order, it probably belongs in another layer.
 
 ## Conventions Worth Repeating Locally
 

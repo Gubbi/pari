@@ -103,7 +103,7 @@ The shared vocabulary that every other layer — and every extension — speaks.
 
 ### `workspace` — uniform access gateway
 
-The single caller-facing surface. `workspace` abstracts away the explicit loading patterns, actor plumbing, and persistence mechanics of lower layers. Callers work in terms of refs and the fields they need; data from substrate is made available transparently, without coupling callers to substrate's grammar. Validation is applied automatically on the path through `workspace` so callers do not have to orchestrate it themselves.
+The single caller-facing surface. `workspace` abstracts away the explicit loading patterns, request plumbing, and persistence mechanics of lower layers. Callers work in terms of refs and the fields they need; data from substrate is made available transparently, without coupling callers to substrate's grammar. Validation is applied automatically on the path through `workspace` so callers do not have to orchestrate it themselves.
 
 ### `store` — staging and caching
 
@@ -130,6 +130,17 @@ flowchart LR
 - **Slots** — the fields within an asset that a backend reads or writes. Slots are the finest-grained unit the pipeline operates on; they are what enables sparse field-level loading in `store`.
 
 Schemas declaratively compose Slots → Assets → Entity in a uniform way, so backends do not hand-code the load/persist logic for each entity-and-asset combination. Backends decide *where* and *how* data is stored; `substrate` defines *what* a backend must be able to do. Pipeline specifics live in [substrate.md](./layers/substrate.md).
+
+## Runtime Independence
+
+`pari` does not depend on a specific async runtime in production. Within `src/`, futures are awaited but never spawned — the only async actor in the core is `store::StoreManager`, and integrators decide how its future is driven.
+
+Two entry points expose the seam:
+
+- `pari::init(substrate, spawn_fn)` — production setup. The caller passes a `SpawnFn` (`Arc<dyn Fn(BoxFuture<'static, ()>) + Send + Sync>`) bound to their runtime, and `init` uses it to spawn the singleton `StoreManager`.
+- `pari::with(substrate, || async { ... })` — scoped setup for tests and embedded scenarios. Drives the `StoreManager` future internally via `futures::join!`, so callers need no runtime-specific spawner.
+
+The production crate depends only on `futures`. `tokio` is a dev-dependency, used by tests that pick a runtime to host `init` or `with`.
 
 ## Error Handling at a Glance
 
@@ -189,7 +200,7 @@ See [error-handling.md](./layers/error-handling.md) for composition, propagation
 - [layer-model.md](./layers/layer-model.md) — formal ownership, dependency rules, and within-layer structure.
 - [entities.md](./layers/entities.md) — entity layer: identity, macros, tracked versions, schemas.
 - [workspace.md](./layers/workspace.md) — workspace layer: uniform access gateway, transparent expansion, automatic validation.
-- [store.md](./layers/store.md) — store layer: `EntityServer` + `StoreManager` split, actor model, sparse staging.
+- [store.md](./layers/store.md) — store layer: `EntityServer` + `StoreManager` split, sparse staging.
 - [substrate.md](./layers/substrate.md) — substrate layer: asset pipeline, slot/asset/entity composition, schema-driven load/persist paths.
 - [validation.md](./layers/validation.md) — validation layer: three-kind model, `ValidationSchema<T>`, runner flow.
 - [error-handling.md](./layers/error-handling.md) — error layer: composition, propagation, OTel emission, `as_error<E>()` downcasting, SpanTrace invariants.

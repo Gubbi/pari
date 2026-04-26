@@ -14,7 +14,7 @@ Land the prerequisites before writing any new test.
 - Add `rstest` to `[dev-dependencies]` in `Cargo.toml`.
 - Used for substrate parameterization and parameterized scenarios.
 
-### 0.2 Runtime-agnostic refactor
+### 0.2 Runtime-agnostic refactor ✅
 
 The library must not pull `tokio` into production. Drop the
 `EntityServer` actor loop entirely; `EntityServer` becomes a stateless

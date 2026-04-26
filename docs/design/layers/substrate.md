@@ -28,7 +28,7 @@ into executor requests.
 `substrate` depends on `entity` (tracked entities, refs, `EntityKind`),
 `error`, and the store-owned [`EntityChange`](../../../src/store/lib/change.rs)
 handoff type. It does not depend on `workspace`, and it does not depend
-on store actor internals.
+on `EntityServer`/`StoreManager` internals.
 
 ## The `Substrate` Trait
 
@@ -188,5 +188,5 @@ store or validation orchestration sit in the pure tier.
 | Rule definition and execution logic | `validation` |
 | Cross-layer error classification and aggregation | `error` |
 
-Substrate code that starts describing actor messages, checkout rules,
+Substrate code that starts describing store dispatch, checkout rules,
 or rule authoring has crossed out of this layer.

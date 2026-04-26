@@ -3,7 +3,7 @@
 The `workspace` layer is the caller-facing surface of Pari. Every external
 consumer — tests, host applications, other libraries built on Pari — drives
 the system through workspace APIs. The layer hands each request off to the
-`store` layer's actor and returns the typed result; it owns no entity state
+`store` layer's `EntityServer` and returns the typed result; it owns no entity state
 itself.
 
 The framework-level view is in [../framework.md](../framework.md). The
@@ -15,7 +15,7 @@ mutation patterns on tracked entities, and the pure/orchestration split.
 
 | Goal | Consequence for the design |
 |---|---|
-| Callers never touch actor plumbing | A single `lib::request` helper constructs messages, sends them, and awaits replies. |
+| Callers never touch dispatch plumbing | A single `lib::request` helper looks up the active `EntityServer` and forwards each `StoreRequest` to it. |
 | One idiom for every operation | Each entry point is async, takes typed inputs, and returns `Result<_, ActivityError>`. |
 | Loads and mutations feel direct | Accessors transparently trigger `load`; setters transparently call `ensure_mutable`. |
 | Writes are rejected at the call site, not discovered later | Setters run structural and semantic validation synchronously before swapping the field. |
@@ -48,18 +48,17 @@ flowchart LR
     caller["caller"]
     client["EntityClient method<br/>or TrackedEntity method<br/>or generated accessor/setter"]
     req["<b>lib::request</b><br/>pure helper"]
-    chan["oneshot channel<br/>via StoreMessage::Request"]
-    server["store: EntityServer actor"]
+    server["store: EntityServer<br/>(stateless)"]
     resp["StoreResponse → typed result"]
 
-    caller --> client --> req --> chan --> server --> resp --> caller
+    caller --> client --> req --> server --> resp --> caller
 ```
 
 The `request` helper in [src/workspace/lib/request.rs](../../../src/workspace/lib/request.rs)
-builds the `StoreMessage::Request`, sends it on the store's sender, and
-awaits the oneshot reply. The orchestration sites above it unwrap the
-`StoreResponse` variant they expect and forward any `StoreResponse::Err`
-back to the caller.
+looks up the active `EntityServer` and dispatches the `StoreRequest`
+directly. The orchestration sites above it unwrap the `StoreResponse`
+variant they expect and forward any `StoreResponse::Err` back to the
+caller.
 
 ## Access Pattern — Transparent Load
 
@@ -122,23 +121,24 @@ splits along the same boundary as every other layer:
 
 | Role | File(s) | Error type |
 |---|---|---|
-| Pure | [lib/request.rs](../../../src/workspace/lib/request.rs) | `PrimitiveError` on channel failure |
-| Orchestration | [client.rs](../../../src/workspace/client.rs), [tracked_entity.rs](../../../src/workspace/tracked_entity.rs) | Wraps primitive channel failures and forwards store-originated `ActivityError` |
+| Pure | [lib/request.rs](../../../src/workspace/lib/request.rs) | None — the dispatch is infallible; channel failures originate inside `EntityServer → StoreManager` and arrive as `StoreResponse::Err` |
+| Orchestration | [client.rs](../../../src/workspace/client.rs), [tracked_entity.rs](../../../src/workspace/tracked_entity.rs) | Forwards store-originated `ActivityError` carried inside `StoreResponse::Err` |
 
-The pure helper owns the mechanical send/await. Orchestration sites
-translate primitive channel failures into `ActivityError::store_unavailable`
-with an `entity_server` hint, and surface application-level errors carried
-inside `StoreResponse::Err` unchanged.
+The pure helper owns the active-`EntityServer` lookup and the dispatch
+call. Orchestration sites surface application-level errors carried
+inside `StoreResponse::Err` unchanged. Channel failures between the
+`EntityServer` and the `StoreManager` are classified there and arrive
+as `ActivityError::store_unavailable` inside `StoreResponse::Err`.
 
 ## Boundaries
 
 | Concern | Owner |
 |---|---|
 | Caller-facing async API, accessor/setter generation | `workspace` |
-| Actor state, message protocol, load/persist orchestration | `store` |
+| In-memory state, dispatch flow, load/persist orchestration | `store` |
 | Asset layout, file formats, backend implementations | `substrate` |
 | Rule definition and execution | `validation` |
 | Cross-layer error classification and aggregation | `error` |
 
-Workspace code that starts describing actor state, asset pipelines, or
+Workspace code that starts describing store state, asset pipelines, or
 rule authoring has crossed out of this layer.

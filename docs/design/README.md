@@ -24,7 +24,7 @@ Design docs follow the [C4 model](https://c4model.com). Each C4 level has a home
 
 - [layers/entities.md](./layers/entities.md) — entity layer: identity, macros, tracked versions, schemas.
 - [layers/workspace.md](./layers/workspace.md) — workspace layer: uniform access gateway, transparent expansion, automatic validation.
-- [layers/store.md](./layers/store.md) — store layer: `EntityServer` + `StoreManager` split, actor model, sparse staging.
+- [layers/store.md](./layers/store.md) — store layer: `EntityServer` + `StoreManager` split, sparse staging.
 - [layers/substrate.md](./layers/substrate.md) — substrate layer: asset pipeline, slot/asset/entity composition, schema-driven load/persist paths.
 - [layers/validation.md](./layers/validation.md) — validation layer: three-kind model, `ValidationSchema<T>`, runner flow.
 - [layers/error-handling.md](./layers/error-handling.md) — error layer: composition, propagation, OTel emission, `as_error<E>()` downcasting, SpanTrace invariants.

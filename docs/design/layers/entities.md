@@ -10,7 +10,7 @@ The framework-level view is in [../framework.md](../framework.md). The layering 
 |---|---|
 | Identity is stable and typed | `EntityRef<T, P>` carries both entity type and parent in the type — no id-only handles. |
 | Change tracking is per-field, not per-entity | Mutation produces a new `Arc<TrackedField<T>>`; untouched fields share storage. |
-| Plain shapes stay plain | Domain structs have no actor, persistence, or validation machinery — a derive adds that glue. |
+| Plain shapes stay plain | Domain structs have no store, persistence, or validation machinery — a derive adds that glue. |
 | Embedding is structural | The workflow tree is expressed via `ParentKind`, not id strings. |
 
 `entity` is the sole layer that has no orchestration tier: every boundary here emits `PrimitiveError` directly ([layer-model.md](layer-model.md#layer-structure)). Generated behavior from `#[derive(Entity)]` and `entity_registry!` is consumed by `workspace`, `store`, `substrate`, and `validation` — each owns its piece of the output (see [Generation Contract](#generation-contract)).

@@ -8,7 +8,7 @@ Every macro here should be explained in terms of the formal layer that owns the 
 
 - `entity` for tracked entity identity and serde support
 - `workspace` for generated async accessors/setters and operation wiring
-- `store` for tracked-wrapper helper methods used by the actor
+- `store` for tracked-wrapper helper methods used by store internals
 - `validation` for validation dispatch glue
 - `error` for error classification and telemetry derives
 

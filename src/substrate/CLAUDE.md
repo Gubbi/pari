@@ -38,7 +38,7 @@ The substrate layer may depend on `EntityChange` from `store`, but not on entity
 
 ## Boundary Rules
 
-- Do not move actor flow, request handling, or checkout lifecycle into this layer.
+- Do not move store orchestration flow, request handling, or checkout lifecycle into this layer.
 - Do not add caller-facing async API helpers here; that belongs to `workspace`.
 - Do not author validation policy here.
 - Keep storage layout, schema mapping, codec behavior, resolver behavior, and executor behavior here.

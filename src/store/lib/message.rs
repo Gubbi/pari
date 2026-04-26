@@ -1,7 +1,7 @@
-//! Message types for the workspace ↔ `EntityServer` actor channel.
+//! Message types for the workspace ↔ `EntityServer` dispatch surface.
 //!
 //! Every caller operation from [`workspace`](crate::workspace) maps to
-//! exactly one [`StoreRequest`] variant; the server replies with a
+//! exactly one [`StoreRequest`] variant; the dispatcher returns a
 //! [`StoreResponse`] carrying either the typed payload or an
 //! [`ActivityError`].
 
@@ -55,21 +55,10 @@ pub(crate) enum StoreRequest {
 }
 
 /// Typed reply payload. `Err` carries application-level failures
-/// across the channel unchanged — channel failure is handled by
-/// [`workspace::lib::request`](crate::workspace) wrapping send/recv
-/// errors into `ActivityError::store_unavailable`.
+/// from the dispatcher unchanged.
 pub(crate) enum StoreResponse {
     Entity(TrackedEntity),
     Bool(bool),
     Unit,
     Err(ActivityError),
-}
-
-/// Wrapper placed on the server's `mpsc::Receiver`. One-shot reply
-/// channel pairs each request with its response.
-pub(crate) enum StoreMessage {
-    Request {
-        request: StoreRequest,
-        reply: tokio::sync::oneshot::Sender<StoreResponse>,
-    },
 }

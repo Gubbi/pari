@@ -17,7 +17,7 @@ impl TrackedEntity {
     /// before releasing the per-entity lock. Takes the entity by value so
     /// the checked-out handle is consumed on success.
     pub async fn commit(self) -> Result<(), ActivityError> {
-        match request(StoreRequest::Commit { entity: self }).await? {
+        match request(StoreRequest::Commit { entity: self }).await {
             StoreResponse::Unit => Ok(()),
             StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),
@@ -29,7 +29,7 @@ impl TrackedEntity {
     /// Drops the caller's edits and returns mutation rights to the store.
     pub async fn undo_checkout(&self) -> Result<(), ActivityError> {
         let any_ref = self.any_ref();
-        match request(StoreRequest::UndoCheckout { any_ref }).await? {
+        match request(StoreRequest::UndoCheckout { any_ref }).await {
             StoreResponse::Unit => Ok(()),
             StoreResponse::Err(e) => Err(e),
             _ => unreachable!(),

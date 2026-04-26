@@ -44,7 +44,7 @@ When working in a subtree, also look for a `CLAUDE.md` file in that directory or
 - Use `EntityChange` from `src/store/change.rs` for the store-to-substrate persist handoff.
 - The lazy persist-set helper is `PersistChanges` in `src/store/change.rs`; it remains store-owned plumbing behind the `EntityChange<'_>` contract.
 - `workspace` owns caller-facing async operations and operation error types.
-- `store` owns server message flow, in-memory state, checkout lifecycle, and persist orchestration.
+- `store` owns `EntityServer`/`StoreManager` orchestration flow, in-memory state, checkout lifecycle, and persist orchestration.
 - `substrate` owns the persistence trait, pipeline, schema-backed defaults, and concrete backends.
 - `validation` owns rule definition and execution over tracked entities.
 - `error` owns cross-cutting classification and aggregation, including `PariError`.
@@ -69,13 +69,16 @@ Every layer has pure components in `lib/` (emit only `PrimitiveError`) and orche
 **`mod.rs` files**
 Contain only `mod` declarations and `pub use` re-exports — no logic, no `impl` blocks, no free functions.
 
+**Runtime independence**
+Production code (`src/`) must not depend on `tokio` or any other specific async runtime. Use `futures` channels, await futures, and route any spawning through a caller-provided `SpawnFn`. See [docs/design/framework.md](/Users/vinuth/code/pari/docs/design/framework.md) — *Runtime Independence*.
+
 ## Key Boundaries
 
 - `entity` code should not absorb store, substrate, or validation orchestration.
 - `workspace` should stay focused on caller-facing APIs over `EntityServer`.
 - `store` may depend on `entity`, `substrate`, `validation`, and `error`, but should not own persistence layout or caller ergonomics.
 - `substrate` may depend on `entity`, `error`, and explicit store-owned handoff types such as `EntityChange`, but not on Entity Server internals.
-- `validation` defines rules; it should not own persistence or actor flow.
+- `validation` defines rules; it should not own persistence or store orchestration flow.
 - `test` may reach across production layers, but production layers must not depend on test code.
 
 ## Working Preferences

@@ -26,7 +26,7 @@ use crate::{
 /// and the manager. Each variant corresponds to one state mutation or
 /// query; the orchestrator composes these into the caller-facing
 /// [`StoreRequest`](super::StoreRequest) operations.
-pub(in crate::store) enum StoreManagerRequest {
+pub(crate) enum StoreManagerRequest {
     // Reads
     GetEntity {
         any_ref: AnyEntityRef,
@@ -77,7 +77,7 @@ pub(in crate::store) enum StoreManagerRequest {
     },
 }
 
-pub(in crate::store) enum StoreManagerResponse {
+pub(crate) enum StoreManagerResponse {
     Entity(TrackedEntity),
     MaybeEntity(Option<TrackedEntity>),
     Changes(Vec<EntityChange>),
@@ -87,9 +87,9 @@ pub(in crate::store) enum StoreManagerResponse {
     Err(PrimitiveError),
 }
 
-pub(in crate::store) struct StoreManagerMessage {
-    pub(in crate::store) request: StoreManagerRequest,
-    pub(in crate::store) reply: oneshot::Sender<StoreManagerResponse>,
+pub(crate) struct StoreManagerMessage {
+    pub(crate) request: StoreManagerRequest,
+    pub(crate) reply: oneshot::Sender<StoreManagerResponse>,
 }
 
 // ---------------------------------------------------------------------------
@@ -103,7 +103,7 @@ pub(in crate::store) struct StoreManagerMessage {
 /// `modified`, `removed`) drive the persist snapshot. `checked_out`
 /// enforces the single-checkout rule and gates `persist`,
 /// `undo_commit`, `remove`, and `unload`.
-pub(in crate::store) struct StoreManager {
+pub(crate) struct StoreManager {
     entities: HashMap<AnyEntityRef, TrackedEntity>,
     added: HashSet<AnyEntityRef>,
     modified: HashSet<AnyEntityRef>,
@@ -112,7 +112,7 @@ pub(in crate::store) struct StoreManager {
 }
 
 impl StoreManager {
-    pub(in crate::store) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             entities: HashMap::new(),
             added: HashSet::new(),
@@ -124,7 +124,7 @@ impl StoreManager {
 
     /// Actor loop — processes messages strictly sequentially. No
     /// interleaving, no locking.
-    pub(in crate::store) async fn run(mut self, mut rx: mpsc::Receiver<StoreManagerMessage>) {
+    pub(crate) async fn run(mut self, mut rx: mpsc::Receiver<StoreManagerMessage>) {
         while let Some(msg) = rx.next().await {
             let response = self.handle(msg.request);
             let _ = msg.reply.send(response);

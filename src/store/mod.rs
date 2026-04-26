@@ -1,21 +1,23 @@
-//! Async actor-based store for tracked entities.
+//! Store layer — stateless orchestrator (`EntityServer`) plus state-custodian actor (`StoreManager`).
 //!
-//! Split into two actors: [`EntityServer`] owns orchestration (substrate
-//! calls, validation sequencing, load/persist flow), and the internal
-//! `StoreManager` is the sole custodian of mutable state. Workspace
-//! forwards every caller request here; callers never touch the store
-//! directly.
+//! [`EntityServer`] is a stateless dispatcher: workspace calls it
+//! directly via the active dispatcher handle, and it sequences
+//! substrate calls and validation around requests to the singleton
+//! `StoreManager` (the sole custodian of mutable state).
 //!
-//! Public surface is intentionally small: [`EntityServer`] for process
-//! init and scoped test setup, and [`EntityChange`] as the handoff type
-//! substrates consume on persist.
+//! Public surface is intentionally small: process init lives in
+//! [`crate::init`] / [`crate::with`], and [`EntityChange`] is the
+//! handoff type substrates consume on persist.
 //!
 //! See `docs/design/layers/store.md` for the L3 design.
 
 pub(crate) mod entity_server;
 mod lib;
-pub(in crate::store) mod manager;
+pub(crate) mod manager;
 
-pub use entity_server::EntityServer;
+pub(crate) use entity_server::{
+    install_global_entity_server, install_override_entity_server, EntityServer,
+};
 pub use lib::change::EntityChange;
-pub(crate) use lib::message::{StoreMessage, StoreRequest, StoreResponse};
+pub(crate) use lib::message::{StoreRequest, StoreResponse};
+pub(crate) use manager::StoreManager;

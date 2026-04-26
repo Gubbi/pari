@@ -8,7 +8,7 @@ directly — they drive it exclusively through the `workspace` layer.
 
 The framework-level view is in [../framework.md](../framework.md). The
 layering rules are in [layer-model.md](layer-model.md). This document
-covers the L3 design: the two-actor split, the in-memory state model, the
+covers the L3 design: the `EntityServer`/`StoreManager` split, the in-memory state model, the
 checkout and persist lifecycles, load orchestration, and where the store
 decides validation runs.
 
@@ -17,7 +17,7 @@ decides validation runs.
 | Goal | Consequence for the design |
 |---|---|
 | One owner of mutable state | A single `StoreManager` actor holds every `HashMap` and `HashSet`; every mutation flows through it. |
-| Orchestration can interleave | `EntityServer` dispatches incoming requests onto a `FuturesUnordered` so multiple loads or resolves run concurrently. |
+| Orchestration is stateless | `EntityServer` is a stateless handle: workspace dispatches `StoreRequest`s into it directly, and each caller's task drives its own orchestration sequence around the manager. |
 | Validation runs at well-defined moments | The store, not the caller, picks which `ValidationKind`s apply at insert, commit, load, and persist. |
 | Persist is all-or-nothing | Outstanding checkouts block persist; substrate is called with a snapshot, and dirty state is reset only after the substrate returns. |
 
@@ -25,34 +25,37 @@ decides validation runs.
 (for load/persist/exists), `validation` (for rule execution), and `error`.
 It does not depend on `workspace`.
 
-## Two-Actor Split
+## EntityServer + StoreManager
 
 ```mermaid
 flowchart LR
     ws["workspace<br/>lib::request"]
-    es["<b>EntityServer</b><br/>orchestration<br/>(ActivityError)"]
+    es["<b>EntityServer</b><br/>stateless orchestration<br/>(ActivityError)"]
     sub["substrate<br/>load / persist / exists"]
-    sm["<b>StoreManager</b><br/>state custodian<br/>(PrimitiveError)"]
+    sm["<b>StoreManager</b><br/>state custodian actor<br/>(PrimitiveError)"]
 
-    ws -- "StoreMessage::Request" --> es
+    ws -- "StoreRequest (direct call)" --> es
     es -- "substrate calls" --> sub
     es -- "StoreManagerRequest" --> sm
     sm -- "StoreManagerResponse" --> es
     es -- "StoreResponse" --> ws
 ```
 
-- **`EntityServer`** — knows the substrate and the validation runner.
-  Receives `StoreRequest`s from workspace, decides *what* needs to happen
-  for each operation, and sequences calls to the manager and substrate.
-  Multiple dispatches run concurrently against its `FuturesUnordered`.
-- **`StoreManager`** — knows nothing but its own state. Receives
-  `StoreManagerRequest`s, mutates its maps and sets, replies. One message
-  at a time, so state transitions are serialized without any locking.
+- **`EntityServer`** — stateless. Holds an `Arc<Substrate>` and a sender
+  to the singleton `StoreManager`. Workspace calls it directly via the
+  active entity-server handle; each caller's task drives its own
+  orchestration sequence (validation, substrate calls, manager
+  round-trips) for that request. Multiple `EntityServer` instances may
+  coexist; they all dispatch into the same manager.
+- **`StoreManager`** — the only async actor in the store. Knows nothing
+  but its own state. Receives `StoreManagerRequest`s, mutates its maps
+  and sets, replies. One message at a time, so state transitions are
+  serialized without any locking.
 
 The split keeps long-running orchestration (substrate round-trips,
 validation) off the critical path of state mutation. Cloning a
-`TrackedEntity` out of the manager gives each orchestration task its own
-working snapshot; writes go back through the manager.
+`TrackedEntity` out of the manager gives each orchestration task its
+own working snapshot; writes go back through the manager.
 
 ## In-Memory State Model
 
@@ -84,10 +87,10 @@ See [src/store/manager.rs](../../../src/store/manager.rs) — the
 
 ## Request Dispatch
 
-Every incoming `StoreMessage::Request` is boxed onto `FuturesUnordered` in
-`EntityServer::run`. Handlers run concurrently; state access is still
-serialized because all mutations go through the manager's single
-`mpsc::Receiver`.
+Each caller-issued `StoreRequest` is handled in the caller's own task —
+`EntityServer::handle` is `&self`, so concurrent callers run their
+orchestration in parallel. State access is still serialized because all
+mutations go through the manager's single `mpsc::Receiver`.
 
 | `StoreRequest` | Handler |
 |---|---|
@@ -206,22 +209,26 @@ with a `ValidationKind` set chosen by the operation.
 
 ## Test Entry Point
 
-`EntityServer::with(substrate, || async { ... })` is the isolated test
-entry point. It spawns a fresh server and manager, swaps in a
-thread-local sender for the duration of the closure, and restores the
-previous sender on drop. Tests using this path never touch the
-process-global sender, so they interleave cleanly under `#[tokio::test]`.
+`pari::with(substrate, || async { ... })` is the isolated entry point
+used by tests and embedded scenarios. It builds a fresh `EntityServer`
+and `StoreManager`, installs the entity server as a thread-local
+override for the duration of the closure, drives the manager future
+internally via `futures::join!`, and tears the override down on exit —
+so the call needs no runtime-specific spawner. See
+[Runtime Independence](../framework.md#runtime-independence) for the
+production counterpart, `pari::init`.
 
-Authoritative code: [src/store/entity_server.rs](../../../src/store/entity_server.rs)
-— `EntityServer::with` and the `OverrideGuard` drop glue.
+Authoritative code: [src/lib.rs](../../../src/lib.rs) — `pari::with` and
+`pari::init`; [src/store/entity_server.rs](../../../src/store/entity_server.rs)
+— `OverrideGuard` and the active-handle lookup.
 
 ## Pure And Orchestration Components
 
 "Pure" in the layer-model sense means the error contract, not the
-absence of side effects. The `StoreManager` is an actor and mutates
-state, but it emits only `PrimitiveError` and has no substrate or
-validation dependencies — so it sits in the pure tier alongside the
-message and change data types.
+absence of side effects. The `StoreManager` is the layer's only async
+actor and mutates state, but it emits only `PrimitiveError` and has no
+substrate or validation dependencies — so it sits in the pure tier
+alongside the message and change data types.
 
 | Role | File(s) | Error type |
 |---|---|---|

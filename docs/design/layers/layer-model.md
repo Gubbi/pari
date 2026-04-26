@@ -22,7 +22,7 @@ For the bird's-eye framework view — extension seams, conceptual roles, error h
 flowchart TB
     subgraph production["Production layers"]
         workspace[workspace<br/><i>caller-facing async API</i>]
-        store[store<br/><i>actor, state, orchestration</i>]
+        store[store<br/><i>orchestration & state custody</i>]
         substrate[substrate<br/><i>persistence contracts & backends</i>]
         entity[entity<br/><i>domain identity & tracked types</i>]
         validation[validation<br/><i>rules & schemas</i>]
@@ -55,9 +55,9 @@ flowchart TB
 |---|---|---|---|
 | `entity` | Domain identity, entity definitions, tracked entity representations, shared value types, change-tracking primitives | Actor orchestration, persistence layout, validation policy, caller-facing flow | `error` |
 | `workspace` | Caller-facing async API, operation handles, generated accessors/setters, request shaping for user intent | In-memory store state, persistence implementation, validation rule definitions | `entity`, `store`, `validation`, `error` |
-| `store` | In-memory entity state, actor/message flow, checkout lifecycle, resolve/load orchestration, persist orchestration, store-owned persistence handoff types | Public caller API ergonomics, persistence layout/encoding, entity rule definitions | `entity`, `substrate`, `validation`, `error` |
+| `store` | In-memory entity state, `EntityServer`/`StoreManager` orchestration flow, checkout lifecycle, resolve/load orchestration, persist orchestration, store-owned persistence handoff types | Public caller API ergonomics, persistence layout/encoding, entity rule definitions | `entity`, `substrate`, `validation`, `error` |
 | `substrate` | Persistence contracts, schema-driven asset pipeline, backend implementations, storage layout and execution | Entity Server behavior, caller-facing APIs, validation rule authorship | `entity`, `error`, and explicit store-owned persistence boundary types |
-| `validation` | Validation schemas, validation rules, cross-entity validation, validation error details | Persistence, actor flow, caller transport/protocol concerns | `entity`, `error` |
+| `validation` | Validation schemas, validation rules, cross-entity validation, validation error details | Persistence, store orchestration flow, caller transport/protocol concerns | `entity`, `error` |
 | `error` | Cross-cutting error composition, classification, aggregation, umbrella error types | Domain entities, runtime orchestration, persistence, test logic | none |
 | `test` | Verification strategy, fixtures, integration/end-to-end expectations, test-only support | Production runtime behavior or ownership decisions | any production layer |
 
@@ -118,7 +118,7 @@ Each layer has its own design doc covering its internals:
 
 - [entities.md](./entities.md) — entity layer: identity, macros, tracked versions, schemas.
 - [workspace.md](./workspace.md) — workspace layer: uniform access gateway, transparent expansion, automatic validation.
-- [store.md](./store.md) — store layer: `EntityServer` + `StoreManager` split, actor model, sparse staging.
+- [store.md](./store.md) — store layer: `EntityServer` + `StoreManager` split, sparse staging.
 - [substrate.md](./substrate.md) — substrate layer: asset pipeline, slot/asset/entity composition, schema-driven load/persist paths.
 - [validation.md](./validation.md) — validation layer: three-kind model, `ValidationSchema<T>`, runner flow.
 - [error-handling.md](./error-handling.md) — error layer: composition (`ErrorCompose`, `activity_error`), propagation, OTel emission, `as_error<E>()` downcasting, SpanTrace invariants.
