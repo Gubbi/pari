@@ -1,5 +1,8 @@
 //! Per-entity fixtures.
 //!
-//! One file per entity kind. Builders and canonical sample data only —
-//! no assertion helpers, no setup orchestration. Files are added as
-//! user jobs require them.
+//! One file per entity kind. Named constructor functions for canonical
+//! sample data only — no builders, no assertion helpers, no setup
+//! orchestration. Files are added as user jobs require them.
+
+#[path = "role.rs"]
+pub mod role;

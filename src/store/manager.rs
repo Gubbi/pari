@@ -79,6 +79,7 @@ pub(crate) enum StoreManagerRequest {
 
 pub(crate) enum StoreManagerResponse {
     Entity(TrackedEntity),
+    Entities(Vec<TrackedEntity>),
     MaybeEntity(Option<TrackedEntity>),
     Changes(Vec<EntityChange>),
     Bool(bool),
@@ -151,13 +152,15 @@ impl StoreManager {
                 StoreManagerResponse::Count(self.checked_out.len())
             }
             StoreManagerRequest::InsertStubs { refs } => {
+                let mut out = Vec::with_capacity(refs.len());
                 for any_ref in refs {
-                    if !self.entities.contains_key(&any_ref) {
-                        self.entities
-                            .insert(any_ref.clone(), TrackedEntity::make_stub(&any_ref));
-                    }
+                    let stub = self
+                        .entities
+                        .entry(any_ref.clone())
+                        .or_insert_with(|| TrackedEntity::make_stub(&any_ref));
+                    out.push(stub.clone());
                 }
-                StoreManagerResponse::Unit
+                StoreManagerResponse::Entities(out)
             }
             StoreManagerRequest::InsertEntity { entity } => {
                 let any_ref = entity.any_ref();

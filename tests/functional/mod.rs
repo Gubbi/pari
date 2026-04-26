@@ -2,3 +2,6 @@
 //!
 //! Files are added as user jobs are covered. See the order in
 //! [TODO.md](../../TODO.md) Phase 1.
+
+#[path = "author_role.rs"]
+pub mod author_role;

@@ -157,12 +157,17 @@ where
             ));
         }
 
-        self.store_send(StoreManagerRequest::InsertStubs {
-            refs: vec![any_ref.clone()],
-        })
-        .await?;
+        let mut stubs = match self
+            .store_send(StoreManagerRequest::InsertStubs {
+                refs: vec![any_ref.clone()],
+            })
+            .await?
+        {
+            StoreManagerResponse::Entities(v) => v,
+            _ => unreachable!(),
+        };
 
-        Ok(TrackedEntity::make_stub(&any_ref))
+        Ok(stubs.pop().expect("InsertStubs returns one stub per ref"))
     }
 
     async fn insert(&self, entity: TrackedEntity) -> Result<(), ActivityError> {
