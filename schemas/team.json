@@ -84,11 +84,21 @@
       ]
     },
     "include": {
-      "additionalProperties": {
-        "$ref": "#/definitions/RoleEntityRef"
+      "items": {
+        "items": [
+          {
+            "$ref": "#/definitions/TeamEntityRef"
+          },
+          {
+            "$ref": "#/definitions/RoleEntityRef"
+          }
+        ],
+        "maxItems": 2,
+        "minItems": 2,
+        "type": "array"
       },
       "type": [
-        "object",
+        "array",
         "null"
       ]
     },

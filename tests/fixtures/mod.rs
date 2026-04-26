@@ -6,3 +6,6 @@
 
 #[path = "role.rs"]
 pub mod role;
+
+#[path = "team.rs"]
+pub mod team;

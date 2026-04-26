@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 
 use crate::{
     entity::{
@@ -12,10 +12,10 @@ use crate::{
 /// BFS cycle detection for `include` edges.
 ///
 /// A cycle exists if the current team's ref appears in the transitive
-/// closure of `include` keys.
+/// closure of `include` team-keys.
 pub async fn no_include_cycle(
     self_ref: EntityRef<Team>,
-    include: HashMap<EntityRef<Team>, EntityRef<Role>>,
+    include: Vec<(EntityRef<Team>, EntityRef<Role>)>,
 ) -> Vec<PrimitiveError> {
     if cycle_exists_include(self_ref, include).await {
         vec![PrimitiveError::workflow_graph_inconsistency(
@@ -44,10 +44,11 @@ pub async fn no_import_cycle(
 
 async fn cycle_exists_include(
     self_ref: EntityRef<Team>,
-    include: HashMap<EntityRef<Team>, EntityRef<Role>>,
+    include: Vec<(EntityRef<Team>, EntityRef<Role>)>,
 ) -> bool {
     let mut visited: HashSet<String> = HashSet::new();
-    let mut queue: VecDeque<EntityRef<Team>> = include.into_keys().collect();
+    let mut queue: VecDeque<EntityRef<Team>> =
+        include.into_iter().map(|(team, _role)| team).collect();
 
     while let Some(team_ref) = queue.pop_front() {
         let id = team_ref.id().to_owned();
@@ -64,7 +65,7 @@ async fn cycle_exists_include(
         };
         if let Some(t) = Team::extract(&tracked) {
             if let Some(Some(nested_include)) = t.include.get() {
-                for next_ref in nested_include.keys() {
+                for (next_ref, _role) in nested_include {
                     queue.push_back(next_ref.clone());
                 }
             }

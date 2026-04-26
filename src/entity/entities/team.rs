@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::entity::{entities::role::Role, types::Extensions, EntityKind, EntityRef};
 
 /// A roster binding concrete handles (people or agents) to roles.
@@ -19,7 +17,7 @@ pub struct Team {
     pub name: String,
     pub description: Option<String>,
     pub members: Option<Vec<TeamMember>>,
-    pub include: Option<HashMap<EntityRef<Team>, EntityRef<Role>>>,
+    pub include: Option<Vec<(EntityRef<Team>, EntityRef<Role>)>>,
     pub import: Option<Vec<EntityRef<Team>>>,
     #[serde(flatten)]
     pub extensions: Extensions,

@@ -2,10 +2,9 @@ use super::{
     super::schema::{AnyCrossEntityRule, AnyStructuralRule, ValidationSchema},
     structural::{
         primitives::{
-            kebab_case_id, non_empty_list, non_empty_map, non_empty_str, opt_non_empty_str,
-            x_prefix_keys,
+            kebab_case_id, non_empty_list, non_empty_str, opt_non_empty_str, x_prefix_keys,
         },
-        team::members_structural,
+        team::{include_structural, members_structural},
     },
 };
 use crate::{
@@ -50,12 +49,7 @@ pub fn team_validation_schema() -> ValidationSchema<Team> {
         vec![Box::new(|e: &TrackedTeam| {
             e.include
                 .get()
-                .map(|opt_map| {
-                    opt_map
-                        .as_ref()
-                        .map(|m| non_empty_map(m))
-                        .unwrap_or_default()
-                })
+                .map(|v| include_structural(v))
                 .unwrap_or_default()
         })],
     );

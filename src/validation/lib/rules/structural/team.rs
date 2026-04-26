@@ -1,5 +1,14 @@
-use super::primitives::unique_by;
-use crate::{entity::entities::team::TeamMember, error::primitive::PrimitiveError};
+use super::primitives::{non_empty_list, unique_by};
+use crate::{
+    entity::{
+        entities::{
+            role::Role,
+            team::{Team, TeamMember},
+        },
+        EntityRef,
+    },
+    error::primitive::PrimitiveError,
+};
 
 fn valid_handle(handle: &str) -> bool {
     if !handle.starts_with('@') || handle.len() < 2 {
@@ -8,6 +17,19 @@ fn valid_handle(handle: &str) -> bool {
     handle[1..]
         .chars()
         .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '.' || c == '_' || c == '-')
+}
+
+pub fn include_structural(
+    value: &Option<Vec<(EntityRef<Team>, EntityRef<Role>)>>,
+) -> Vec<PrimitiveError> {
+    match value {
+        None => vec![],
+        Some(includes) => {
+            let mut v = non_empty_list(includes.as_slice());
+            v.extend(unique_by(includes, |(team, _role)| team.id().to_string()));
+            v
+        }
+    }
 }
 
 pub fn members_structural(value: &Option<Vec<TeamMember>>) -> Vec<PrimitiveError> {

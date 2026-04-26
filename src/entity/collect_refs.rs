@@ -64,6 +64,14 @@ impl<K: CollectRefs, V: CollectRefs> CollectRefs for HashMap<K, V> {
     }
 }
 
+/// 2-tuple: each element may carry refs.
+impl<A: CollectRefs, B: CollectRefs> CollectRefs for (A, B) {
+    fn collect_refs(&self, prefix: &str, refs: &mut Vec<(String, AnyEntityRef)>) {
+        self.0.collect_refs(prefix, refs);
+        self.1.collect_refs(prefix, refs);
+    }
+}
+
 /// IndexMap with String keys: folds the key into the child prefix so that
 /// e.g. `steps.WriteProposal.entity_ref` is produced from `steps["WriteProposal"].entity_ref`.
 impl<V: CollectRefs> CollectRefs for IndexMap<String, V> {

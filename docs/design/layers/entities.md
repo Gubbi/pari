@@ -76,7 +76,7 @@ Both `EntityKind` and `AnyEntityRef` are generated from the single `entity_regis
 
 ### `CollectRefs`
 
-Uniform extraction of entity refs from nested plain structures. Implemented by every plain entity, value type, and container, so callers in other layers can walk an entity and gather `(path, AnyEntityRef)` pairs without per-entity traversal code. Containers (`Option`, `Vec`, `HashMap`, `IndexMap<String, _>`) contribute their own path segments; primitive leaves (`String`, numerics, `serde_json::Value`) are no-ops.
+Uniform extraction of entity refs from nested plain structures. Implemented by every plain entity, value type, and container, so callers in other layers can walk an entity and gather `(path, AnyEntityRef)` pairs without per-entity traversal code. Containers (`Option`, `Vec`, `(A, B)`, `HashMap`, `IndexMap<String, _>`) contribute their own path segments; primitive leaves (`String`, numerics, `serde_json::Value`) are no-ops.
 
 Contract and blanket impls: [src/entity/collect_refs.rs](../../../src/entity/collect_refs.rs). Per-type impls are produced by `#[derive(CollectRefs)]`.
 

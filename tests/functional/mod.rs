@@ -5,3 +5,6 @@
 
 #[path = "author_role.rs"]
 pub mod author_role;
+
+#[path = "author_team.rs"]
+pub mod author_team;
