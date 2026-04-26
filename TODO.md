@@ -71,7 +71,7 @@ Change surface:
   `rstest` `#[case]` to fan a scenario across both. At least one
   scenario per user job runs against both.
 
-### 0.4 CLAUDE.md sweep
+### 0.4 CLAUDE.md sweep ✅
 
 Refresh `src/store/CLAUDE.md`, `src/workspace/CLAUDE.md`, and the root
 `CLAUDE.md` for the dispatcher shape and the runtime-agnostic stance.

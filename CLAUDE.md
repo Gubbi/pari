@@ -44,7 +44,7 @@ When working in a subtree, also look for a `CLAUDE.md` file in that directory or
 - Use `EntityChange` from `src/store/change.rs` for the store-to-substrate persist handoff.
 - The lazy persist-set helper is `PersistChanges` in `src/store/change.rs`; it remains store-owned plumbing behind the `EntityChange<'_>` contract.
 - `workspace` owns caller-facing async operations and operation error types.
-- `store` owns `EntityServer`/`StoreManager` orchestration flow, in-memory state, checkout lifecycle, and persist orchestration.
+- `store` owns orchestration flow, in-memory state, checkout lifecycle, and persist orchestration. `EntityServer` is the stateless dispatcher workspace calls into; `StoreManager` is the singleton state-custodian actor and the store layer's only async actor.
 - `substrate` owns the persistence trait, pipeline, schema-backed defaults, and concrete backends.
 - `validation` owns rule definition and execution over tracked entities.
 - `error` owns cross-cutting classification and aggregation, including `PariError`.
