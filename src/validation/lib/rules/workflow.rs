@@ -8,7 +8,7 @@ use super::{
     structural::{
         primitives::{camel_case_id, non_empty_str, opt_non_empty_str, x_prefix_keys},
         raci::raci_structural,
-        workflow::states_valid_workflow,
+        workflow::{states_valid_workflow, step_keys_camel_case},
     },
 };
 use crate::{
@@ -76,7 +76,7 @@ macro_rules! common_structural {
                 e.steps
                     .get()
                     .map(|v| {
-                        if v.is_empty() {
+                        let mut errs = if v.is_empty() {
                             vec![
                                 crate::error::primitive::PrimitiveError::malformed_collection_value(
                                     "must not be empty",
@@ -85,7 +85,9 @@ macro_rules! common_structural {
                             ]
                         } else {
                             vec![]
-                        }
+                        };
+                        errs.extend(step_keys_camel_case(v));
+                        errs
                     })
                     .unwrap_or_default()
             })],

@@ -9,3 +9,12 @@ pub mod role;
 
 #[path = "team.rs"]
 pub mod team;
+
+#[path = "artifact_kind.rs"]
+pub mod artifact_kind;
+
+#[path = "task.rs"]
+pub mod task;
+
+#[path = "workflow.rs"]
+pub mod workflow;

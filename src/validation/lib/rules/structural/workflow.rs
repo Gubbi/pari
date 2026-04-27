@@ -1,5 +1,19 @@
-use super::primitives::min_length;
-use crate::{entity::types::WorkflowStateEntry, error::primitive::PrimitiveError};
+use indexmap::IndexMap;
+
+use super::primitives::{camel_case, min_length};
+use crate::{
+    entity::{entities::workflow::Step, types::WorkflowStateEntry},
+    error::primitive::PrimitiveError,
+};
+
+/// Each `steps` map key must be camelCase.
+pub fn step_keys_camel_case(steps: &IndexMap<String, Step>) -> Vec<PrimitiveError> {
+    let mut v = vec![];
+    for key in steps.keys() {
+        v.extend(camel_case(key));
+    }
+    v
+}
 
 /// State list validation for workflow states:
 /// - At least 2 states

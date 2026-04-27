@@ -8,3 +8,6 @@ pub mod author_role;
 
 #[path = "author_team.rs"]
 pub mod author_team;
+
+#[path = "author_workflow.rs"]
+pub mod author_workflow;
