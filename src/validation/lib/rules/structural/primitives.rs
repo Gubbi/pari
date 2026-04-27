@@ -26,7 +26,7 @@ pub fn kebab_case(value: &str) -> Vec<PrimitiveError> {
 }
 
 /// Id must match `[A-Z][a-zA-Z0-9]*`
-pub fn camel_case(value: &str) -> Vec<PrimitiveError> {
+pub fn pascal_case(value: &str) -> Vec<PrimitiveError> {
     let valid = !value.is_empty()
         && value.starts_with(|c: char| c.is_ascii_uppercase())
         && value.chars().all(|c| c.is_ascii_alphanumeric());
@@ -34,9 +34,9 @@ pub fn camel_case(value: &str) -> Vec<PrimitiveError> {
         vec![]
     } else {
         vec![PrimitiveError::naming_format_violation(
-            format!("'{value}' is not CamelCase"),
+            format!("'{value}' is not PascalCase"),
             None::<String>,
-            "camel_case",
+            "pascal_case",
         )]
     }
 }
@@ -48,11 +48,11 @@ pub fn kebab_case_id<T: Entity, P: ParentKind>(
     kebab_case(entity_ref.id())
 }
 
-/// `EntityRef` id must be CamelCase
-pub fn camel_case_id<T: Entity, P: ParentKind>(
+/// `EntityRef` id must be PascalCase
+pub fn pascal_case_id<T: Entity, P: ParentKind>(
     entity_ref: &EntityRef<T, P>,
 ) -> Vec<PrimitiveError> {
-    camel_case(entity_ref.id())
+    pascal_case(entity_ref.id())
 }
 
 /// String must not be empty or whitespace-only

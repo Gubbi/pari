@@ -12,9 +12,9 @@ pub fn states_valid_task(value: &[TaskStateEntry]) -> Vec<PrimitiveError> {
             && s.id.chars().all(|c| c.is_ascii_alphanumeric());
         if !valid {
             v.push(PrimitiveError::naming_format_violation(
-                format!("'{}' is not CamelCase", s.id),
+                format!("'{}' is not PascalCase", s.id),
                 Some(sub),
-                "camel_case",
+                "pascal_case",
             ));
         }
     }

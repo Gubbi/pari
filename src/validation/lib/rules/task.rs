@@ -2,7 +2,7 @@ use super::{
     super::schema::{AnyCrossEntityRule, AnyStructuralRule, ValidationSchema},
     structural::{
         primitives::{
-            camel_case_id, each_item_non_empty, non_empty_list, non_empty_str, opt_non_empty_str,
+            each_item_non_empty, non_empty_list, non_empty_str, opt_non_empty_str, pascal_case_id,
             x_prefix_keys,
         },
         raci::raci_structural,
@@ -22,7 +22,7 @@ pub fn task_validation_schema() -> ValidationSchema<Task> {
 
     structural.insert(
         "entity_ref",
-        vec![Box::new(|e: &TrackedTask| camel_case_id(&e.entity_ref))],
+        vec![Box::new(|e: &TrackedTask| pascal_case_id(&e.entity_ref))],
     );
     structural.insert(
         "name",

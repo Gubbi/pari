@@ -6,9 +6,9 @@ use super::{
         reviewing_state_required_embedded, reviewing_state_required_reusable,
     },
     structural::{
-        primitives::{camel_case_id, non_empty_str, opt_non_empty_str, x_prefix_keys},
+        primitives::{non_empty_str, opt_non_empty_str, pascal_case_id, x_prefix_keys},
         raci::raci_structural,
-        workflow::{states_valid_workflow, step_keys_camel_case},
+        workflow::{states_valid_workflow, step_keys_pascal_case},
     },
 };
 use crate::{
@@ -29,7 +29,7 @@ macro_rules! common_structural {
 
         structural.insert(
             "entity_ref",
-            vec![Box::new(|e: &$Tracked| camel_case_id(&e.entity_ref))],
+            vec![Box::new(|e: &$Tracked| pascal_case_id(&e.entity_ref))],
         );
         structural.insert(
             "name",
@@ -86,7 +86,7 @@ macro_rules! common_structural {
                         } else {
                             vec![]
                         };
-                        errs.extend(step_keys_camel_case(v));
+                        errs.extend(step_keys_pascal_case(v));
                         errs
                     })
                     .unwrap_or_default()
@@ -242,7 +242,7 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
     structural.insert(
         "entity_ref",
         vec![Box::new(|e: &TrackedEmbeddedWorkflow| {
-            camel_case_id(&e.entity_ref)
+            pascal_case_id(&e.entity_ref)
         })],
     );
     structural.insert(

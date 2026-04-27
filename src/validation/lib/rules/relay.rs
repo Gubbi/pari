@@ -1,9 +1,9 @@
 use super::{
     super::schema::{AnyCrossEntityRule, AnyStructuralRule, ValidationSchema},
     structural::{
-        primitives::{camel_case_id, non_empty_str, opt_non_empty_str, x_prefix_keys},
+        primitives::{non_empty_str, opt_non_empty_str, pascal_case_id, x_prefix_keys},
         raci::raci_structural,
-        relay::{camel_case_state_keys, non_empty_map_state_map},
+        relay::{non_empty_map_state_map, pascal_case_state_keys},
     },
 };
 use crate::{
@@ -20,7 +20,7 @@ pub fn relay_validation_schema() -> ValidationSchema<Relay> {
 
     structural.insert(
         "entity_ref",
-        vec![Box::new(|e: &TrackedRelay| camel_case_id(&e.entity_ref))],
+        vec![Box::new(|e: &TrackedRelay| pascal_case_id(&e.entity_ref))],
     );
     structural.insert(
         "name",
@@ -99,7 +99,7 @@ pub fn relay_validation_schema() -> ValidationSchema<Relay> {
             Box::new(|e: &TrackedRelay| {
                 e.state_map
                     .get()
-                    .map(|v| camel_case_state_keys(v))
+                    .map(|v| pascal_case_state_keys(v))
                     .unwrap_or_default()
             }),
         ],

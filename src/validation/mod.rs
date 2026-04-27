@@ -25,8 +25,8 @@ pub use lib::rules::{artifact_kind, hook, relay, role, task, team, workflow};
 pub use lib::{
     rules::structural::{
         primitives::{
-            camel_case, camel_case_id, kebab_case, kebab_case_id, min_length, non_empty_list,
-            non_empty_str, opt_non_empty_str, unique_by, x_prefix_keys,
+            kebab_case, kebab_case_id, min_length, non_empty_list, non_empty_str,
+            opt_non_empty_str, pascal_case, pascal_case_id, unique_by, x_prefix_keys,
         },
         raci::raci_structural,
         task::states_valid_task,

@@ -216,7 +216,7 @@ store-connectivity problem.
 
 [`src/validation/lib/rules/structural/primitives.rs`](../../../src/validation/lib/rules/structural/primitives.rs)
 collects the shared building blocks used across entity schemas —
-`kebab_case`, `camel_case`, `camel_case_id`, `non_empty_str`,
+`kebab_case`, `pascal_case`, `pascal_case_id`, `non_empty_str`,
 `non_empty_list`, `min_length`, `unique_by`, `x_prefix_keys`, and
 entity-specific helpers like `states_valid_workflow` and
 `raci_structural`. Each returns `Vec<PrimitiveError>`; entity

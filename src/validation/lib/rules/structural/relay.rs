@@ -13,7 +13,7 @@ pub fn non_empty_map_state_map(value: &HashMap<String, StateMapEntry>) -> Vec<Pr
     }
 }
 
-pub fn camel_case_state_keys(value: &HashMap<String, StateMapEntry>) -> Vec<PrimitiveError> {
+pub fn pascal_case_state_keys(value: &HashMap<String, StateMapEntry>) -> Vec<PrimitiveError> {
     value
         .keys()
         .filter(|k| {
@@ -23,9 +23,9 @@ pub fn camel_case_state_keys(value: &HashMap<String, StateMapEntry>) -> Vec<Prim
         })
         .map(|k| {
             PrimitiveError::naming_format_violation(
-                format!("'{k}' is not CamelCase"),
+                format!("'{k}' is not PascalCase"),
                 Some(format!(".{k}")),
-                "camel_case",
+                "pascal_case",
             )
         })
         .collect()

@@ -1,23 +1,23 @@
 use indexmap::IndexMap;
 
-use super::primitives::{camel_case, min_length};
+use super::primitives::{min_length, pascal_case};
 use crate::{
     entity::{entities::workflow::Step, types::WorkflowStateEntry},
     error::primitive::PrimitiveError,
 };
 
-/// Each `steps` map key must be camelCase.
-pub fn step_keys_camel_case(steps: &IndexMap<String, Step>) -> Vec<PrimitiveError> {
+/// Each `steps` map key must be PascalCase.
+pub fn step_keys_pascal_case(steps: &IndexMap<String, Step>) -> Vec<PrimitiveError> {
     let mut v = vec![];
     for key in steps.keys() {
-        v.extend(camel_case(key));
+        v.extend(pascal_case(key));
     }
     v
 }
 
 /// State list validation for workflow states:
 /// - At least 2 states
-/// - All ids are CamelCase
+/// - All ids are PascalCase
 /// - All ids are unique
 /// - At least one Done semantic
 /// - At least one non-Done state
@@ -31,9 +31,9 @@ pub fn states_valid_workflow(value: &[WorkflowStateEntry]) -> Vec<PrimitiveError
             && s.id.chars().all(|c| c.is_ascii_alphanumeric());
         if !valid {
             v.push(PrimitiveError::naming_format_violation(
-                format!("'{}' is not CamelCase", s.id),
+                format!("'{}' is not PascalCase", s.id),
                 Some(sub),
-                "camel_case",
+                "pascal_case",
             ));
         }
     }
