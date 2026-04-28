@@ -64,7 +64,6 @@ pub struct Workflow {
     pub raci: Raci,
     #[schemars(length(min = 2))]
     pub states: Vec<WorkflowStateEntry>,
-    #[schemars(length(min = 1))]
     pub steps: IndexMap<String, Step>,
     pub intercepts: Option<HashMap<WorkflowTrigger, HookCall>>,
     pub guidance: Option<String>,
@@ -91,7 +90,6 @@ pub struct ReusableWorkflow {
     pub raci: Raci,
     #[schemars(length(min = 2))]
     pub states: Vec<WorkflowStateEntry>,
-    #[schemars(length(min = 1))]
     pub steps: IndexMap<String, Step>,
     pub intercepts: Option<HashMap<WorkflowTrigger, HookCall>>,
     pub guidance: Option<String>,
@@ -120,7 +118,6 @@ pub struct EmbeddedWorkflow {
     pub raci: Option<Raci>,
     #[schemars(length(min = 2))]
     pub states: Vec<WorkflowStateEntry>,
-    #[schemars(length(min = 1))]
     pub steps: IndexMap<String, Step>,
     pub intercepts: Option<HashMap<WorkflowTrigger, HookCall>>,
     pub guidance: Option<String>,

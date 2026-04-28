@@ -22,7 +22,7 @@ use crate::{
         artifact_kind::a_minimal_artifact_kind,
         role::a_minimal_role,
         task::a_minimal_task,
-        workflow::{a_workflow_with_review_placeholder, task_and_review_steps},
+        workflow::{a_workflow_with_empty_steps, task_and_review_steps},
     },
 };
 
@@ -132,13 +132,9 @@ async fn author_workflow_with_task_and_review() {
         .await
         .unwrap();
 
-    EntityClient::insert(a_workflow_with_review_placeholder(
-        "DesignFlow",
-        "eng-lead",
-        "approver",
-    ))
-    .await
-    .unwrap();
+    EntityClient::insert(a_workflow_with_empty_steps("DesignFlow", "eng-lead"))
+        .await
+        .unwrap();
     EntityClient::persist().await.unwrap();
 
     EntityClient::insert(a_minimal_task("Design", "DesignFlow", "design-doc"))

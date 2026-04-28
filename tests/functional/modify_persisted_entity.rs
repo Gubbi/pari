@@ -22,7 +22,7 @@ use crate::{
         reusable_workflow::a_reusable_workflow_with_review_step,
         role::a_minimal_role,
         team::{a_minimal_team, a_team_with_composition},
-        workflow::a_workflow_with_review_placeholder,
+        workflow::a_workflow_with_empty_steps,
     },
 };
 
@@ -188,13 +188,9 @@ async fn modify_relay_delegates_to(#[case] kind: SubstrateKind) {
 
         // Parent workflow shell so the relay's parent exists when its
         // entity_ref is cross-entity-validated.
-        EntityClient::insert(a_workflow_with_review_placeholder(
-            "DesignFlow",
-            "eng-lead",
-            "approver",
-        ))
-        .await
-        .unwrap();
+        EntityClient::insert(a_workflow_with_empty_steps("DesignFlow", "eng-lead"))
+            .await
+            .unwrap();
         EntityClient::insert(a_minimal_relay(
             "Handoff",
             "DesignFlow",

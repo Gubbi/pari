@@ -11,29 +11,25 @@ use pari::{
     types::{Raci, WorkflowSemantic, WorkflowStateEntry},
 };
 
-/// Workflow shell with a single `Step::Review`, used as the first
-/// insertion when authoring a workflow iteratively.
+/// Workflow shell with no steps yet, used as the first insertion when
+/// authoring a workflow iteratively.
 ///
-/// The Review placeholder satisfies the "≥1 step" rule on insert so
-/// embedded entities (tasks, relays, embedded workflows) can be authored
+/// Embedded entities (tasks, relays, embedded workflows) are authored
 /// next with this workflow as their parent. Once those exist, callers
 /// `set_steps` to the final shape via [`task_and_review_steps`] or a
 /// custom payload.
-pub fn a_workflow_with_review_placeholder(
-    id: &str,
-    accountable_role_id: &str,
-    approver_role_id: &str,
-) -> TrackedEntity {
+///
+/// The state list is `[InProgress, InReview, Done]` so the canonical
+/// final shape with a `Step::Review` does not also need a `set_states`
+/// in the same modify cycle.
+pub fn a_workflow_with_empty_steps(id: &str, accountable_role_id: &str) -> TrackedEntity {
     let raci = canonical_raci(accountable_role_id);
-    let mut steps: IndexMap<String, Step> = IndexMap::new();
-    steps.insert(
-        "Review".to_string(),
-        Step::Review {
-            approver: vec![EntityRef::<Role>::new(approver_role_id)],
-            on_reject: "Review".to_string(),
-        },
-    );
-    workflow(id, raci, three_state_with_reviewing_and_done(), steps)
+    workflow(
+        id,
+        raci,
+        three_state_with_reviewing_and_done(),
+        IndexMap::new(),
+    )
 }
 
 /// Steps payload for a workflow whose final shape is one `Step::Task`

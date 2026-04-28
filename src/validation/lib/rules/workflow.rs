@@ -76,20 +76,7 @@ macro_rules! common_structural {
             vec![Box::new(|e: &$Tracked| {
                 e.steps
                     .get()
-                    .map(|v| {
-                        let mut errs = if v.is_empty() {
-                            vec![
-                                crate::error::primitive::PrimitiveError::malformed_collection_value(
-                                    "must not be empty",
-                                    "non_empty",
-                                ),
-                            ]
-                        } else {
-                            vec![]
-                        };
-                        errs.extend(step_keys_pascal_case(v));
-                        errs
-                    })
+                    .map(|v| step_keys_pascal_case(v))
                     .unwrap_or_default()
             })],
         );
