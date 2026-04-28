@@ -76,31 +76,80 @@ Change surface:
 Refresh `src/store/CLAUDE.md`, `src/workspace/CLAUDE.md`, and the root
 `CLAUDE.md` for the dispatcher shape and the runtime-agnostic stance.
 
-## Phase 1 — Functional Tests
+## Phase 1 — Functional Tests ✅
 
 One file per user job under `tests/functional/`. Every
 persistence-meaningful scenario runs persist + reload. Where the
 substrate is incidental, the scenario runs against both backends via
 the parameterization fixture.
 
-Order:
+Originally-planned user jobs:
 
-1. `author_role.rs`
-2. `author_team.rs`
-3. `author_workflow.rs`
-4. `modify_persisted_entity.rs`
-5. `author_workflow_with_intercepts.rs`
-6. `author_embedded_workflow.rs`
-7. `author_reusable_workflow.rs` + `author_relay.rs`
-8. `validation_failures.rs`
+1. `author_role.rs` ✅
+2. `author_team.rs` ✅
+3. `author_workflow.rs` ✅
+4. `modify_persisted_entity.rs` ✅
+5. `author_workflow_with_intercepts.rs` ✅
+6. `author_embedded_workflow.rs` ✅
+7. `author_reusable_workflow.rs` + `author_relay.rs` ✅
+8. `validation_failures.rs` ✅
 
-End of phase: CLAUDE.md sweep across `src/`, `tests/`.
+Additional user-job and concern files that landed during Phase 1:
+
+- `lifecycle_failures.rs` — store-layer lifecycle preconditions.
+- `validation_timing.rs` — validation tier × lifecycle moment.
+- `abandon_in_progress_edit.rs` — `undo_checkout` happy path.
+- `rollback_staged_change.rs` — `undo_commit` happy paths
+  (added-entity removal, modified-entity revert).
+- `refresh_entity_from_substrate.rs` — `unload` happy paths,
+  including external-edit refetch on `RepoSubstrate`.
+
+Source-code changes that landed alongside the tests:
+
+- Mutation isolation via per-entity typed `XDelegate` (typestate
+  enforcement of "only checked-out entities are mutable").
+- Insert and commit lifecycle preconditions enforced
+  (`EntityAlreadyExists`, `EntityNotCheckedOut`).
+- Embedded entities cross-entity-validate `entity_ref.parent`.
+- Workflows can have empty steps (relaxation of the non-empty rule)
+  to support iterative authoring.
+- `Team.include` reshaped from `HashMap<EntityRef, EntityRef>` to
+  `Vec<(EntityRef, EntityRef)>` with a duplicate-team rule
+  (the JSON intermediate cannot represent struct-keyed maps).
+- `camel_case` validation rule renamed to `pascal_case` to match
+  what the regex actually validates.
+- `step_keys_pascal_case` structural rule added for workflow steps.
+- Common entity types relocated under `common/` in the repo
+  substrate (`common/roles/`, `common/hooks/`, `common/teams/`,
+  `common/artifact-kinds/`, `common/workflows/` for reusable).
+- End-of-phase CLAUDE.md sweep across `src/`, `pari-macros/`, and
+  `tests/`. Authoring constraints (avoid struct-keyed maps;
+  iterative authoring of cross-referenced trees) captured in
+  `docs/design/layers/entities.md`.
 
 ## Phase 2 — Integration Tests (Deferred)
 
 Only added when a real boundary-failure mode resists end-to-end
-coverage. Examples (illustrative): channel-closed mid-operation on the
-workspace ↔ store seam; partial-substrate-response merge paths.
+coverage.
+
+Candidates identified during Phase 1 (boundary-failure modes that
+need fault injection rather than functional coverage):
+
+- **Substrate corruption — malformed frontmatter on disk.** Write a
+  hand-crafted `roles/<id>.md` with broken YAML frontmatter, then
+  resolve. Should surface as `MalformedPersistenceArtifact`.
+- **Substrate corruption — missing required field in stored file.**
+  Write a `Workflow/<id>/README.md` missing the `name` H1 or required
+  frontmatter keys; resolve should surface a structured codec error.
+- **Substrate corruption — unparseable shape.** Non-markdown content
+  in a `.md` slot, conflicting field assignments across assets, etc.
+- **Channel-closed mid-operation on workspace ↔ store seam.** Drop
+  the `StoreManager` future before a request completes; the
+  workspace must surface `ActivityError::store_unavailable`. Requires
+  a hand-written test substrate or a controllable cancel point.
+- **Partial substrate-response merge paths.** A substrate that
+  returns a subset of the requested fields exercises the store's
+  load merge logic differently than the standard backends do.
 
 ## Phase 3 — Unit Tests (Deferred)
 
