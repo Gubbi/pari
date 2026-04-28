@@ -8,7 +8,7 @@
 //! every scenario runs against `InMemorySubstrate`.
 
 use pari::{
-    entity::{AnyEntityRef, EntityRef, TrackedEntity},
+    entity::{AnyEntityRef, EntityRef},
     error::{primitive::PrimitiveError, ActivityError},
     workspace::EntityClient,
 };
