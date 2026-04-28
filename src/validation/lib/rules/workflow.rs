@@ -285,18 +285,7 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
         vec![Box::new(|e: &TrackedEmbeddedWorkflow| {
             e.steps
                 .get()
-                .map(|v| {
-                    if v.is_empty() {
-                        vec![
-                            crate::error::primitive::PrimitiveError::malformed_collection_value(
-                                "must not be empty",
-                                "non_empty",
-                            ),
-                        ]
-                    } else {
-                        vec![]
-                    }
-                })
+                .map(|v| step_keys_pascal_case(v))
                 .unwrap_or_default()
         })],
     );

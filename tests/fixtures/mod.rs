@@ -27,3 +27,6 @@ pub mod relay;
 
 #[path = "hook.rs"]
 pub mod hook;
+
+#[path = "embedded_workflow.rs"]
+pub mod embedded_workflow;

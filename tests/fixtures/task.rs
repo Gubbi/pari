@@ -15,6 +15,17 @@ use pari::{
 /// and guidance left absent so the workflow's raci flows through.
 pub fn a_minimal_task(id: &str, workflow_id: &str, artifact_kind_id: &str) -> TrackedEntity {
     let parent = WorkflowParent::Workflow(EntityRef::<Workflow>::new(workflow_id));
+    a_minimal_task_with_parent(id, parent, artifact_kind_id)
+}
+
+/// Like [`a_minimal_task`] but lets the caller construct the parent
+/// chain directly — used when the task lives under an embedded
+/// workflow rather than a top-level one.
+pub fn a_minimal_task_with_parent(
+    id: &str,
+    parent: WorkflowParent,
+    artifact_kind_id: &str,
+) -> TrackedEntity {
     TrackedEntity::from_task(TrackedTask::from(Task {
         entity_ref: EntityRef::with_parent(id, parent),
         name: "Design Doc Draft".to_string(),
