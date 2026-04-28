@@ -11,8 +11,9 @@ use super::{
 };
 use crate::{
     entity::entities::task::{Task, TrackedTask},
-    validation::lib::rules::cross_entity::intercepts::{
-        intercept_hooks_exist, intercept_inputs_valid,
+    validation::lib::rules::cross_entity::{
+        common::parent_exists,
+        intercepts::{intercept_hooks_exist, intercept_inputs_valid},
     },
 };
 
@@ -118,6 +119,18 @@ pub fn task_validation_schema() -> ValidationSchema<Task> {
 
     let mut cross_entity: std::collections::HashMap<&'static str, Vec<AnyCrossEntityRule<Task>>> =
         std::collections::HashMap::new();
+    cross_entity.insert(
+        "entity_ref",
+        vec![Box::new(|e: &TrackedTask| {
+            let parent = e.entity_ref.parent().cloned();
+            Box::pin(async move {
+                match parent {
+                    Some(p) => parent_exists(p).await,
+                    None => vec![],
+                }
+            })
+        })],
+    );
     cross_entity.insert("raci", vec![crate::ref_check_rule!(TrackedTask, raci)]);
     cross_entity.insert(
         "artifact",

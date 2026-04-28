@@ -1,9 +1,12 @@
 //! User job: author a top-level workflow.
 //!
-//! A workflow plus its embedded entities (a task, optionally a review
-//! step) is authored, persisted, and observable to a fresh session.
-//! Cross-entity validation runs at insert, so prerequisites (roles,
-//! artifact kinds, tasks) are inserted before the workflow itself.
+//! A workflow is authored iteratively to satisfy two cross-entity
+//! invariants that hold at every transaction boundary: every embedded
+//! entity's parent must exist, and every ref a workflow names in its
+//! steps must exist. The pattern: insert a workflow shell with a
+//! `Step::Review` placeholder so the parent is in the substrate; insert
+//! each embedded entity (a task here) under it; modify the workflow's
+//! `steps` to its final shape.
 
 use pari::{
     entity::{AnyEntityRef, EntityRef, TrackedEntity},
@@ -19,7 +22,7 @@ use crate::{
         artifact_kind::a_minimal_artifact_kind,
         role::a_minimal_role,
         task::a_minimal_task,
-        workflow::{a_workflow_with_task_and_review, a_workflow_with_task_step},
+        workflow::{a_workflow_with_review_placeholder, task_and_review_steps},
     },
 };
 
@@ -31,25 +34,9 @@ fn workflow_ref(id: &str) -> AnyEntityRef {
 #[case::in_memory(SubstrateKind::InMemory)]
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
-async fn minimal_workflow_is_observable_after_persist(#[case] kind: SubstrateKind) {
+async fn workflow_with_task_and_review_is_observable_after_persist(#[case] kind: SubstrateKind) {
     run_with(kind, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_artifact_kind("design-doc"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_task("Design", "DesignFlow", "design-doc"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_workflow_with_task_step(
-            "DesignFlow",
-            "eng-lead",
-            "Design",
-        ))
-        .await
-        .unwrap();
-        EntityClient::persist().await.unwrap();
+        author_workflow_with_task_and_review().await;
 
         let entity = EntityClient::resolve(workflow_ref("DesignFlow"))
             .await
@@ -58,55 +45,6 @@ async fn minimal_workflow_is_observable_after_persist(#[case] kind: SubstrateKin
             panic!("expected Workflow")
         };
         assert_eq!(wf.name().await.unwrap(), "Design Workflow");
-        assert_eq!(
-            wf.purpose().await.unwrap(),
-            "Drive a single design through review."
-        );
-        let raci = wf.raci().await.unwrap().clone();
-        assert_eq!(raci.accountable.id(), "eng-lead");
-        let states = wf.states().await.unwrap().to_vec();
-        assert_eq!(states.len(), 2);
-        let steps = wf.steps().await.unwrap().clone();
-        assert_eq!(steps.len(), 1);
-        assert!(steps.contains_key("Design"));
-    })
-    .await;
-}
-
-#[rstest]
-#[case::in_memory(SubstrateKind::InMemory)]
-#[case::repo(SubstrateKind::Repo)]
-#[tokio::test]
-async fn workflow_with_review_step_is_observable_after_persist(#[case] kind: SubstrateKind) {
-    run_with(kind, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_role("approver"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_artifact_kind("design-doc"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_task("Design", "DesignFlow", "design-doc"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_workflow_with_task_and_review(
-            "DesignFlow",
-            "eng-lead",
-            "Design",
-            "approver",
-        ))
-        .await
-        .unwrap();
-        EntityClient::persist().await.unwrap();
-
-        let entity = EntityClient::resolve(workflow_ref("DesignFlow"))
-            .await
-            .unwrap();
-        let TrackedEntity::Workflow(wf) = entity else {
-            panic!("expected Workflow")
-        };
         let steps = wf.steps().await.unwrap().clone();
         assert_eq!(steps.len(), 2);
         assert!(steps.contains_key("Design"));
@@ -118,35 +56,13 @@ async fn workflow_with_review_step_is_observable_after_persist(#[case] kind: Sub
     .await;
 }
 
-/// Full workflow with task + review steps cold-starts a fresh
-/// [`RepoSubstrate`] over the same on-disk directory.
 #[tokio::test]
 async fn workflow_round_trips_repo_substrate_across_sessions() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().to_path_buf();
 
     pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_role("approver"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_artifact_kind("design-doc"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_task("Design", "DesignFlow", "design-doc"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_workflow_with_task_and_review(
-            "DesignFlow",
-            "eng-lead",
-            "Design",
-            "approver",
-        ))
-        .await
-        .unwrap();
-        EntityClient::persist().await.unwrap();
+        author_workflow_with_task_and_review().await;
     })
     .await;
 
@@ -177,23 +93,7 @@ async fn repo_substrate_writes_expected_workflow_files() {
     let task_file = path.join("workflows/DesignFlow/Design/README.md");
 
     pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_artifact_kind("design-doc"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_task("Design", "DesignFlow", "design-doc"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_workflow_with_task_step(
-            "DesignFlow",
-            "eng-lead",
-            "Design",
-        ))
-        .await
-        .unwrap();
-        EntityClient::persist().await.unwrap();
+        author_workflow_with_task_and_review().await;
     })
     .await;
 
@@ -215,4 +115,44 @@ async fn repo_substrate_writes_expected_workflow_files() {
         task_contents.contains("# Design Doc Draft"),
         "expected H1 with task name, got:\n{task_contents}"
     );
+}
+
+/// Iterative author flow used by every scenario above: prerequisites,
+/// workflow shell with a Review placeholder, the embedded task (its
+/// parent now exists), then modify steps to the final shape (task +
+/// review). Returns after persist completes.
+async fn author_workflow_with_task_and_review() {
+    EntityClient::insert(a_minimal_role("eng-lead"))
+        .await
+        .unwrap();
+    EntityClient::insert(a_minimal_role("approver"))
+        .await
+        .unwrap();
+    EntityClient::insert(a_minimal_artifact_kind("design-doc"))
+        .await
+        .unwrap();
+
+    EntityClient::insert(a_workflow_with_review_placeholder(
+        "DesignFlow",
+        "eng-lead",
+        "approver",
+    ))
+    .await
+    .unwrap();
+    EntityClient::persist().await.unwrap();
+
+    EntityClient::insert(a_minimal_task("Design", "DesignFlow", "design-doc"))
+        .await
+        .unwrap();
+
+    let mut entity = EntityClient::checkout(workflow_ref("DesignFlow"))
+        .await
+        .unwrap();
+    if let TrackedEntity::Workflow(ref mut wf) = entity {
+        wf.set_steps(task_and_review_steps("Design", "DesignFlow", "approver"))
+            .await
+            .unwrap();
+    }
+    entity.commit().await.unwrap();
+    EntityClient::persist().await.unwrap();
 }

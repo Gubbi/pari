@@ -11,3 +11,6 @@ pub mod author_team;
 
 #[path = "author_workflow.rs"]
 pub mod author_workflow;
+
+#[path = "modify_persisted_entity.rs"]
+pub mod modify_persisted_entity;

@@ -64,17 +64,28 @@ pub fn a_team_with_composition(
             )
         })
         .collect::<Vec<_>>();
-    let import = imports
-        .iter()
-        .map(|team_id| EntityRef::<Team>::new(*team_id))
-        .collect();
+    let include = if include.is_empty() {
+        None
+    } else {
+        Some(include)
+    };
+    let import = if imports.is_empty() {
+        None
+    } else {
+        Some(
+            imports
+                .iter()
+                .map(|team_id| EntityRef::<Team>::new(*team_id))
+                .collect(),
+        )
+    };
     team(
         id,
         "Composed Team",
         Some("A team that composes others."),
         None,
-        Some(include),
-        Some(import),
+        include,
+        import,
     )
 }
 

@@ -9,6 +9,7 @@ use super::{
 use crate::{
     entity::entities::relay::{Relay, TrackedRelay},
     validation::lib::rules::cross_entity::{
+        common::parent_exists,
         intercepts::{intercept_hooks_exist, intercept_inputs_valid},
         relay::maps_to_states_exist,
     },
@@ -116,6 +117,18 @@ pub fn relay_validation_schema() -> ValidationSchema<Relay> {
 
     let mut cross_entity: std::collections::HashMap<&'static str, Vec<AnyCrossEntityRule<Relay>>> =
         std::collections::HashMap::new();
+    cross_entity.insert(
+        "entity_ref",
+        vec![Box::new(|e: &TrackedRelay| {
+            let parent = e.entity_ref.parent().cloned();
+            Box::pin(async move {
+                match parent {
+                    Some(p) => parent_exists(p).await,
+                    None => vec![],
+                }
+            })
+        })],
+    );
     cross_entity.insert(
         "delegates_to",
         vec![crate::ref_check_rule!(TrackedRelay, delegates_to)],

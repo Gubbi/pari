@@ -17,6 +17,7 @@ use crate::{
         TrackedWorkflow, Workflow,
     },
     validation::lib::rules::cross_entity::{
+        common::parent_exists,
         intercepts::{intercept_hooks_exist, intercept_inputs_valid},
         workflow::no_relay_in_tree,
     },
@@ -348,6 +349,18 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
         &'static str,
         Vec<AnyCrossEntityRule<EmbeddedWorkflow>>,
     > = std::collections::HashMap::new();
+    cross_entity.insert(
+        "entity_ref",
+        vec![Box::new(|e: &TrackedEmbeddedWorkflow| {
+            let parent = e.entity_ref.parent().cloned();
+            Box::pin(async move {
+                match parent {
+                    Some(p) => parent_exists(p).await,
+                    None => vec![],
+                }
+            })
+        })],
+    );
     cross_entity.insert(
         "steps",
         vec![crate::ref_check_rule!(TrackedEmbeddedWorkflow, steps)],

@@ -18,3 +18,9 @@ pub mod task;
 
 #[path = "workflow.rs"]
 pub mod workflow;
+
+#[path = "reusable_workflow.rs"]
+pub mod reusable_workflow;
+
+#[path = "relay.rs"]
+pub mod relay;

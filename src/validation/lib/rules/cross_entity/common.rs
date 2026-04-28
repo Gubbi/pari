@@ -9,10 +9,26 @@
 //! `check_refs` inside the async block.
 
 use crate::{
-    entity::{collect_refs::CollectRefs, AnyEntityRef},
+    entity::{collect_refs::CollectRefs, AnyEntityRef, WorkflowParent},
     error::primitive::PrimitiveError,
     workspace::EntityClient,
 };
+
+/// Confirms that an embedded entity's declared parent exists in the store
+/// (or substrate). Used by every entity whose identity carries a
+/// [`WorkflowParent`] — `Task`, `Relay`, `EmbeddedWorkflow`.
+pub async fn parent_exists(parent: WorkflowParent) -> Vec<PrimitiveError> {
+    let any_ref = parent.to_any_ref();
+    let id = any_ref.id().to_owned();
+    match EntityClient::has_ref(any_ref).await {
+        Ok(false) => vec![PrimitiveError::referenced_entity_absent(
+            format!("parent entity '{id}' does not exist"),
+            "entity_ref.parent".to_string(),
+            id,
+        )],
+        _ => vec![],
+    }
+}
 
 /// Builds a cross-entity rule that collects all entity refs from a tracked
 /// entity field via `CollectRefs` and checks their existence in the store.

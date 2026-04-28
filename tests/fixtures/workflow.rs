@@ -11,42 +11,40 @@ use pari::{
     types::{Raci, WorkflowSemantic, WorkflowStateEntry},
 };
 
-/// Workflow with a single `Step::Task` referencing an embedded task.
+/// Workflow shell with a single `Step::Review`, used as the first
+/// insertion when authoring a workflow iteratively.
 ///
-/// The task itself must be inserted separately — typically using
-/// [`crate::fixtures::task::a_minimal_task`] with the same `id`
-/// (workflow id) and a matching `task_id`.
-pub fn a_workflow_with_task_step(
+/// The Review placeholder satisfies the "≥1 step" rule on insert so
+/// embedded entities (tasks, relays, embedded workflows) can be authored
+/// next with this workflow as their parent. Once those exist, callers
+/// `set_steps` to the final shape via [`task_and_review_steps`] or a
+/// custom payload.
+pub fn a_workflow_with_review_placeholder(
     id: &str,
     accountable_role_id: &str,
-    task_id: &str,
-) -> TrackedEntity {
-    let raci = canonical_raci(accountable_role_id);
-    let parent = WorkflowParent::Workflow(EntityRef::<Workflow>::new(id));
-    let mut steps: IndexMap<String, Step> = IndexMap::new();
-    steps.insert(
-        "Design".to_string(),
-        Step::Task {
-            entity_ref: EntityRef::<Task, _>::with_parent(task_id, parent),
-            depends_on: None,
-        },
-    );
-    workflow(id, raci, two_state_with_done(), steps)
-}
-
-/// Workflow with a `Step::Task` followed by a `Step::Review`.
-///
-/// Adds the `Reviewing` state required when a Review step is present,
-/// and points `on_reject` back at the task step so it satisfies
-/// `on_reject_valid`.
-pub fn a_workflow_with_task_and_review(
-    id: &str,
-    accountable_role_id: &str,
-    task_id: &str,
     approver_role_id: &str,
 ) -> TrackedEntity {
     let raci = canonical_raci(accountable_role_id);
-    let parent = WorkflowParent::Workflow(EntityRef::<Workflow>::new(id));
+    let mut steps: IndexMap<String, Step> = IndexMap::new();
+    steps.insert(
+        "Review".to_string(),
+        Step::Review {
+            approver: vec![EntityRef::<Role>::new(approver_role_id)],
+            on_reject: "Review".to_string(),
+        },
+    );
+    workflow(id, raci, three_state_with_reviewing_and_done(), steps)
+}
+
+/// Steps payload for a workflow whose final shape is one `Step::Task`
+/// followed by one `Step::Review`. The task and the review approver
+/// must already exist when the workflow is committed.
+pub fn task_and_review_steps(
+    task_id: &str,
+    workflow_id: &str,
+    approver_role_id: &str,
+) -> IndexMap<String, Step> {
+    let parent = WorkflowParent::Workflow(EntityRef::<Workflow>::new(workflow_id));
     let mut steps: IndexMap<String, Step> = IndexMap::new();
     steps.insert(
         "Design".to_string(),
@@ -62,7 +60,7 @@ pub fn a_workflow_with_task_and_review(
             on_reject: "Design".to_string(),
         },
     );
-    workflow(id, raci, three_state_with_reviewing_and_done(), steps)
+    steps
 }
 
 fn canonical_raci(role_id: &str) -> Raci {
@@ -72,21 +70,6 @@ fn canonical_raci(role_id: &str) -> Raci {
         consulted: None,
         informed: None,
     }
-}
-
-fn two_state_with_done() -> Vec<WorkflowStateEntry> {
-    vec![
-        WorkflowStateEntry {
-            id: "InProgress".to_string(),
-            description: "Work in progress.".to_string(),
-            semantic: None,
-        },
-        WorkflowStateEntry {
-            id: "Done".to_string(),
-            description: "Workflow complete.".to_string(),
-            semantic: Some(WorkflowSemantic::Done),
-        },
-    ]
 }
 
 fn three_state_with_reviewing_and_done() -> Vec<WorkflowStateEntry> {
