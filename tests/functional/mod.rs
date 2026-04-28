@@ -29,3 +29,6 @@ pub mod author_relay;
 
 #[path = "validation_failures.rs"]
 pub mod validation_failures;
+
+#[path = "lifecycle_failures.rs"]
+pub mod lifecycle_failures;

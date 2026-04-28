@@ -164,22 +164,33 @@ impl StoreManager {
             }
             StoreManagerRequest::InsertEntity { entity } => {
                 let any_ref = entity.any_ref();
-                self.entities.insert(any_ref.clone(), entity);
-                if self.removed.remove(&any_ref) {
-                    self.modified.insert(any_ref);
+                // A previously-loaded stub or a removed-then-readded entry
+                // may already occupy the slot; both are legitimate
+                // insert paths. Only an active occupant (added or
+                // modified) is a duplicate.
+                if self.added.contains(&any_ref) || self.modified.contains(&any_ref) {
+                    StoreManagerResponse::Err(PrimitiveError::entity_already_exists(
+                        "entity already exists",
+                        any_ref.id(),
+                    ))
                 } else {
-                    self.added.insert(any_ref);
+                    self.entities.insert(any_ref.clone(), entity);
+                    if self.removed.remove(&any_ref) {
+                        self.modified.insert(any_ref);
+                    } else {
+                        self.added.insert(any_ref);
+                    }
+                    StoreManagerResponse::Unit
                 }
-                StoreManagerResponse::Unit
             }
             StoreManagerRequest::Checkout { any_ref } => match self.checkout(&any_ref) {
                 Ok(entity) => StoreManagerResponse::Entity(entity),
                 Err(e) => StoreManagerResponse::Err(e),
             },
-            StoreManagerRequest::CommitCheckout { entity } => {
-                self.commit_checkout(entity);
-                StoreManagerResponse::Unit
-            }
+            StoreManagerRequest::CommitCheckout { entity } => match self.commit_checkout(entity) {
+                Ok(()) => StoreManagerResponse::Unit,
+                Err(e) => StoreManagerResponse::Err(e),
+            },
             StoreManagerRequest::UndoCheckout { any_ref } => match self.undo_checkout(&any_ref) {
                 Ok(()) => StoreManagerResponse::Unit,
                 Err(e) => StoreManagerResponse::Err(e),
@@ -243,9 +254,14 @@ impl StoreManager {
     /// with dirty fields, resets dirty after merge — added entities are
     /// always written in full on persist, so per-field dirty bits carry
     /// no additional information.
-    fn commit_checkout(&mut self, entity: TrackedEntity) {
+    fn commit_checkout(&mut self, entity: TrackedEntity) -> Result<(), PrimitiveError> {
         let any_ref = entity.any_ref();
-        self.checked_out.remove(&any_ref);
+        if !self.checked_out.remove(&any_ref) {
+            return Err(PrimitiveError::entity_not_checked_out(
+                "entity was not checked out",
+                any_ref.id(),
+            ));
+        }
         if let Some(existing) = self.entities.get_mut(&any_ref) {
             entity.merge_dirty_into(existing);
             if entity.has_dirty_fields() {
@@ -256,6 +272,7 @@ impl StoreManager {
                 }
             }
         }
+        Ok(())
     }
 
     fn undo_checkout(&mut self, any_ref: &AnyEntityRef) -> Result<(), PrimitiveError> {

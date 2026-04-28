@@ -342,6 +342,8 @@ primitive_errors! {
 
     /// The requested entity was not found in the store or substrate.
     EntityNotFound { entity_ref: String }
+    /// An insert was issued against a ref that already exists in the store.
+    EntityAlreadyExists { entity_ref: String }
     /// The entity is already checked out by another operation.
     AlreadyCheckedOut { entity_ref: String }
     /// An undo-checkout was requested but the entity was not checked out.
@@ -879,6 +881,16 @@ impl PrimitiveError {
         entity_ref: impl Into<String>,
     ) -> Self {
         Self::EntityNotCheckedOut {
+            context: Self::context(message),
+            entity_ref: entity_ref.into(),
+        }
+    }
+
+    pub fn entity_already_exists(
+        message: impl Into<String>,
+        entity_ref: impl Into<String>,
+    ) -> Self {
+        Self::EntityAlreadyExists {
             context: Self::context(message),
             entity_ref: entity_ref.into(),
         }

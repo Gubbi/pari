@@ -182,9 +182,14 @@ where
         )
         .await?;
 
-        self.store_send(StoreManagerRequest::InsertEntity { entity })
-            .await?;
-        Ok(())
+        match self
+            .store_send(StoreManagerRequest::InsertEntity { entity })
+            .await?
+        {
+            StoreManagerResponse::Unit => Ok(()),
+            StoreManagerResponse::Err(e) => Err(map_store_primitive(e, "store.insert")),
+            _ => unreachable!(),
+        }
     }
 
     async fn checkout(&self, any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
@@ -228,9 +233,14 @@ where
                 .await?;
         }
 
-        self.store_send(StoreManagerRequest::CommitCheckout { entity })
-            .await?;
-        Ok(())
+        match self
+            .store_send(StoreManagerRequest::CommitCheckout { entity })
+            .await?
+        {
+            StoreManagerResponse::Unit => Ok(()),
+            StoreManagerResponse::Err(e) => Err(map_store_primitive(e, "store.commit")),
+            _ => unreachable!(),
+        }
     }
 
     async fn remove(&self, any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
