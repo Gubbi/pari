@@ -57,6 +57,7 @@ When working in a subtree, also look for a `CLAUDE.md` file in that directory or
 - Embedded refs use `EntityRef::with_parent(id, parent)`.
 - Parent identity is part of semantic identity. Do not reintroduce workflow-id-only constructor helpers.
 - `TrackedField<T>` uses `initialize(value)` for write-once load/deserializer paths and `TrackedField::mutated(value)` for setter-side COW replacement.
+- Author cross-referenced entity trees iteratively: insert parent shell with empty steps → insert each embedded child (its parent now exists) → modify parent's steps to point at the children. Recursive across embedded depth. See `docs/design/layers/entities.md` *Authoring Constraints*.
 - There is no separate `#[derive(Tracked)]`, `TrackedMap`, or generic tracked framework in the current design.
 
 ## Structural Conventions

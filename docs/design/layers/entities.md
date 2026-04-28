@@ -171,6 +171,18 @@ One invocation, listed in [src/entity/entity_kind.rs](../../../src/entity/entity
 
 Applied to every plain entity and value type. Produces `CollectRefs::collect_refs` walking each field, recursing through containers, and pushing any contained `EntityRef` into the accumulator with a dot-notation path.
 
+## Authoring Constraints
+
+Two constraints surface when defining or extending plain entities.
+
+### Avoid struct-keyed maps
+
+The substrate projection pipeline funnels entities through `serde_json::Value`. JSON object keys must be strings, so any `HashMap<K, V>` whose `K` does not serialize as a string cannot be persisted by any substrate. Use `Vec<(K, V)>` plus a structural validation rule for whatever uniqueness the map was implicitly enforcing. `Team.include` is the canonical example: `Vec<(EntityRef<Team>, EntityRef<Role>)>` with a duplicate-team rule.
+
+### Iterative authoring of cross-referenced trees
+
+Two cross-entity invariants hold at every transaction boundary: an embedded entity's `entity_ref.parent` must exist, and a parent's step refs must exist. Authoring an entity tree therefore proceeds in order: insert the parent shell with empty steps, insert each embedded child (parent now exists), then `checkout` + `set_steps` on the parent to its final shape (children now exist). The order applies recursively — each embedded workflow is itself a parent for its own children.
+
 ## L4 Pointers
 
 | Concern | Source |
