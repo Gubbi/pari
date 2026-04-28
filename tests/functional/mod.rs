@@ -20,3 +20,9 @@ pub mod author_workflow_with_intercepts;
 
 #[path = "author_embedded_workflow.rs"]
 pub mod author_embedded_workflow;
+
+#[path = "author_reusable_workflow.rs"]
+pub mod author_reusable_workflow;
+
+#[path = "author_relay.rs"]
+pub mod author_relay;
