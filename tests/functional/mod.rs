@@ -14,3 +14,6 @@ pub mod author_workflow;
 
 #[path = "modify_persisted_entity.rs"]
 pub mod modify_persisted_entity;
+
+#[path = "author_workflow_with_intercepts.rs"]
+pub mod author_workflow_with_intercepts;

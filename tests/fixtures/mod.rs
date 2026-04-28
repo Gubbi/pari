@@ -24,3 +24,6 @@ pub mod reusable_workflow;
 
 #[path = "relay.rs"]
 pub mod relay;
+
+#[path = "hook.rs"]
+pub mod hook;

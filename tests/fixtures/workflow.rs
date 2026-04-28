@@ -1,5 +1,7 @@
 //! Canonical [`Workflow`] sample data for tests.
 
+use std::collections::HashMap;
+
 use indexmap::IndexMap;
 use pari::{
     entities::{
@@ -8,7 +10,7 @@ use pari::{
         workflow::{Step, TrackedWorkflow, Workflow},
     },
     entity::{EntityRef, TrackedEntity, WorkflowParent},
-    types::{Raci, WorkflowSemantic, WorkflowStateEntry},
+    types::{HookCall, Raci, WorkflowSemantic, WorkflowStateEntry, WorkflowTrigger},
 };
 
 /// Workflow shell with no steps yet, used as the first insertion when
@@ -29,6 +31,26 @@ pub fn a_workflow_with_empty_steps(id: &str, accountable_role_id: &str) -> Track
         raci,
         three_state_with_reviewing_and_done(),
         IndexMap::new(),
+        None,
+    )
+}
+
+/// Workflow shell with no steps and the given lifecycle intercepts.
+///
+/// Each hook referenced via [`HookCall::hook`] must already exist when
+/// the workflow is committed.
+pub fn a_workflow_with_intercepts(
+    id: &str,
+    accountable_role_id: &str,
+    intercepts: HashMap<WorkflowTrigger, HookCall>,
+) -> TrackedEntity {
+    let raci = canonical_raci(accountable_role_id);
+    workflow(
+        id,
+        raci,
+        three_state_with_reviewing_and_done(),
+        IndexMap::new(),
+        Some(intercepts),
     )
 }
 
@@ -93,6 +115,7 @@ fn workflow(
     raci: Raci,
     states: Vec<WorkflowStateEntry>,
     steps: IndexMap<String, Step>,
+    intercepts: Option<HashMap<WorkflowTrigger, HookCall>>,
 ) -> TrackedEntity {
     TrackedEntity::from_workflow(TrackedWorkflow::from(Workflow {
         entity_ref: EntityRef::new(id),
@@ -102,7 +125,7 @@ fn workflow(
         raci,
         states,
         steps,
-        intercepts: None,
+        intercepts,
         guidance: None,
         extensions: Default::default(),
     }))
