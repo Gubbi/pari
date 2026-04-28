@@ -72,7 +72,7 @@ async fn reusable_workflow_round_trips_repo_substrate() {
 async fn repo_substrate_writes_expected_reusable_workflow_files() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().to_path_buf();
-    let rwf_file = path.join("reusable-workflows/ApprovalLoop/README.md");
+    let rwf_file = path.join("common/workflows/ApprovalLoop/README.md");
 
     pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
         author_minimal_reusable_workflow().await;

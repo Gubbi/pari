@@ -152,14 +152,14 @@ async fn team_round_trips_repo_substrate_across_sessions() {
     .await;
 }
 
-/// `RepoSubstrate` writes `teams/<id>.md` in the format external tools
+/// `RepoSubstrate` writes `common/teams/<id>.md` in the format external tools
 /// consume: H1 with the name, description paragraph, and frontmatter
 /// keys for members/include/import.
 #[tokio::test]
 async fn repo_substrate_writes_expected_team_file() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().to_path_buf();
-    let team_file = path.join("teams/core.md");
+    let team_file = path.join("common/teams/core.md");
 
     pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
         EntityClient::insert(a_minimal_role("eng-lead"))

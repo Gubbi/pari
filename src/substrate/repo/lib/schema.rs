@@ -284,17 +284,17 @@ macro_rules! simple_schema {
 }
 
 impl SubstrateSchema<RepoSubstrate> for Role {
-    const SCHEMA: EntitySchema<RepoSlot> = simple_schema!("roles/{id}.md", ROLE_FIELDS);
+    const SCHEMA: EntitySchema<RepoSlot> = simple_schema!("common/roles/{id}.md", ROLE_FIELDS);
 }
 impl SubstrateSchema<RepoSubstrate> for Hook {
-    const SCHEMA: EntitySchema<RepoSlot> = simple_schema!("hooks/{id}.md", HOOK_FIELDS);
+    const SCHEMA: EntitySchema<RepoSlot> = simple_schema!("common/hooks/{id}.md", HOOK_FIELDS);
 }
 impl SubstrateSchema<RepoSubstrate> for Team {
-    const SCHEMA: EntitySchema<RepoSlot> = simple_schema!("teams/{id}.md", TEAM_FIELDS);
+    const SCHEMA: EntitySchema<RepoSlot> = simple_schema!("common/teams/{id}.md", TEAM_FIELDS);
 }
 impl SubstrateSchema<RepoSubstrate> for ArtifactKind {
     const SCHEMA: EntitySchema<RepoSlot> =
-        simple_schema!("artifact-kinds/{id}.md", ARTIFACT_KIND_FIELDS);
+        simple_schema!("common/artifact-kinds/{id}.md", ARTIFACT_KIND_FIELDS);
 }
 impl SubstrateSchema<RepoSubstrate> for Workflow {
     const SCHEMA: EntitySchema<RepoSlot> =
@@ -302,7 +302,7 @@ impl SubstrateSchema<RepoSubstrate> for Workflow {
 }
 impl SubstrateSchema<RepoSubstrate> for ReusableWorkflow {
     const SCHEMA: EntitySchema<RepoSlot> =
-        simple_schema!("reusable-workflows/{id}/README.md", WORKFLOW_FIELDS);
+        simple_schema!("common/workflows/{id}/README.md", WORKFLOW_FIELDS);
 }
 impl SubstrateSchema<RepoSubstrate> for EmbeddedWorkflow {
     const SCHEMA: EntitySchema<RepoSlot> =

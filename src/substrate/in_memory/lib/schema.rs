@@ -265,24 +265,24 @@ macro_rules! simple_schema {
 }
 
 impl SubstrateSchema<InMemorySubstrate> for Role {
-    const SCHEMA: EntitySchema<ValueSlot> = simple_schema!("roles/{id}", ROLE_FIELDS);
+    const SCHEMA: EntitySchema<ValueSlot> = simple_schema!("common/roles/{id}", ROLE_FIELDS);
 }
 impl SubstrateSchema<InMemorySubstrate> for Hook {
-    const SCHEMA: EntitySchema<ValueSlot> = simple_schema!("hooks/{id}", HOOK_FIELDS);
+    const SCHEMA: EntitySchema<ValueSlot> = simple_schema!("common/hooks/{id}", HOOK_FIELDS);
 }
 impl SubstrateSchema<InMemorySubstrate> for Team {
-    const SCHEMA: EntitySchema<ValueSlot> = simple_schema!("teams/{id}", TEAM_FIELDS);
+    const SCHEMA: EntitySchema<ValueSlot> = simple_schema!("common/teams/{id}", TEAM_FIELDS);
 }
 impl SubstrateSchema<InMemorySubstrate> for ArtifactKind {
     const SCHEMA: EntitySchema<ValueSlot> =
-        simple_schema!("artifact-kinds/{id}", ARTIFACT_KIND_FIELDS);
+        simple_schema!("common/artifact-kinds/{id}", ARTIFACT_KIND_FIELDS);
 }
 impl SubstrateSchema<InMemorySubstrate> for Workflow {
     const SCHEMA: EntitySchema<ValueSlot> = simple_schema!("workflows/{id}", WORKFLOW_FIELDS);
 }
 impl SubstrateSchema<InMemorySubstrate> for ReusableWorkflow {
     const SCHEMA: EntitySchema<ValueSlot> =
-        simple_schema!("reusable-workflows/{id}", WORKFLOW_FIELDS);
+        simple_schema!("common/workflows/{id}", WORKFLOW_FIELDS);
 }
 impl SubstrateSchema<InMemorySubstrate> for EmbeddedWorkflow {
     const SCHEMA: EntitySchema<ValueSlot> = simple_schema!("{parent.base}/{id}", WORKFLOW_FIELDS);

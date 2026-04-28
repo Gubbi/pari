@@ -29,7 +29,7 @@ fn parent_base(parent: &serde_json::Value) -> String {
     let kind = parent["kind"].as_str().unwrap_or_default();
     match kind {
         "Workflow" => format!("workflows/{id}"),
-        "ReusableWorkflow" => format!("reusable-workflows/{id}"),
+        "ReusableWorkflow" => format!("common/workflows/{id}"),
         "EmbeddedWorkflow" => {
             let base = parent_base(&parent["parent"]);
             format!("{base}/{id}")

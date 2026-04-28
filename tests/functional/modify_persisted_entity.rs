@@ -117,7 +117,7 @@ async fn modify_optional_field_within_session(#[case] kind: SubstrateKind) {
 async fn modify_field_across_repo_sessions() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().to_path_buf();
-    let role_file = path.join("roles/eng-lead.md");
+    let role_file = path.join("common/roles/eng-lead.md");
 
     pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
         EntityClient::insert(a_minimal_role("eng-lead"))

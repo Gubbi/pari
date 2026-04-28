@@ -108,13 +108,13 @@ async fn role_round_trips_repo_substrate_across_sessions() {
 }
 
 /// `RepoSubstrate`'s file format is a public output: external tools read
-/// `roles/<id>.md` directly. Pin the shape so format changes are
+/// `common/roles/<id>.md` directly. Pin the shape so format changes are
 /// deliberate.
 #[tokio::test]
 async fn repo_substrate_writes_expected_role_file() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().to_path_buf();
-    let role_file = path.join("roles/eng-lead.md");
+    let role_file = path.join("common/roles/eng-lead.md");
 
     pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
         EntityClient::insert(a_role_with_optional_fields("eng-lead"))
