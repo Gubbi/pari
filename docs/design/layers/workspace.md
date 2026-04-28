@@ -33,11 +33,39 @@ Three surfaces cover every caller interaction. All are async and surface
 | Surface | Location | Used for |
 |---|---|---|
 | `EntityClient::*` | [src/workspace/client.rs](../../../src/workspace/client.rs) | Operations keyed by `AnyEntityRef`: `resolve`, `has_ref`, `insert`, `remove`, `checkout`, `load`, `ensure_mutable`, `persist`, `undo_commit`, `unload`. |
-| `TrackedEntity::{commit, undo_checkout}` | [src/workspace/tracked_entity.rs](../../../src/workspace/tracked_entity.rs) | Methods on a checked-out entity — consume or release it back to the store. |
-| Generated accessors / setters | `#[derive(Entity)]` output — see `generate_accessors_and_setters` in [pari-macros/src/workspace_codegen.rs](../../../pari-macros/src/workspace_codegen.rs) | Per-field `fn name(&self) -> Result<&T, …>` and `fn set_name(&mut self, value: T) -> Result<(), …>` on every plain entity. |
+| Per-entity `XDelegate::{set_*, commit, undo_checkout}` | `#[derive(Entity)]` output — `generate_workspace_parts` in [pari-macros/src/workspace_codegen.rs](../../../pari-macros/src/workspace_codegen.rs) | Mutation handle returned by `EntityClient::checkout::<X>`. Owns the checked-out tracked entity, exposes setters, consumes itself on `commit(self)` / `undo_checkout(self)`. Not `Clone`. |
+| Generated accessors | `#[derive(Entity)]` output — `generate_workspace_parts` in [pari-macros/src/workspace_codegen.rs](../../../pari-macros/src/workspace_codegen.rs) | Per-field `fn name(&self) -> Result<&T, …>` on `TrackedX`. Reachable from `TrackedEntity` (read path) and from `XDelegate` via `Deref<Target = TrackedX>`. |
 
 `EntityClient` itself is a zero-sized type — there is no client state. The
-handle is the `AnyEntityRef` passed to each call.
+handle is the `AnyEntityRef` (or, for `checkout`, the typed
+`EntityRef<T, T::Parent>`) passed to each call.
+
+## Mutation Isolation
+
+The contract "only a checked-out entity is mutable" is enforced at the
+type level rather than by runtime convention.
+
+| Handle | Source | Read | Mutate | `commit` / `undo_checkout` | `Clone` |
+|---|---|:---:|:---:|:---:|:---:|
+| `TrackedEntity` (and its `TrackedX` variants) | `EntityClient::resolve`, internal storage | ✓ | — | — | ✓ |
+| `XDelegate` (per entity, generated) | `EntityClient::checkout::<X>` | ✓ via `Deref` | ✓ | ✓ (consume) | — |
+
+`EntityClient::checkout` is generic over `T: Entity` and returns
+`T::Delegate`. The compile-time consequences:
+
+- A `TrackedEntity` from `resolve` has no setters, no `commit`, no
+  `undo_checkout`. Trying to mutate one is a compile error.
+- A delegate is constructed only by the workspace, only on a
+  successful `Checkout` response from the store, so the existence of
+  the delegate is proof of authorization. The store remains the sole
+  authority for granting checkouts; the workspace performs the typed
+  wrapping at the API boundary because that's where `T` is statically
+  known.
+- Delegates are not `Clone`, so even with `clone()` on a tracked
+  handle the duplicate cannot reach a setter or `commit`.
+- `commit(self)` and `undo_checkout(self)` consume the delegate, so
+  the lifecycle ends at the type level too — there is no stale handle
+  to mutate after release.
 
 ## Uniform Request Shape
 
@@ -86,17 +114,19 @@ prefetch — is owned by the `store` layer and described there.
 
 ## Mutation Pattern — `ensure_mutable` Then Inline Validation
 
-Setters run four steps, synchronously within the caller's task. The
-generated body lives alongside the accessor in
-`generate_accessors_and_setters`
+Setters live on the per-entity `XDelegate` (not on the read-only
+`TrackedX`) and run four steps synchronously within the caller's task.
+The generated body lives alongside the accessor codegen in
+`generate_workspace_parts`
 ([pari-macros/src/workspace_codegen.rs](../../../pari-macros/src/workspace_codegen.rs)).
 
 1. **Prepare the field for overwrite.** Call
    `EntityClient::ensure_mutable(any_ref, field)`. The store loads any
    prerequisites and, if the substrate requires it, the field itself —
    preventing a later load from silently clobbering the new value.
-2. **Build a candidate.** Clone `self` and replace the target field with a
-   fresh `Arc::new(TrackedField::mutated(value))`. Untouched fields keep
+2. **Build a candidate.** Clone the delegate's owned `inner: TrackedX`
+   and replace the target field with a fresh
+   `Arc::new(TrackedField::mutated(value))`. Untouched fields keep
    their existing `Arc` — tracking is per-field, so validation sees a
    consistent snapshot of the rest of the entity.
 3. **Validate the candidate in-process.** Run
@@ -104,9 +134,9 @@ generated body lives alongside the accessor in
    `ValidationKind::Semantic`, scoped to the mutated field. This is
    workspace-owned validation: it happens at the call site, not at commit
    or persist time. A failure returns `ActivityError` without mutating
-   `self`.
-4. **Swap the `Arc`.** On success, `Arc::clone` the candidate's field into
-   `self`, leaving all other fields untouched.
+   the delegate.
+4. **Swap the `Arc`.** On success, `Arc::clone` the candidate's field
+   into `self.inner`, leaving all other fields untouched.
 
 Cross-entity validation runs at store-managed boundaries (commit, persist)
 rather than inside setters — those kinds need the full resolved graph and
@@ -122,7 +152,7 @@ splits along the same boundary as every other layer:
 | Role | File(s) | Error type |
 |---|---|---|
 | Pure | [lib/request.rs](../../../src/workspace/lib/request.rs) | None — the dispatch is infallible; channel failures originate inside `EntityServer → StoreManager` and arrive as `StoreResponse::Err` |
-| Orchestration | [client.rs](../../../src/workspace/client.rs), [tracked_entity.rs](../../../src/workspace/tracked_entity.rs) | Forwards store-originated `ActivityError` carried inside `StoreResponse::Err` |
+| Orchestration | [client.rs](../../../src/workspace/client.rs), per-entity `XDelegate` impls — generated by [`generate_workspace_parts`](../../../pari-macros/src/workspace_codegen.rs) | Forwards store-originated `ActivityError` carried inside `StoreResponse::Err` |
 
 The pure helper owns the active-`EntityServer` lookup and the dispatch
 call. Orchestration sites surface application-level errors carried

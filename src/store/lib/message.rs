@@ -12,7 +12,7 @@ use crate::{
 
 /// One per caller operation — the workspace-facing request surface of
 /// the entity server.
-pub(crate) enum StoreRequest {
+pub enum StoreRequest {
     Resolve {
         any_ref: AnyEntityRef,
     },
@@ -56,7 +56,7 @@ pub(crate) enum StoreRequest {
 
 /// Typed reply payload. `Err` carries application-level failures
 /// from the dispatcher unchanged.
-pub(crate) enum StoreResponse {
+pub enum StoreResponse {
     Entity(TrackedEntity),
     Bool(bool),
     Unit,

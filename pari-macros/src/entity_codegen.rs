@@ -28,6 +28,7 @@ pub struct EntityDeriveParts {
 pub fn generate_entity_derive_parts(
     ast: &DeriveInput,
     tracked_name: &Ident,
+    delegate_name: &Ident,
     kind_expr: &TokenStream2,
     parent_type: &TokenStream2,
     no_dispatch: bool,
@@ -85,6 +86,7 @@ pub fn generate_entity_derive_parts(
     let entity_impl = generate_entity_impl(
         name,
         tracked_name,
+        delegate_name,
         kind_expr,
         parent_type,
         no_dispatch,
@@ -738,6 +740,7 @@ fn generate_deserialize_impl(
 fn generate_entity_impl(
     name: &Ident,
     tracked_name: &Ident,
+    delegate_name: &Ident,
     kind_expr: &TokenStream2,
     parent_type: &TokenStream2,
     no_dispatch: bool,
@@ -770,6 +773,30 @@ fn generate_entity_impl(
         }
     };
 
+    let take_body = if no_dispatch {
+        quote! {
+            ::std::result::Result::Err(entity)
+        }
+    } else {
+        quote! {
+            match entity {
+                ::pari::entity::TrackedEntity::#variant_name(t) => ::std::result::Result::Ok(t),
+                other => ::std::result::Result::Err(other),
+            }
+        }
+    };
+
+    let into_tracked_entity_body = if no_dispatch {
+        quote! {
+            let _ = tracked;
+            unimplemented!("into_tracked_entity: no_dispatch is set")
+        }
+    } else {
+        quote! {
+            ::pari::entity::TrackedEntity::#variant_name(tracked)
+        }
+    };
+
     quote! {
         impl ::pari::entity::Entity for #name {
             const KIND: ::pari::entity::EntityKind = #kind_expr;
@@ -778,6 +805,7 @@ fn generate_entity_impl(
 
             type Parent = #parent_type;
             type Tracked = #tracked_name;
+            type Delegate = #delegate_name;
 
             fn to_any_ref(
                 entity_ref: &::pari::entity::EntityRef<Self, Self::Parent>,
@@ -789,6 +817,16 @@ fn generate_entity_impl(
                 entity: &::pari::entity::TrackedEntity,
             ) -> ::std::option::Option<&Self::Tracked> {
                 #extract_body
+            }
+
+            fn take(
+                entity: ::pari::entity::TrackedEntity,
+            ) -> ::std::result::Result<Self::Tracked, ::pari::entity::TrackedEntity> {
+                #take_body
+            }
+
+            fn into_tracked_entity(tracked: Self::Tracked) -> ::pari::entity::TrackedEntity {
+                #into_tracked_entity_body
             }
         }
     }

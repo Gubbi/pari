@@ -17,18 +17,20 @@ use syn::DeriveInput;
 use crate::{
     entity_codegen::generate_entity_derive_parts,
     validation_codegen::generate_validation_schema_access,
-    workspace_codegen::generate_accessors_and_setters,
+    workspace_codegen::generate_workspace_parts,
 };
 
 pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
     let name = &ast.ident;
     let tracked_name = syn::Ident::new(&format!("Tracked{name}"), name.span());
+    let delegate_name = syn::Ident::new(&format!("{name}Delegate"), name.span());
 
     let (kind_expr, parent_type, no_dispatch, schema_fn) = parse_entity_attr(&ast);
     let validation_schema_method = generate_validation_schema_access(name, &schema_fn);
     let entity_parts = match generate_entity_derive_parts(
         &ast,
         &tracked_name,
+        &delegate_name,
         &kind_expr,
         &parent_type,
         no_dispatch,
@@ -39,7 +41,8 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
     };
 
     let domain_field_refs = entity_parts.domain_fields.iter().collect::<Vec<_>>();
-    let (accessors, setters) = generate_accessors_and_setters(name, &domain_field_refs);
+    let workspace_parts =
+        generate_workspace_parts(name, &tracked_name, &delegate_name, &domain_field_refs);
 
     let crate::entity_codegen::EntityDeriveParts {
         tracked_struct,
@@ -50,6 +53,11 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
         tracked_for_impl,
         domain_fields: _,
     } = entity_parts;
+    let crate::workspace_codegen::WorkspaceParts {
+        accessors,
+        delegate_struct,
+        delegate_impl,
+    } = workspace_parts;
 
     quote! {
         #tracked_struct
@@ -57,13 +65,15 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
 
         impl #tracked_name {
             #(#accessors)*
-            #(#setters)*
         }
 
         #entity_impl
         #tracked_for_impl
         #serialize_impl
         #deserialize_impl
+
+        #delegate_struct
+        #delegate_impl
     }
 }
 

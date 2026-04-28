@@ -128,7 +128,7 @@ flowchart LR
 
 ### Copy-on-write mutation
 
-A setter does not mutate the existing `TrackedField`. It builds a new `Arc<TrackedField::mutated(v)>` and swaps the `Arc` on the tracked entity. Previous `Arc` clones held elsewhere (e.g., an in-flight checkout) see the old value unchanged. The dirty flag on the new field marks which fields the store must persist.
+A setter does not mutate the existing `TrackedField`. It builds a new `Arc<TrackedField::mutated(v)>` and swaps the `Arc` on the delegate's owned `TrackedX` instance. The store's canonical `Arc` for that field is unchanged until `commit` merges the dirty fields back. Concurrent readers holding earlier `Arc` clones see the old value. The dirty flag on the new field marks which fields the store must persist.
 
 Primitive and related L4 detail: [src/entity/tracked/tracked_field.rs](../../../src/entity/tracked/tracked_field.rs).
 
@@ -147,10 +147,11 @@ Applied to every plain entity struct. Attribute form:
 | Generated item | Owning layer | Purpose |
 |---|---|---|
 | `Tracked<Name>` struct (fields wrapped in `Arc<TrackedField<T>>`) | `entity` | The tracked companion used throughout the runtime. |
-| `impl Entity for <Name>` (with `KIND`, `Parent`, `validation_schema()`, `to_any_ref`, `extract`) | `entity` | Entity identity glue. |
+| `impl Entity for <Name>` (with `KIND`, `Parent`, `Tracked`, `Delegate`, `validation_schema()`, `to_any_ref`, `extract`, `take`, `into_tracked_entity`) | `entity` | Entity identity glue, including the typed `Delegate` for `EntityClient::checkout::<Name>`. |
 | `impl TrackedFor for Tracked<Name>` | `entity` | Roundtrip: `Tracked<Name>::Entity = Name`. |
 | Custom `Serialize` / `Deserialize` for the tracked companion | `entity` | Serde uses the plain shape; load path funnels through `TrackedField::initialize`. |
-| Async accessors and setters on `Tracked<Name>` | `workspace` | Caller-facing per-field API. |
+| Async accessors on `Tracked<Name>` | `workspace` | Per-field read API. Reachable from both `TrackedEntity` (read path) and `<Name>Delegate` via `Deref`. |
+| `<Name>Delegate` struct + setters + `commit(self)` / `undo_checkout(self)` | `workspace` | Mutation handle returned by `EntityClient::checkout::<Name>`. Owns the checked-out tracked instance; not `Clone`. |
 | Validation-schema access | `validation` | Connects the entity to its rule set. |
 
 ### `entity_registry!`

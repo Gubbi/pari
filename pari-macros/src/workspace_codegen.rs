@@ -1,34 +1,35 @@
-//! Code generation for the `workspace` layer's per-field accessors and
-//! setters.
+//! Code generation for the `workspace` layer's per-field accessors,
+//! per-field setters, and the per-entity `Delegate` mutation handle.
 //!
 //! The generated items belong to the `workspace` layer: they are the
 //! runtime expression of the access and mutation patterns described in
 //! `docs/design/layers/workspace.md`. The macro crate only hosts the
 //! generation; the semantics are owned by `workspace`.
+//!
+//! Accessors live on the tracked companion (`TrackedX`) so they are
+//! reachable from any handle — checked-out delegates expose them
+//! through `Deref`. Setters and the `commit` / `undo_checkout`
+//! lifecycle live on the per-entity delegate (`XDelegate`) so mutation
+//! is reachable only after a successful checkout.
 
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{Field, Ident, Type};
 
-/// Emit the per-field `fn name(&self)` accessor and `fn set_name(&mut self, value)`
-/// setter for every domain field of a plain entity.
-///
-/// **Accessor shape** — checks the field's `OnceLock`, issues
-/// `EntityClient::load` when empty, then returns the loaded value with
-/// small ergonomic projections (`String` → `&str`, `Vec<T>` → `&[T]`,
-/// `Option<_>` variants analogously). This is the transparent-load half of
-/// the access pattern.
-///
-/// **Setter shape** — four steps, synchronous within the caller's task:
-/// `ensure_mutable` for store-side prep, build a candidate by cloning
-/// `self` and swapping the field's `Arc<TrackedField<T>>`, run structural
-/// and semantic [`validation`](../../src/validation) against the
-/// candidate, then `Arc::clone` the candidate's field into `self`. This
-/// is the mutation pattern's call-site validation step.
-pub fn generate_accessors_and_setters(
+pub struct WorkspaceParts {
+    pub accessors: Vec<TokenStream2>,
+    pub delegate_struct: TokenStream2,
+    pub delegate_impl: TokenStream2,
+}
+
+/// Emit accessors on `TrackedX`, plus the per-entity `XDelegate`
+/// struct, its setters, and its `commit` / `undo_checkout` lifecycle.
+pub fn generate_workspace_parts(
     entity_name: &Ident,
+    tracked_name: &Ident,
+    delegate_name: &Ident,
     domain_fields: &[&Field],
-) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
+) -> WorkspaceParts {
     let accessors: Vec<TokenStream2> = domain_fields
         .iter()
         .map(|f| {
@@ -61,11 +62,11 @@ pub fn generate_accessors_and_setters(
             quote! {
                 pub async fn #setter_name(&mut self, value: #ty) -> ::std::result::Result<(), ::pari::error::ActivityError> {
                     ::pari::workspace::EntityClient::ensure_mutable(
-                        <#entity_name as ::pari::entity::Entity>::to_any_ref(self.entity_ref()),
+                        <#entity_name as ::pari::entity::Entity>::to_any_ref(self.inner.entity_ref()),
                         #fname_str,
                     ).await?;
 
-                    let mut candidate = self.clone();
+                    let mut candidate = self.inner.clone();
                     candidate.#fname = ::std::sync::Arc::new(::pari::tracked::TrackedField::mutated(value));
 
                     ::pari::validation::run_validations::<#entity_name>(
@@ -77,14 +78,80 @@ pub fn generate_accessors_and_setters(
                         ],
                     ).await?;
 
-                    self.#fname = ::std::sync::Arc::clone(&candidate.#fname);
+                    self.inner.#fname = ::std::sync::Arc::clone(&candidate.#fname);
                     Ok(())
                 }
             }
         })
         .collect();
 
-    (accessors, setters)
+    let delegate_struct = quote! {
+        /// Mutation handle returned by `EntityClient::checkout`. Owns
+        /// the checked-out tracked entity, exposes setters for each
+        /// domain field, and is consumed on `commit` or
+        /// `undo_checkout`. Not `Clone` — checkout is single-writer.
+        pub struct #delegate_name {
+            pub(crate) inner: #tracked_name,
+        }
+
+        impl ::std::convert::From<#tracked_name> for #delegate_name {
+            fn from(inner: #tracked_name) -> Self {
+                Self { inner }
+            }
+        }
+    };
+
+    let delegate_impl = quote! {
+        impl #delegate_name {
+            #(#setters)*
+
+            /// Validate the dirty fields, merge the checked-out entity
+            /// back into the store, and release the checkout. Consumes
+            /// the delegate.
+            pub async fn commit(self) -> ::std::result::Result<(), ::pari::error::ActivityError> {
+                let entity = <#entity_name as ::pari::entity::Entity>::into_tracked_entity(self.inner);
+                match ::pari::workspace::lib::request::request(
+                    ::pari::store::StoreRequest::Commit { entity },
+                )
+                .await
+                {
+                    ::pari::store::StoreResponse::Unit => ::std::result::Result::Ok(()),
+                    ::pari::store::StoreResponse::Err(e) => ::std::result::Result::Err(e),
+                    _ => unreachable!(),
+                }
+            }
+
+            /// Discard pending edits and release the checkout. Consumes
+            /// the delegate.
+            pub async fn undo_checkout(self) -> ::std::result::Result<(), ::pari::error::ActivityError> {
+                let any_ref = <#entity_name as ::pari::entity::Entity>::to_any_ref(
+                    self.inner.entity_ref(),
+                );
+                match ::pari::workspace::lib::request::request(
+                    ::pari::store::StoreRequest::UndoCheckout { any_ref },
+                )
+                .await
+                {
+                    ::pari::store::StoreResponse::Unit => ::std::result::Result::Ok(()),
+                    ::pari::store::StoreResponse::Err(e) => ::std::result::Result::Err(e),
+                    _ => unreachable!(),
+                }
+            }
+        }
+
+        impl ::std::ops::Deref for #delegate_name {
+            type Target = #tracked_name;
+            fn deref(&self) -> &#tracked_name {
+                &self.inner
+            }
+        }
+    };
+
+    WorkspaceParts {
+        accessors,
+        delegate_struct,
+        delegate_impl,
+    }
 }
 
 fn accessor_return_type(ty: &Type) -> (TokenStream2, TokenStream2) {

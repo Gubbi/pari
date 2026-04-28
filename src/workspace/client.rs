@@ -6,7 +6,7 @@
 //! unchanged.
 
 use crate::{
-    entity::{AnyEntityRef, TrackedEntity},
+    entity::{AnyEntityRef, Entity, EntityRef, TrackedEntity},
     error::ActivityError,
     store::{StoreRequest, StoreResponse},
     workspace::lib::request::request,
@@ -73,16 +73,26 @@ impl EntityClient {
 
     /// Acquire per-entity exclusive mutation rights.
     ///
-    /// Returns a [`TrackedEntity`] whose setters are callable; subsequent
-    /// checkout attempts for the same ref fail until the caller releases
-    /// it via [`TrackedEntity::commit`] or
-    /// [`TrackedEntity::undo_checkout`](crate::entity::TrackedEntity).
-    pub async fn checkout(any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
-        match request(StoreRequest::Checkout { any_ref }).await {
-            StoreResponse::Entity(e) => Ok(e),
-            StoreResponse::Err(e) => Err(e),
+    /// Returns the typed [`Entity::Delegate`] for `T`, which exposes
+    /// setters and the `commit` / `undo_checkout` lifecycle. The
+    /// delegate is not [`Clone`] and consumes itself on release.
+    /// Subsequent checkout attempts for the same ref fail until the
+    /// active delegate is committed or undone.
+    pub async fn checkout<T: Entity>(
+        entity_ref: EntityRef<T, T::Parent>,
+    ) -> Result<T::Delegate, ActivityError>
+    where
+        T::Delegate: From<T::Tracked>,
+    {
+        let any_ref = T::to_any_ref(&entity_ref);
+        let entity = match request(StoreRequest::Checkout { any_ref }).await {
+            StoreResponse::Entity(e) => e,
+            StoreResponse::Err(e) => return Err(e),
             _ => unreachable!(),
-        }
+        };
+        let tracked = T::take(entity)
+            .unwrap_or_else(|_| unreachable!("store returned the wrong tracked variant for T"));
+        Ok(T::Delegate::from(tracked))
     }
 
     /// Explicitly load a field.

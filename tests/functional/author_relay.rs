@@ -149,14 +149,12 @@ async fn author_workflow_with_relay() {
     .unwrap();
     EntityClient::persist().await.unwrap();
 
-    let mut entity = EntityClient::checkout(workflow_ref("DesignFlow"))
+    let mut wf = EntityClient::checkout(EntityRef::<Workflow>::new("DesignFlow"))
         .await
         .unwrap();
-    if let TrackedEntity::Workflow(ref mut wf) = entity {
-        wf.set_steps(relay_step("Handoff", "DesignFlow"))
-            .await
-            .unwrap();
-    }
-    entity.commit().await.unwrap();
+    wf.set_steps(relay_step("Handoff", "DesignFlow"))
+        .await
+        .unwrap();
+    wf.commit().await.unwrap();
     EntityClient::persist().await.unwrap();
 }

@@ -9,6 +9,7 @@
 //! `steps` to its final shape.
 
 use pari::{
+    entities::workflow::Workflow,
     entity::{AnyEntityRef, EntityRef, TrackedEntity},
     substrate::RepoSubstrate,
     workspace::EntityClient,
@@ -141,14 +142,12 @@ async fn author_workflow_with_task_and_review() {
         .await
         .unwrap();
 
-    let mut entity = EntityClient::checkout(workflow_ref("DesignFlow"))
+    let mut wf = EntityClient::checkout(EntityRef::<Workflow>::new("DesignFlow"))
         .await
         .unwrap();
-    if let TrackedEntity::Workflow(ref mut wf) = entity {
-        wf.set_steps(task_and_review_steps("Design", "DesignFlow", "approver"))
-            .await
-            .unwrap();
-    }
-    entity.commit().await.unwrap();
+    wf.set_steps(task_and_review_steps("Design", "DesignFlow", "approver"))
+        .await
+        .unwrap();
+    wf.commit().await.unwrap();
     EntityClient::persist().await.unwrap();
 }

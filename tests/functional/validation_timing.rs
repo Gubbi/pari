@@ -10,10 +10,11 @@
 use indexmap::IndexMap;
 use pari::{
     entities::{
+        role::Role,
         task::Task,
         workflow::{Step, Workflow},
     },
-    entity::{AnyEntityRef, EntityRef, TrackedEntity, WorkflowParent},
+    entity::{EntityRef, WorkflowParent},
     error::{primitive::PrimitiveError, ActivityError},
     workspace::EntityClient,
 };
@@ -26,12 +27,12 @@ use crate::{
     },
 };
 
-fn workflow_ref(id: &str) -> AnyEntityRef {
-    AnyEntityRef::Workflow(EntityRef::new(id))
+fn workflow_typed(id: &str) -> EntityRef<Workflow> {
+    EntityRef::new(id)
 }
 
-fn role_ref(id: &str) -> AnyEntityRef {
-    AnyEntityRef::Role(EntityRef::new(id))
+fn role_typed(id: &str) -> EntityRef<Role> {
+    EntityRef::new(id)
 }
 
 fn assert_validation_at(
@@ -67,11 +68,10 @@ async fn setter_structural_validation_fires_at_setter_time() {
             .await
             .unwrap();
         EntityClient::persist().await.unwrap();
-        let mut entity = EntityClient::checkout(role_ref("eng-lead")).await.unwrap();
-        let TrackedEntity::Role(ref mut r) = entity else {
-            panic!("expected Role")
-        };
-        let result = r.set_name(String::new()).await;
+        let mut role = EntityClient::checkout(role_typed("eng-lead"))
+            .await
+            .unwrap();
+        let result = role.set_name(String::new()).await;
         assert_validation_at(result, "name", |e| {
             matches!(e, PrimitiveError::EmptyRequiredValue { .. })
         });
@@ -93,12 +93,9 @@ async fn setter_semantic_validation_fires_at_setter_time() {
             .unwrap();
         EntityClient::persist().await.unwrap();
 
-        let mut entity = EntityClient::checkout(workflow_ref("DesignFlow"))
+        let mut wf = EntityClient::checkout(workflow_typed("DesignFlow"))
             .await
             .unwrap();
-        let TrackedEntity::Workflow(ref mut wf) = entity else {
-            panic!("expected Workflow")
-        };
         let mut steps: IndexMap<String, Step> = IndexMap::new();
         steps.insert(
             "Review".to_string(),
@@ -142,12 +139,9 @@ async fn commit_cross_entity_validation_fires_for_setter_mutated_refs() {
         .unwrap();
         EntityClient::persist().await.unwrap();
 
-        let mut entity = EntityClient::checkout(workflow_ref("DesignFlow"))
+        let mut wf = EntityClient::checkout(workflow_typed("DesignFlow"))
             .await
             .unwrap();
-        let TrackedEntity::Workflow(ref mut wf) = entity else {
-            panic!("expected Workflow")
-        };
         let parent = WorkflowParent::Workflow(EntityRef::<Workflow>::new("DesignFlow"));
         let mut steps: IndexMap<String, Step> = IndexMap::new();
         steps.insert(
@@ -160,7 +154,7 @@ async fn commit_cross_entity_validation_fires_for_setter_mutated_refs() {
         // Setter does not run cross-entity validation — accepts.
         wf.set_steps(steps).await.unwrap();
         // Commit re-runs cross-entity for dirty fields and rejects.
-        let result = entity.commit().await;
+        let result = wf.commit().await;
         assert_validation_at(result, "steps", |e| {
             matches!(e, PrimitiveError::ReferencedEntityAbsent { .. })
         });

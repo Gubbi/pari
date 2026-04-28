@@ -161,29 +161,29 @@ async fn author_nested_workflow() {
     EntityClient::persist().await.unwrap();
 
     // Modify embedded workflow steps to reference the task.
-    let mut embedded = EntityClient::checkout(embedded_workflow_ref("Onboarding", "DesignFlow"))
-        .await
-        .unwrap();
-    if let TrackedEntity::EmbeddedWorkflow(ref mut ew) = embedded {
-        ew.set_steps(task_step_for_embedded(
+    let embedded_typed = EntityRef::<EmbeddedWorkflow, _>::with_parent(
+        "Onboarding",
+        WorkflowParent::Workflow(EntityRef::<Workflow>::new("DesignFlow")),
+    );
+    let mut embedded = EntityClient::checkout(embedded_typed).await.unwrap();
+    embedded
+        .set_steps(task_step_for_embedded(
             "Welcome",
             "Onboarding",
             "DesignFlow",
         ))
         .await
         .unwrap();
-    }
     embedded.commit().await.unwrap();
 
     // Modify parent workflow steps to reference the embedded workflow.
-    let mut parent = EntityClient::checkout(workflow_ref("DesignFlow"))
+    let mut parent = EntityClient::checkout(EntityRef::<Workflow>::new("DesignFlow"))
         .await
         .unwrap();
-    if let TrackedEntity::Workflow(ref mut wf) = parent {
-        wf.set_steps(embedded_workflow_step("Onboarding", "DesignFlow"))
-            .await
-            .unwrap();
-    }
+    parent
+        .set_steps(embedded_workflow_step("Onboarding", "DesignFlow"))
+        .await
+        .unwrap();
     parent.commit().await.unwrap();
 
     EntityClient::persist().await.unwrap();

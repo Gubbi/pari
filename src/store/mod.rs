@@ -18,6 +18,8 @@ pub(crate) mod manager;
 pub(crate) use entity_server::{
     install_global_entity_server, install_override_entity_server, EntityServer,
 };
-pub use lib::change::EntityChange;
-pub(crate) use lib::message::{StoreRequest, StoreResponse};
+pub use lib::{
+    change::EntityChange,
+    message::{StoreRequest, StoreResponse},
+};
 pub(crate) use manager::StoreManager;

@@ -8,6 +8,7 @@
 //! every scenario runs against `InMemorySubstrate`.
 
 use pari::{
+    entities::role::Role,
     entity::{AnyEntityRef, EntityRef},
     error::{primitive::PrimitiveError, ActivityError},
     workspace::EntityClient,
@@ -20,6 +21,10 @@ use crate::{
 
 fn role_ref(id: &str) -> AnyEntityRef {
     AnyEntityRef::Role(EntityRef::new(id))
+}
+
+fn role_typed(id: &str) -> EntityRef<Role> {
+    EntityRef::new(id)
 }
 
 fn assert_activity_error<T>(
@@ -72,7 +77,7 @@ async fn resolve_missing_entity_fails() {
 #[tokio::test]
 async fn checkout_missing_entity_fails() {
     run_with(SubstrateKind::InMemory, || async {
-        let result = EntityClient::checkout(role_ref("missing")).await;
+        let result = EntityClient::checkout(role_typed("missing")).await;
         assert_activity_error(
             result,
             non_existent(|e| matches!(e, PrimitiveError::EntityNotFound { .. })),
@@ -87,8 +92,10 @@ async fn checkout_already_checked_out_fails() {
         EntityClient::insert(a_minimal_role("eng-lead"))
             .await
             .unwrap();
-        let _entity = EntityClient::checkout(role_ref("eng-lead")).await.unwrap();
-        let result = EntityClient::checkout(role_ref("eng-lead")).await;
+        let _delegate = EntityClient::checkout(role_typed("eng-lead"))
+            .await
+            .unwrap();
+        let result = EntityClient::checkout(role_typed("eng-lead")).await;
         assert_activity_error(
             result,
             checkout_lifecycle(|e| matches!(e, PrimitiveError::AlreadyCheckedOut { .. })),
@@ -97,23 +104,11 @@ async fn checkout_already_checked_out_fails() {
     .await;
 }
 
-#[tokio::test]
-async fn commit_without_checkout_fails() {
-    run_with(SubstrateKind::InMemory, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        // Resolve gives us a TrackedEntity, but no checkout has been
-        // taken. commit must reject.
-        let entity = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let result = entity.commit().await;
-        assert_activity_error(
-            result,
-            checkout_lifecycle(|e| matches!(e, PrimitiveError::EntityNotCheckedOut { .. })),
-        );
-    })
-    .await;
-}
+// commit-without-checkout is now a compile-time guarantee: TrackedEntity
+// returned by `resolve` does not have a `commit` method. The generated
+// `XDelegate` is the only carrier of `commit` / `undo_checkout`, and
+// the only way to obtain a delegate is `checkout`. No runtime test
+// reaches this path through the public API.
 
 #[tokio::test]
 async fn persist_with_pending_checkouts_fails() {
@@ -121,7 +116,9 @@ async fn persist_with_pending_checkouts_fails() {
         EntityClient::insert(a_minimal_role("eng-lead"))
             .await
             .unwrap();
-        let _checked_out = EntityClient::checkout(role_ref("eng-lead")).await.unwrap();
+        let _delegate = EntityClient::checkout(role_typed("eng-lead"))
+            .await
+            .unwrap();
         let result = EntityClient::persist().await;
         assert_activity_error(
             result,
@@ -137,7 +134,9 @@ async fn remove_checked_out_entity_fails() {
         EntityClient::insert(a_minimal_role("eng-lead"))
             .await
             .unwrap();
-        let _checked_out = EntityClient::checkout(role_ref("eng-lead")).await.unwrap();
+        let _delegate = EntityClient::checkout(role_typed("eng-lead"))
+            .await
+            .unwrap();
         let result = EntityClient::remove(role_ref("eng-lead")).await;
         assert_activity_error(
             result,
@@ -165,7 +164,9 @@ async fn undo_commit_checked_out_entity_fails() {
         EntityClient::insert(a_minimal_role("eng-lead"))
             .await
             .unwrap();
-        let _checked_out = EntityClient::checkout(role_ref("eng-lead")).await.unwrap();
+        let _delegate = EntityClient::checkout(role_typed("eng-lead"))
+            .await
+            .unwrap();
         let result = EntityClient::undo_commit(role_ref("eng-lead")).await;
         assert_activity_error(
             result,
@@ -182,8 +183,6 @@ async fn undo_commit_with_no_changes_fails() {
             .await
             .unwrap();
         EntityClient::persist().await.unwrap();
-        // A persisted entity with no uncommitted changes has nothing to
-        // undo.
         let result = EntityClient::undo_commit(role_ref("eng-lead")).await;
         assert_activity_error(
             result,
@@ -200,7 +199,9 @@ async fn unload_checked_out_entity_fails() {
             .await
             .unwrap();
         EntityClient::persist().await.unwrap();
-        let _checked_out = EntityClient::checkout(role_ref("eng-lead")).await.unwrap();
+        let _delegate = EntityClient::checkout(role_typed("eng-lead"))
+            .await
+            .unwrap();
         let result = EntityClient::unload(role_ref("eng-lead")).await;
         assert_activity_error(
             result,
@@ -225,8 +226,6 @@ async fn unload_missing_entity_fails() {
 #[tokio::test]
 async fn unload_unsaved_entity_fails() {
     run_with(SubstrateKind::InMemory, || async {
-        // Inserted but not yet persisted — has unsaved adds. Unload
-        // would lose them.
         EntityClient::insert(a_minimal_role("eng-lead"))
             .await
             .unwrap();

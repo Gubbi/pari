@@ -725,15 +725,10 @@ async fn workflow_step_with_invalid_depends_on_fails() {
                 depends_on: Some(vec!["Missing".to_string()]),
             },
         );
-        let mut wf = EntityClient::checkout(pari::entity::AnyEntityRef::Workflow(EntityRef::new(
-            "DesignFlow",
-        )))
-        .await
-        .unwrap();
-        let TrackedEntity::Workflow(ref mut tw) = wf else {
-            panic!("expected Workflow")
-        };
-        let result = tw.set_steps(steps).await;
+        let mut wf = EntityClient::checkout(EntityRef::<Workflow>::new("DesignFlow"))
+            .await
+            .unwrap();
+        let result = wf.set_steps(steps).await;
         assert_validation_error(result, "steps", |e| {
             matches!(e, PrimitiveError::IllegalDependencyReference { .. })
         });
@@ -786,15 +781,10 @@ async fn workflow_step_with_forward_depends_on_fails() {
             },
         );
 
-        let mut wf = EntityClient::checkout(pari::entity::AnyEntityRef::Workflow(EntityRef::new(
-            "DesignFlow",
-        )))
-        .await
-        .unwrap();
-        let TrackedEntity::Workflow(ref mut tw) = wf else {
-            panic!("expected Workflow")
-        };
-        let result = tw.set_steps(steps).await;
+        let mut wf = EntityClient::checkout(EntityRef::<Workflow>::new("DesignFlow"))
+            .await
+            .unwrap();
+        let result = wf.set_steps(steps).await;
         assert_validation_error(result, "steps", |e| {
             matches!(e, PrimitiveError::IllegalDependencyReference { .. })
         });
@@ -1043,23 +1033,18 @@ async fn team_include_cycle_fails() {
         EntityClient::persist().await.unwrap();
 
         // Now modify team-a to include team-b — closes the cycle.
-        let mut entity =
-            EntityClient::checkout(pari::entity::AnyEntityRef::Team(EntityRef::new("team-a")))
-                .await
-                .unwrap();
-        let TrackedEntity::Team(ref mut t) = entity else {
-            panic!("expected Team")
-        };
-        let result = t
-            .set_include(Some(vec![(
-                EntityRef::new("team-b"),
-                EntityRef::new("eng-lead"),
-            )]))
-            .await;
+        let mut team = EntityClient::checkout(EntityRef::<Team>::new("team-a"))
+            .await
+            .unwrap();
         // Cross-entity (cycle) runs at commit, not setter; setter should
         // succeed. The cycle is detected on commit.
-        result.unwrap();
-        let commit_result = entity.commit().await;
+        team.set_include(Some(vec![(
+            EntityRef::new("team-b"),
+            EntityRef::new("eng-lead"),
+        )]))
+        .await
+        .unwrap();
+        let commit_result = team.commit().await;
         assert_validation_error(
             commit_result,
             "include",
@@ -1083,17 +1068,13 @@ async fn team_import_cycle_fails() {
             .unwrap();
         EntityClient::persist().await.unwrap();
 
-        let mut entity =
-            EntityClient::checkout(pari::entity::AnyEntityRef::Team(EntityRef::new("team-a")))
-                .await
-                .unwrap();
-        let TrackedEntity::Team(ref mut t) = entity else {
-            panic!("expected Team")
-        };
-        t.set_import(Some(vec![EntityRef::new("team-b")]))
+        let mut team = EntityClient::checkout(EntityRef::<Team>::new("team-a"))
             .await
             .unwrap();
-        let commit_result = entity.commit().await;
+        team.set_import(Some(vec![EntityRef::new("team-b")]))
+            .await
+            .unwrap();
+        let commit_result = team.commit().await;
         assert_validation_error(
             commit_result,
             "import",
