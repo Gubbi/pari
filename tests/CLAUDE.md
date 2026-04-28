@@ -31,6 +31,9 @@ When this file and the design doc disagree, the design doc wins.
 | `author_reusable_workflow.rs` | Author a reusable workflow. |
 | `author_relay.rs` | Author a workflow with a relay step. |
 | `modify_persisted_entity.rs` | Modify a previously-persisted entity. |
+| `abandon_in_progress_edit.rs` | Abandon a checkout — `undo_checkout` discards staged changes and releases the lock. |
+| `rollback_staged_change.rs` | Roll back committed-but-not-persisted changes — added entities are removed; modified entities revert. |
+| `refresh_entity_from_substrate.rs` | Drop loaded fields and re-read from substrate — picks up external file edits. |
 | `validation_failures.rs` | Validation rejects invalid input across all three tiers. |
 | `validation_timing.rs` | Validation fires at the right lifecycle point (setter / commit). |
 | `lifecycle_failures.rs` | Lifecycle preconditions are enforced (duplicate insert, missing-entity ops, checkout collisions, persist with pending). |
