@@ -16,14 +16,18 @@ Do not describe this crate as a separate architectural home for runtime behavior
 
 ## Macro Map
 
-- `#[derive(Entity)]`: multi-layer generation across `entity`, `workspace`, and `validation`
+- `#[derive(Entity)]`: multi-layer generation across `entity`, `workspace`, and `validation`. For each entity it produces:
+  - `Tracked<Name>` companion struct + accessors (entity / workspace).
+  - `<Name>Delegate` mutation handle + setters + `commit(self)` / `undo_checkout(self)` (workspace).
+  - `impl Entity for <Name>` including the `Delegate` associated type and the `take` / `into_tracked_entity` round-trip methods (entity).
 - `entity_registry!`: generated aggregate types and dispatch used across `entity`, `store`, and `substrate`
 - `#[derive(ErrorCompose)]`: `error`-layer classification derive
 - `#[derive(OTelEmit)]`: `error`-layer telemetry derive
 
 ## Current Naming
 
-- Generated type-erased tracked wrapper: `TrackedEntity`
+- Generated type-erased tracked wrapper (read-only): `TrackedEntity`
+- Per-entity mutation handle (single-writer, not `Clone`): `<Name>Delegate`
 - Store persist handoff referenced by generated code: `EntityChange`
 - Setter-side field mutation helper: `TrackedField::mutated`
 - Load/deserializer helper: `TrackedField::initialize`

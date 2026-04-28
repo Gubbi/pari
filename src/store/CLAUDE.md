@@ -28,3 +28,4 @@ If an edit starts to describe file layout, resolver logic, or rule authoring, it
 - The store, not the caller, picks which `ValidationKind`s run at each operation — see the design doc's validation-decision table.
 - `EntityChange` is the only type substrates see from the store's change-tracking; they must not depend on `StoreManager` internals.
 - Dirty state resets only after `substrate.persist` succeeds — a substrate error leaves change lists intact for retry.
+- Lifecycle preconditions are enforced inside the manager — duplicate insert returns `EntityAlreadyExists`; commit on a ref that was never checked out returns `EntityNotCheckedOut`. The "checkout before mutate, commit only after checkout" contract is not a permissive convention.

@@ -41,8 +41,8 @@ When working in a subtree, also look for a `CLAUDE.md` file in that directory or
 ## Current Naming And Ownership
 
 - Use `TrackedEntity`, not `StoreEntity`, for the type-erased tracked wrapper enum in `src/entity/mod.rs`.
-- Use `EntityChange` from `src/store/change.rs` for the store-to-substrate persist handoff.
-- The lazy persist-set helper is `PersistChanges` in `src/store/change.rs`; it remains store-owned plumbing behind the `EntityChange<'_>` contract.
+- Use `EntityChange` from `src/store/lib/change.rs` for the store-to-substrate persist handoff.
+- Mutation is gated by typed `<Name>Delegate` handles. `EntityClient::resolve` returns a read-only `TrackedEntity`; `EntityClient::checkout::<T>(EntityRef<T, _>)` returns the typed `T::Delegate` (`RoleDelegate`, `WorkflowDelegate`, …) — setters and `commit(self)` / `undo_checkout(self)` live there. Delegates are not `Clone`. The contract is enforced at the type level.
 - `workspace` owns caller-facing async operations and operation error types.
 - `store` owns orchestration flow, in-memory state, checkout lifecycle, and persist orchestration. `EntityServer` is the stateless dispatcher workspace calls into; `StoreManager` is the singleton state-custodian actor and the store layer's only async actor.
 - `substrate` owns the persistence trait, pipeline, schema-backed defaults, and concrete backends.

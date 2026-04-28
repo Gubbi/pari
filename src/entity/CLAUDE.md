@@ -30,4 +30,5 @@ If an edit starts to discuss store dispatch, asset writes, or rule execution ord
 - Tracked field paths: `TrackedField::initialize(value)` for load/deserializer, `Arc::new(TrackedField::mutated(value))` for COW setter replacement.
 - `Step` is not an entity — no `EntityRef`, no `#[derive(Entity)]`.
 - `#[derive(Entity)]` generates behavior for multiple layers (`entity`, `workspace`, `validation`). Ownership of the generated items follows the consuming layer, not the macro crate.
+- Per-entity `<Name>Delegate` (workspace-owned) is generated alongside `Tracked<Name>` (entity-owned). Setters and `commit` / `undo_checkout` live on the delegate; accessors live on the tracked companion. The `Entity::Delegate` associated type plus the `take` / `into_tracked_entity` methods on the trait round-trip the tracked form through delegate construction.
 - Do not document removed concepts: `#[derive(Tracked)]`, `TrackedMap`, `TrackedField::with_value`, `StoreEntity`.

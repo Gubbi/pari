@@ -40,6 +40,10 @@ When this file and the design doc disagree, the design doc wins.
 - Use the `ref_check_rule!` macro for plain ref-existence checks on a
   field; reserve hand-written cross-entity rules for more elaborate
   checks (hook input binding, cycle detection, embedded-tree shape).
+- Embedded entities (`Task`, `Relay`, `EmbeddedWorkflow`) cross-entity-
+  validate their `entity_ref.parent` via the `parent_exists` helper in
+  [lib/rules/cross_entity/common.rs](/Users/vinuth/code/pari/src/validation/lib/rules/cross_entity/common.rs).
+  An embedded entity's parent must exist in the store at insert time.
 - Per-entity schema builders live next to the entity's rule primitives
   in `lib/rules/<entity>.rs` and are dispatched by
   `#[derive(Entity)]`'s generated `validation_schema()`.
