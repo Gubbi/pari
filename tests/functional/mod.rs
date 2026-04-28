@@ -26,3 +26,6 @@ pub mod author_reusable_workflow;
 
 #[path = "author_relay.rs"]
 pub mod author_relay;
+
+#[path = "validation_failures.rs"]
+pub mod validation_failures;
