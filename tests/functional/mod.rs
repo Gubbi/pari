@@ -44,3 +44,6 @@ pub mod rollback_staged_change;
 
 #[path = "refresh_entity_from_substrate.rs"]
 pub mod refresh_entity_from_substrate;
+
+#[path = "external_corruption.rs"]
+pub mod external_corruption;
