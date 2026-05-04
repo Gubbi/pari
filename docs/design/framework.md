@@ -80,17 +80,18 @@ Realistically, Pari cannot ship adapters for every client environment or every s
 Within the core, a request flows through `workspace`, `store`, and `substrate` on its way to persistence:
 
 ```mermaid
-architecture-beta
-    service client(server)[Client]
-    service workspace(server)[workspace]
-    service store(database)[store]
-    service substrate(server)[substrate]
-    service persistence(database)[Persistence]
+flowchart LR
+    client[Client]
+    workspace[workspace]
+    store[store]
+    substrate[substrate]
+    persistence[(Persistence)]
 
-    client:R --> L:workspace
-    workspace:R --> L:store
-    store:R --> L:substrate
-    substrate:R --> L:persistence
+    client --> workspace
+    workspace --> store
+    store --> substrate
+    substrate --> persistence
+    store -.->|validation| workspace
 ```
 
 Alongside these three runtime layers, `entity` supplies the shared vocabulary — identity, tracked types, and schemas — that every core layer and every extension speaks.
@@ -103,7 +104,9 @@ The shared vocabulary that every other layer — and every extension — speaks.
 
 ### `workspace` — uniform access gateway
 
-The single caller-facing surface. `workspace` abstracts away the explicit loading patterns, request plumbing, and persistence mechanics of lower layers. Callers work in terms of refs and the fields they need; data from substrate is made available transparently, without coupling callers to substrate's grammar. Validation is applied automatically on the path through `workspace` so callers do not have to orchestrate it themselves.
+The single caller-facing surface. A workspace is a **bounded session of entity work** over Pari's primitives: a client surface (or a Rust caller) constructs one for a scope of work and drops it when the scope ends. Multiple workspaces coexist; they share the underlying staging tier but each carries its own session of in-scope handles.
+
+`workspace` abstracts away the explicit loading patterns, request plumbing, and persistence mechanics of lower layers. Callers work in terms of refs and the fields they need; data from substrate is made available transparently, without coupling callers to substrate's grammar. Validation is applied automatically on the path through `workspace` so callers do not have to orchestrate it themselves.
 
 ### `store` — staging and caching
 
@@ -131,16 +134,34 @@ flowchart LR
 
 Schemas declaratively compose Slots → Assets → Entity in a uniform way, so backends do not hand-code the load/persist logic for each entity-and-asset combination. Backends decide *where* and *how* data is stored; `substrate` defines *what* a backend must be able to do. Pipeline specifics live in [substrate.md](./layers/substrate.md).
 
-## Runtime Independence
+## Runtime and Composition Integration
 
-`pari` does not depend on a specific async runtime in production. Within `src/`, futures are awaited but never spawned — the only async actor in the core is `store::StoreManager`, and integrators decide how its future is driven.
+Pari's core does not impose a runtime, install process-wide state, or self-bootstrap. Integrators wire the core themselves and bring their own runtime.
 
-Two entry points expose the seam:
+### Composition
 
-- `pari::init(substrate, spawn_fn)` — production setup. The caller passes a `SpawnFn` (`Arc<dyn Fn(BoxFuture<'static, ()>) + Send + Sync>`) bound to their runtime, and `init` uses it to spawn the singleton `StoreManager`.
-- `pari::with(substrate, || async { ... })` — scoped setup for tests and embedded scenarios. Drives the `StoreManager` future internally via `futures::join!`, so callers need no runtime-specific spawner.
+Components are constructed bottom-up — backend first, then `store`, then a `workspace` over them — and connected by reference. At runtime, calls flow top-down through the same chain, with one back-edge from `store` into `workspace` so validation can run against in-store entities through the same handles callers use:
 
-The production crate depends only on `futures`. `tokio` is a dev-dependency, used by tests that pick a runtime to host `init` or `with`.
+```mermaid
+flowchart LR
+    client[Client surface]
+    workspace[workspace<br/><i>bounded session</i>]
+    store[store<br/><i>staging tier</i>]
+    backend[Substrate backend<br/><i>integrator-supplied</i>]
+
+    client --> workspace
+    workspace --> store
+    store --> backend
+    store -.->|validation| workspace
+```
+
+There are no globals: the integrator decides the lifetime and sharing of every component, and a process can host more than one composition side by side (for tests, for multi-tenant servers, for embedded scenarios).
+
+### Runtime independence
+
+Within the core, futures are awaited but never spawned. The only async actor is in the `store` layer, and the integrator hands it to their runtime via a caller-provided spawn function at construction time. The production crate depends only on `futures`; `tokio` (or any other runtime) is the integrator's choice.
+
+This is what makes the seams usable in practice: the same `pari` library backs a Tokio server, an embedded sync caller driving futures by hand, and a test harness running inside `futures::executor`, with no conditional compilation.
 
 ## Error Handling at a Glance
 
@@ -199,8 +220,8 @@ See [error-handling.md](./layers/error-handling.md) for composition, propagation
 
 - [layer-model.md](./layers/layer-model.md) — formal ownership, dependency rules, and within-layer structure.
 - [entities.md](./layers/entities.md) — entity layer: identity, macros, tracked versions, schemas.
-- [workspace.md](./layers/workspace.md) — workspace layer: uniform access gateway, transparent expansion, automatic validation.
-- [store.md](./layers/store.md) — store layer: `EntityServer` + `StoreManager` split, sparse staging.
+- [workspace.md](./layers/workspace.md) — workspace layer: bounded session, viewer/editor handles, transparent expansion, automatic validation.
+  - [validation.md](./layers/validation.md) — validation as a workspace sub-area: three-kind model, schemas, runner flow.
+- [store.md](./layers/store.md) — store layer: staging tier, access surface, sparse field-level state.
 - [substrate.md](./layers/substrate.md) — substrate layer: asset pipeline, slot/asset/entity composition, schema-driven load/persist paths.
-- [validation.md](./layers/validation.md) — validation layer: three-kind model, `ValidationSchema<T>`, runner flow.
 - [error-handling.md](./layers/error-handling.md) — error layer: composition, propagation, OTel emission, `as_error<E>()` downcasting, SpanTrace invariants.

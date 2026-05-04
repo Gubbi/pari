@@ -89,6 +89,7 @@ Production code (`src/`) must not depend on `tokio` or any other specific async 
 - Treat design docs as authoritative unless a real implementation constraint forces a design amendment.
 - Keep concepts DRY across docs and local guidance. Link to the authoritative design doc instead of repeating long explanations.
 - Commit at the end of each completed task so diffs stay easy to review task-by-task.
+- Apply edits one file at a time. Do not preview diffs in chat before writing — the editor shows the diff natively. Pause after each file so the user can course-correct before the next one.
 
 ## Useful References
 
