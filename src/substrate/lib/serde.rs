@@ -21,10 +21,15 @@ pub(crate) fn entity_to_json(entity: &TrackedEntity) -> Result<serde_json::Value
     })
 }
 
-pub(crate) fn merge_field_map_into(
-    target: &mut TrackedEntity,
+/// Merge a codec-decoded `field_map` into an in-progress JSON
+/// accumulator that already carries `entity_ref`. `extensions` is
+/// flattened so its keys land at the entity-root namespace, and
+/// dot-notation keys (e.g. `"raci.accountable"`) become nested
+/// objects.
+pub(crate) fn merge_field_map_into_json(
+    accumulator: &mut serde_json::Map<String, serde_json::Value>,
     mut field_map: HashMap<String, serde_json::Value>,
-) -> Result<(), PrimitiveError> {
+) {
     if let Some(ext) = field_map.remove("extensions") {
         if let Some(obj) = ext.as_object() {
             for (k, v) in obj {
@@ -33,15 +38,9 @@ pub(crate) fn merge_field_map_into(
         }
     }
 
-    let mut map = serde_json::Map::new();
-    map.insert("entity_ref".to_string(), any_ref_json(&target.any_ref()));
     for (key, value) in field_map {
-        insert_path_value(&mut map, &key, value);
+        insert_path_value(accumulator, &key, value);
     }
-
-    let partial = deserialize_entity_from_value(&target.any_ref(), serde_json::Value::Object(map))?;
-    partial.initialize_into(target);
-    Ok(())
 }
 
 pub(crate) fn value_at_path<'a>(
@@ -79,20 +78,7 @@ fn insert_path_value(
     }
 }
 
-fn deserialize_entity_from_value(
-    any_ref: &AnyEntityRef,
-    value: serde_json::Value,
-) -> Result<TrackedEntity, PrimitiveError> {
-    TrackedEntity::from_json_value(any_ref, value).map_err(|e| {
-        PrimitiveError::partial_payload_deserialization(
-            "partial payload deserialization failed",
-            any_ref.id().to_string(),
-            e.to_string(),
-        )
-    })
-}
-
-fn any_ref_json(any_ref: &AnyEntityRef) -> serde_json::Value {
+pub(crate) fn any_ref_json(any_ref: &AnyEntityRef) -> serde_json::Value {
     any_ref
         .to_json_value()
         .expect("entity refs should always serialize")

@@ -328,7 +328,7 @@ where
         any_ref: &AnyEntityRef,
         field: &str,
     ) -> Result<(), ActivityError> {
-        let strategy = S::load_strategy(any_ref.kind(), field)?;
+        let strategy = S::load_strategy(any_ref, field)?;
 
         for prereq in strategy.prerequisites {
             self.load_fields(any_ref, &[prereq], true).await?;
@@ -387,7 +387,7 @@ where
             // Load prerequisites first.
             if include_prerequisites {
                 for field in pending.clone() {
-                    let strategy = S::load_strategy(any_ref.kind(), field)?;
+                    let strategy = S::load_strategy(any_ref, field)?;
                     for prereq in strategy.prerequisites {
                         self.load_fields(any_ref, &[prereq], true).await?;
                     }
@@ -428,7 +428,17 @@ where
                 }
             };
 
-            let loaded = self.substrate.load(&current, &still_pending).await?;
+            let loaded_json = self.substrate.load(&current, &still_pending).await?;
+            let loaded = TrackedEntity::from_json_value(any_ref, loaded_json).map_err(|e| {
+                ActivityError::unpersistable_definition(
+                    "store.load",
+                    PrimitiveError::partial_payload_deserialization(
+                        "partial payload deserialization failed",
+                        any_ref.id().to_string(),
+                        e.to_string(),
+                    ),
+                )
+            })?;
 
             // Validate loaded fields, wrapped as unpersistable if they fail.
             run_validations_for_entity(

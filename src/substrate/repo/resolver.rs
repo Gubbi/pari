@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use crate::{
     entity::EntityKind,
     substrate::{
-        pipeline::LocationResolver, repo::substrate::RepoSubstrate, SchemaBackedSubstrate,
+        lib::schema_registry::schema_for_kind, pipeline::LocationResolver,
+        repo::substrate::RepoSubstrate,
     },
 };
 
@@ -46,7 +47,7 @@ fn parent_base(parent: &serde_json::Value) -> String {
         return String::new();
     };
 
-    let template = <RepoSubstrate as SchemaBackedSubstrate>::schema_for(kind)
+    let template = schema_for_kind::<RepoSubstrate>(kind)
         .ref_asset
         .path_template;
     let base_template = template

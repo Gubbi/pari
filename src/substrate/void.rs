@@ -1,5 +1,5 @@
 use crate::{
-    entity::{AnyEntityRef, EntityKind, TrackedEntity},
+    entity::{AnyEntityRef, TrackedEntity},
     error::{primitive::PrimitiveError, ActivityError},
     store::EntityChange,
     substrate::{
@@ -94,7 +94,7 @@ impl Substrate for VoidSubstrate {
         "void_substrate"
     }
 
-    fn load_strategy(_: EntityKind, _: &str) -> Result<pipeline::LoadStrategy, ActivityError> {
+    fn load_strategy(_: &AnyEntityRef, _: &str) -> Result<pipeline::LoadStrategy, ActivityError> {
         Ok(pipeline::LoadStrategy {
             prerequisites: vec![],
             mutable_without_load: true,
@@ -109,7 +109,7 @@ impl Substrate for VoidSubstrate {
         &self,
         entity: &TrackedEntity,
         _: &[&str],
-    ) -> Result<TrackedEntity, ActivityError> {
+    ) -> Result<serde_json::Value, ActivityError> {
         let entity_ref = entity.any_ref().id().to_string();
         Err(ActivityError::corrupt_persistence_state(
             Self::substrate_name(),

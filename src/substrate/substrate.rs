@@ -1,7 +1,7 @@
 //! The [`Substrate`] trait — persistence contract the store calls into.
 
 use crate::{
-    entity::{AnyEntityRef, EntityKind, TrackedEntity},
+    entity::{AnyEntityRef, TrackedEntity},
     error::ActivityError,
     store::EntityChange,
     substrate::{defaults, lib::schema_registry::SchemaBackedSubstrate, pipeline},
@@ -18,6 +18,12 @@ use crate::{
 ///
 /// `substrate_name()` identifies the backend in error component strings
 /// (`"repo_substrate.codec"`, `"in_memory_substrate.executor"`, etc.).
+///
+/// Shape queries (`load_strategy`, `schema_for`) take `&AnyEntityRef`,
+/// not `EntityKind`. `EntityKind` is substrate-internal vocabulary for
+/// per-kind dispatch inside `schema_registry.rs`; it does not appear in
+/// the trait surface. Reads return `serde_json::Value` payloads — the
+/// store performs the JSON ↔ tracked conversion.
 pub trait Substrate: Sized + Send + Sync + 'static {
     type Slot: pipeline::Slot;
     type Location: Send;
@@ -35,13 +41,13 @@ pub trait Substrate: Sized + Send + Sync + 'static {
     fn substrate_name() -> &'static str;
 
     fn load_strategy(
-        entity_kind: EntityKind,
+        any_ref: &AnyEntityRef,
         field: &str,
     ) -> Result<pipeline::LoadStrategy, ActivityError>
     where
         Self: SchemaBackedSubstrate,
     {
-        defaults::load_strategy::<Self>(entity_kind, field)
+        defaults::load_strategy::<Self>(any_ref, field)
     }
 
     fn exists<'a>(
@@ -58,7 +64,7 @@ pub trait Substrate: Sized + Send + Sync + 'static {
         &'a self,
         entity: &'a TrackedEntity,
         fields: &'a [&'a str],
-    ) -> impl std::future::Future<Output = Result<TrackedEntity, ActivityError>> + Send + 'a
+    ) -> impl std::future::Future<Output = Result<serde_json::Value, ActivityError>> + Send + 'a
     where
         Self: SchemaBackedSubstrate,
     {

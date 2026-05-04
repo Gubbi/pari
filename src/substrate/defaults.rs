@@ -8,7 +8,8 @@
 //!   resolved location and batches them through the executor.
 //! - [`load`] resolves asset locations from the entity's own JSON,
 //!   fetches the chosen assets with `Get`, and merges codec-decoded
-//!   field maps into a clone of the input entity.
+//!   field maps into a fresh `serde_json::Value` partial entity. The
+//!   store performs the JSON ↔ tracked conversion.
 //! - [`persist`] turns a stream of [`EntityChange`]s into a single
 //!   executor batch of `Put`/`Post`/`Patch`/`Delete` ops — write-op
 //!   selection is driven by the asset's [`pipeline::AssetKind`] plus
@@ -18,13 +19,15 @@
 use std::collections::HashSet;
 
 use crate::{
-    entity::{AnyEntityRef, EntityKind, TrackedEntity},
+    entity::{AnyEntityRef, TrackedEntity},
     error::{primitive::PrimitiveError, ActivityError},
     store::EntityChange,
     substrate::{
         lib::{
             schema_registry::SchemaBackedSubstrate,
-            serde::{any_ref_to_stub_json, entity_to_json, merge_field_map_into},
+            serde::{
+                any_ref_json, any_ref_to_stub_json, entity_to_json, merge_field_map_into_json,
+            },
         },
         pipeline,
         pipeline::{Codec, Executor, LocationResolver},
@@ -53,13 +56,13 @@ fn executor_component<Sub: Substrate>() -> String {
 // ---------------------------------------------------------------------------
 
 pub(crate) fn load_strategy<Sub>(
-    entity_kind: EntityKind,
+    any_ref: &AnyEntityRef,
     field: &str,
 ) -> Result<pipeline::LoadStrategy, ActivityError>
 where
     Sub: SchemaBackedSubstrate,
 {
-    Sub::schema_for(entity_kind)
+    Sub::schema_for(any_ref)
         .load_strategy_for(field)
         .map_err(|e| ActivityError::invalid_persistence_layout(schema_component::<Sub>(), e))
 }
@@ -72,7 +75,7 @@ where
     Sub: SchemaBackedSubstrate,
 {
     let requests = refs.iter().map(|any_ref| {
-        let schema = Sub::schema_for(any_ref.kind());
+        let schema = Sub::schema_for(any_ref);
         let stub_json = any_ref_to_stub_json(any_ref);
         let location = substrate
             .resolver()
@@ -97,15 +100,20 @@ where
         .collect()
 }
 
+/// Read the requested fields out of the substrate and return them as a
+/// `serde_json::Value` partial entity (carrying `entity_ref` plus the
+/// loaded fields). The store deserializes the result into a
+/// `TrackedEntity` and merges it onto its canonical copy.
 pub(crate) async fn load<Sub>(
     substrate: &Sub,
     entity: &TrackedEntity,
     fields: &[&str],
-) -> Result<TrackedEntity, ActivityError>
+) -> Result<serde_json::Value, ActivityError>
 where
     Sub: SchemaBackedSubstrate,
 {
-    let schema = Sub::schema_for(entity.any_ref().kind());
+    let any_ref = entity.any_ref();
+    let schema = Sub::schema_for(&any_ref);
     let entity_json = entity_to_json(entity)
         .map_err(|e| ActivityError::unpersistable_definition(codec_component::<Sub>(), e))?;
     let assets_to_fetch = pipeline::AssetMapper::select_for_read(schema, fields)
@@ -126,7 +134,9 @@ where
         .execute(requests)
         .map_err(|errs| collapse_executor_errors::<Sub>(errs))?;
 
-    let mut result = entity.clone();
+    let mut accumulator = serde_json::Map::new();
+    accumulator.insert("entity_ref".to_string(), any_ref_json(&any_ref));
+
     for (asset, response) in assets_to_fetch.iter().zip(responses.into_iter()) {
         let encoded = match response {
             pipeline::AssetResponse::Data(encoded) => encoded,
@@ -136,11 +146,10 @@ where
             .codec()
             .decode(&encoded, asset.fields())
             .map_err(|e| ActivityError::unpersistable_definition(codec_component::<Sub>(), e))?;
-        merge_field_map_into(&mut result, field_map)
-            .map_err(|e| ActivityError::unpersistable_definition(codec_component::<Sub>(), e))?;
+        merge_field_map_into_json(&mut accumulator, field_map);
     }
 
-    Ok(result)
+    Ok(serde_json::Value::Object(accumulator))
 }
 
 pub(crate) async fn persist<'a, Sub>(
@@ -155,7 +164,7 @@ where
     for change in changes {
         match change {
             EntityChange::Removed(any_ref) => {
-                let schema = Sub::schema_for(any_ref.kind());
+                let schema = Sub::schema_for(&any_ref);
                 let stub_json = any_ref_to_stub_json(&any_ref);
                 for asset in delete_assets(schema) {
                     let location = substrate
@@ -168,11 +177,13 @@ where
                 }
             }
             EntityChange::Added(entity) => {
-                let schema = Sub::schema_for(entity.any_ref().kind());
+                let any_ref = entity.any_ref();
+                let schema = Sub::schema_for(&any_ref);
                 build_write_ops::<Sub>(substrate, &entity, schema, None, &mut ops)?;
             }
             EntityChange::Modified(entity, dirty_fields) => {
-                let schema = Sub::schema_for(entity.any_ref().kind());
+                let any_ref = entity.any_ref();
+                let schema = Sub::schema_for(&any_ref);
                 build_write_ops::<Sub>(
                     substrate,
                     &entity,
