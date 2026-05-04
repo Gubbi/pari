@@ -302,7 +302,7 @@ Used by:
   `json_to_verified_tracked(json, &[], &[Structural, Semantic, CrossEntity])`,
   result handed to `Store::insert`.
 - `load_fields` —
-  `json_to_verified_tracked(loaded_json, &loaded_fields, &[Structural, Semantic])`,
+  `json_to_verified_tracked(loaded_json, &loaded_fields, &[Structural, Semantic, CrossEntity])`,
   result handed to `Store::initialize_field`.
 
 The `tracked.clone()` before `import_erased` is cheap — the outer
@@ -653,10 +653,20 @@ validator (Item 5 setter pattern).
 | Site | Where | What runs |
 |---|---|---|
 | Setter (per-field) | workspace, in `XEditor::set_<field>` | Structural + Semantic on transient candidate viewer |
-| Insert | server, in `StoreServer.handle_insert` via per-request workspace | Structural + Semantic + Cross-entity |
-| Commit | server, in `StoreServer.handle_commit` via per-request workspace | Cross-entity |
-| Load | server, in `StoreServer.load_fields` via per-request workspace | Structural + Semantic on loaded fields |
+| Insert | server, in `StoreServer.handle_insert` via per-request workspace | Structural + Semantic + CrossEntity (whole entity) |
+| Commit | server, in `StoreServer.handle_commit` via per-request workspace | CrossEntity (whole entity, or dirty fields if scoped) |
+| Load | server, in `StoreServer.load_fields` via per-request workspace | Structural + Semantic + CrossEntity (loaded fields only) |
 | Persist | (none) | Trusts prior validation gates |
+
+Rationale for the unified commit row: insert validates Structural +
+Semantic + CrossEntity on the whole entity at creation; setters
+validate Structural + Semantic per field on each mutation. By the time
+`commit` runs, all S/Sem coverage is already in place. Only
+CrossEntity may have shifted (other entities added/removed/re-targeted
+since insert or checkout). The previous `is_added` branch in
+`handle_commit` ran S+Sem+CrossEntity for added entities and
+CrossEntity-only for modified — defensive re-validation that is
+folded out in this refactor.
 
 ### Layer placement
 
