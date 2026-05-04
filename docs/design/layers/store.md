@@ -1,65 +1,78 @@
 # Store
 
-The `store` layer owns every in-memory tracked entity and every decision
-about when to touch the substrate. It is the only layer that holds mutable
-entity state: workspace forwards caller requests to it, and substrate is
-invoked from inside its orchestration. Callers never see the store
-directly — they drive it exclusively through the `workspace` layer.
+The `store` layer owns every in-memory tracked entity and every decision about when to touch the substrate. It is the only layer that holds mutable entity state: workspace dispatches caller requests into it, and substrate is invoked from inside its orchestration. Callers never see the store directly — they drive it exclusively through the `workspace` layer.
 
-The framework-level view is in [../framework.md](../framework.md). The
-layering rules are in [layer-model.md](layer-model.md). This document
-covers the L3 design: the `EntityServer`/`StoreManager` split, the in-memory state model, the
-checkout and persist lifecycles, load orchestration, and where the store
-decides validation runs.
+`store` is type-erased throughout. Every request, response, and internal method speaks `AnyEntityRef` and `TrackedEntity` only; no method is generic over a typed `T: Entity`. Typed↔erased conversion is a `workspace` concern.
+
+The framework-level view is in [../framework.md](../framework.md). The layering rules are in [layer-model.md](layer-model.md). This document covers the L3 design: the two dispatch boundaries, the `StoreServer`/`Store` split, the in-memory state model, the checkout and persist lifecycles, load orchestration, the JSON ↔ tracked pipeline, and where the store decides validation runs.
 
 ## Shape Of The Layer
 
 | Goal | Consequence for the design |
 |---|---|
-| One owner of mutable state | A single `StoreManager` actor holds every `HashMap` and `HashSet`; every mutation flows through it. |
-| Orchestration is stateless | `EntityServer` is a stateless handle: workspace dispatches `StoreRequest`s into it directly, and each caller's task drives its own orchestration sequence around the manager. |
-| Validation runs at well-defined moments | The store, not the caller, picks which `ValidationKind`s apply at insert, commit, load, and persist. |
+| Integrators wire the layer's components themselves | `Store` and `StoreServer` each return their dispatch handle from a constructor. Multiple compositions coexist; each is independent. |
+| One owner of mutable state | A single `Store` per composition holds every map and set; every state mutation flows through it. |
+| Orchestration is stateless | `StoreServer` is a stateless handle; concurrent callers run their orchestration in parallel, while state access is serialized inside the store. |
+| Type-erased boundary with workspace | The wire types (`WorkspaceRequest`, `WorkspaceResponse`) carry only `AnyEntityRef` and `TrackedEntity`. |
+| Deserialization unified at one seam | Insert and substrate-load both produce JSON; the server runs a single JSON ↔ tracked pipeline that wraps, imports, and validates before reaching the store. |
+| Validation runs at well-defined moments | The store, not the caller, picks which `ValidationKind`s apply at insert, commit, and load. Validation is invoked through a per-request workspace constructed over the server's own dispatch surface. |
 | Persist is all-or-nothing | Outstanding checkouts block persist; substrate is called with a snapshot, and dirty state is reset only after the substrate returns. |
 
-`store` depends on `entity` (for refs and tracked entities), `substrate`
-(for load/persist/exists), `validation` (for rule execution), and `error`.
-It does not depend on `workspace`.
+`store` depends on `entity` (refs and tracked entities), `substrate` (load / persist / exists / strategy / schema), `workspace` (validation seam — invoked through `Workspace::import_erased(...).validate_with(...)`), and `error`.
 
-## EntityServer + StoreManager
+## Two Dispatch Boundaries
+
+The layer exposes two trait boundaries with parallel structure. Both live here; the workspace layer consumes the outward one.
+
+| Trait | Direction | Carries |
+|---|---|---|
+| `Dispatcher` | `workspace → StoreServer` | `WorkspaceRequest` / `WorkspaceResponse` |
+| `StoreDispatcher` | `StoreServer → Store` | `StoreRequest` / `StoreResponse` |
 
 ```mermaid
 flowchart LR
-    ws["workspace<br/>lib::request"]
-    es["<b>EntityServer</b><br/>stateless orchestration<br/>(ActivityError)"]
-    sub["substrate<br/>load / persist / exists"]
-    sm["<b>StoreManager</b><br/>state custodian actor<br/>(PrimitiveError)"]
+    ws["workspace<br/><i>Workspace</i>"]
+    server["<b>StoreServer</b><br/>stateless orchestration<br/>(ActivityError)"]
+    sub["substrate<br/><i>load / persist / exists</i>"]
+    store["<b>Store</b><br/>state custodian<br/>(PrimitiveError)"]
 
-    ws -- "StoreRequest (direct call)" --> es
-    es -- "substrate calls" --> sub
-    es -- "StoreManagerRequest" --> sm
-    sm -- "StoreManagerResponse" --> es
-    es -- "StoreResponse" --> ws
+    ws -- "Dispatcher: WorkspaceRequest" --> server
+    server -- "WorkspaceResponse" --> ws
+    server -- "StoreDispatcher: StoreRequest" --> store
+    store -- "StoreResponse" --> server
+    server -- "load / persist / exists" --> sub
+    server -.->|"per-request workspace<br/>for validation"| ws
 ```
 
-- **`EntityServer`** — stateless. Holds an `Arc<Substrate>` and a sender
-  to the singleton `StoreManager`. Workspace calls it directly via the
-  active entity-server handle; each caller's task drives its own
-  orchestration sequence (validation, substrate calls, manager
-  round-trips) for that request. Multiple `EntityServer` instances may
-  coexist; they all dispatch into the same manager.
-- **`StoreManager`** — the only async actor in the store. Knows nothing
-  but its own state. Receives `StoreManagerRequest`s, mutates its maps
-  and sets, replies. One message at a time, so state transitions are
-  serialized without any locking.
+The dotted arrow is the validation seam: for operations that need validation (`insert`, `commit`, `load`), `StoreServer` constructs a per-request `Workspace` over its own `Dispatcher`, imports the type-erased entity through it, and runs the requested kinds. The trait boundary in both directions is what makes this loop sound — the server holds a weak reference to its own dispatcher so the cycle does not leak.
 
-The split keeps long-running orchestration (substrate round-trips,
-validation) off the critical path of state mutation. Cloning a
-`TrackedEntity` out of the manager gives each orchestration task its
-own working snapshot; writes go back through the manager.
+## Composition And Lifecycle
+
+Each component returns its dispatch handle from its constructor:
+
+- `Store::start(spawn_fn) -> Arc<dyn StoreDispatcher>` — creates the store's mpsc channel, constructs the `Store` value, spawns the run loop via the caller-provided `SpawnFn`, and returns the dispatcher.
+- `StoreServer::start(substrate, store) -> Arc<dyn Dispatcher>` — wraps the substrate and the store-side dispatcher into a stateless server, equips it with a weak self-reference for per-request workspaces, and returns the workspace-facing dispatcher.
+
+The integrator wires bottom-up; alternate implementations of either trait slot in at the boundary. The same composition is used in production and in tests.
+
+```rust
+let store_dispatcher  = Store::start(spawn_fn);
+let server_dispatcher = StoreServer::start(substrate, store_dispatcher);
+let workspace         = Workspace::new(server_dispatcher);
+```
+
+## `StoreServer` And `Store`
+
+The split keeps long-running orchestration (substrate round-trips, validation, multi-round loads) off the critical path of state mutation.
+
+- **`StoreServer`** — stateless. Holds an `Arc<S>` substrate, an `Arc<dyn StoreDispatcher>` to the store, and a `Weak<dyn Dispatcher>` to its own handle. Workspace dispatches `WorkspaceRequest`s into it; each caller's task drives its own orchestration sequence (validation, substrate calls, store round-trips) for that request. Multiple `Workspace` instances may dispatch through the same server concurrently.
+- **`Store`** — the layer's sole state custodian and only async component. Knows nothing but its own state. Receives `StoreRequest`s, mutates its maps and sets, replies with `StoreResponse`. One message at a time, so state transitions are serialized without any locking. Emits `PrimitiveError`; the server classifies into `ActivityError` at the workspace boundary.
+
+Cloning a `TrackedEntity` out of the store gives each orchestration task its own working snapshot; writes go back through the store.
 
 ## In-Memory State Model
 
-The `StoreManager` holds five collections:
+`Store` holds five collections:
 
 | Field | Type | Role |
 |---|---|---|
@@ -71,35 +84,24 @@ The `StoreManager` holds five collections:
 
 State transitions worth naming explicitly:
 
-- **Insert then remove before persist** — the ref comes out of `added`; it
-  does **not** move to `removed`. Substrate has nothing to delete.
-- **Remove then re-insert before persist** — the ref comes out of
-  `removed` and lands in `modified`. Substrate has the old copy to
-  update.
-- **Commit of an `added` entity with dirty fields** — the manager merges
-  and then resets dirty on the store entity. Rationale: added entities
-  are always written in full on persist, so per-field dirty bits serve
-  no purpose.
-
-See [src/store/manager.rs](../../../src/store/manager.rs) — the
-`StoreManager` handlers `commit_checkout`, `remove_entity`, `undo_commit`
-— for the authoritative transition rules.
+- **Insert then remove before persist** — the ref comes out of `added`; it does **not** move to `removed`. Substrate has nothing to delete.
+- **Remove then re-insert before persist** — the ref comes out of `removed` and lands in `modified`. Substrate has the old copy to update.
+- **Commit of an `added` entity with dirty fields** — the store merges and then resets dirty on the store entity. Rationale: added entities are always written in full on persist, so per-field dirty bits serve no purpose.
 
 ## Request Dispatch
 
-Each caller-issued `StoreRequest` is handled in the caller's own task —
-`EntityServer::handle` is `&self`, so concurrent callers run their
-orchestration in parallel. State access is still serialized because all
-mutations go through the manager's single `mpsc::Receiver`.
+Each caller-issued `WorkspaceRequest` is handled in the caller's own task — `StoreServer::dispatch` is `&self`, so concurrent callers run their orchestration in parallel. State access is still serialized because all mutations go through the store's single channel.
 
-| `StoreRequest` | Handler |
+| `WorkspaceRequest` | Handler |
 |---|---|
 | `Resolve`, `HasRef` | Return cached entity; fall through to `substrate.exists`; auto-stub on confirmed hit. |
-| `Insert` | Run all three validation kinds; add to `entities` + `added`. |
-| `Checkout`, `Commit`, `UndoCheckout`, `UndoCommit` | See [Checkout Lifecycle](#checkout-lifecycle). |
-| `Remove`, `Unload` | Manager-side state changes gated on checkout status. |
+| `Insert { json }` | JSON ↔ tracked pipeline; whole-entity validation; add to `entities` + `added`. |
+| `Checkout`, `Commit`, `UndoCheckout`, `Revert` | See [Checkout Lifecycle](#checkout-lifecycle). |
+| `Remove`, `Forget` | Actor-side state changes gated on checkout status. |
 | `Load`, `EnsureMutable` | See [Load Orchestration](#load-orchestration). |
 | `Persist` | See [Persist Orchestration](#persist-orchestration). |
+
+`Revert` rolls an entity back to its last persisted state; `Forget` drops a clean entity's loaded fields, leaving a stub. Both are gated on the entity not being checked out.
 
 ## Checkout Lifecycle
 
@@ -107,65 +109,53 @@ mutations go through the manager's single `mpsc::Receiver`.
 stateDiagram-v2
     [*] --> InStore: Insert / Resolve / Load
     InStore --> CheckedOut: Checkout
-    CheckedOut --> InStore: Commit (merge dirty + validate)
+    CheckedOut --> InStore: Commit (cross-entity validate + merge)
     CheckedOut --> InStore: UndoCheckout (drop changes)
     InStore --> [*]: Remove
 ```
 
-`checked_out` is a set, not a lock table: a second `Checkout` for the
-same ref fails with `PrimitiveError::already_checked_out`. Commit and
-undo-checkout are the only two ways to leave the set.
+`checked_out` is a set, not a lock table: a second `Checkout` for the same ref fails. Commit and undo-checkout are the only two ways to leave the set.
 
-**What the store runs on commit.** `EntityServer::commit` looks up whether
-the ref is in `added`:
+**What the store runs on commit.** Cross-entity validation only — scoped to the dirty fields when the entity was already in the store, or against the whole entity when the entity was newly added (no dirty fields means a no-op). Structural and semantic checks have already been covered: insert ran them on the whole entity at creation, and per-field setters ran them on each mutation. Commit only needs to confirm that cross-entity invariants still hold against the current store state.
 
-- `added` — run structural, semantic, and cross-entity validation on the
-  full entity before merging.
-- Existing entity with dirty fields — run cross-entity validation only,
-  scoped to the dirty fields. Structural and semantic checks already ran
-  at the workspace setter site against the candidate.
-- No dirty fields — no-op merge.
-
-**What the store runs on undo-checkout.** Nothing — the manager just
-removes the ref from `checked_out`. The caller's local edits are dropped
-along with their `TrackedEntity`.
+**What the store runs on undo-checkout.** Nothing — the store just removes the ref from `checked_out`. The caller's local edits are dropped along with the consumed editor.
 
 ## Load Orchestration
 
-`EntityServer::load_fields` is a recursive routine (boxed for async
-recursion) that pulls fields from the substrate in progressive rounds.
-One call per requested field may drive multiple substrate round-trips if
-prerequisites chain.
+`StoreServer::load_fields` is a recursive routine (boxed for async recursion) that pulls fields from the substrate in progressive rounds. One call per requested field may drive multiple substrate round-trips if prerequisites chain.
 
 Conceptual algorithm:
 
-1. **Determine pending.** Ask the manager which of `fields` are not yet
-   initialized. If none, return.
-2. **Resolve prerequisites.** For each pending field, consult
-   `S::load_strategy(kind, field)` and recurse into
-   `load_fields(prereqs)`. Prereqs may short-circuit later rounds by
-   populating dependent fields as a side effect.
-3. **Re-check pending.** A prereq round may have initialized the target
-   field already. Drop anything now loaded.
-4. **Fetch from substrate.** Clone the current entity snapshot out of
-   the manager and call `substrate.load(&entity, &still_pending)`. The
-   substrate decides asset layout, codec, and resolver logic; the store
-   passes through what it receives.
-5. **Validate before merge.** Run all three validation kinds against the
-   loaded snapshot, scoped to `still_pending`. Failures wrap into
-   `ActivityError::unpersistable_definition` — loaded data that fails
-   validation is not merged.
-6. **Merge and prefetch refs.** Initialize the store entity's fields in
-   place (write-once) via `InitializeField`. Collect cross-entity refs
-   surfaced by the load with `all_refs()`, batch-check existence against
-   the substrate, and auto-stub the confirmed hits.
+1. **Determine pending.** Ask the store which of `fields` are not yet initialized. If none, return.
+2. **Resolve prerequisites.** For each pending field, consult `substrate.load_strategy(any_ref, field)` and recurse into `load_fields(prereqs)`. Prereqs may short-circuit later rounds by populating dependent fields as a side effect.
+3. **Re-check pending.** A prereq round may have initialized the target field already. Drop anything now loaded.
+4. **Fetch from substrate.** Clone the current entity snapshot out of the store and call `substrate.load(&entity, &still_pending)`. The substrate decides asset layout, codec, and resolver logic; it returns a `serde_json::Value` carrying the loaded fields.
+5. **Run JSON ↔ tracked pipeline.** Convert the JSON to a typed `TrackedEntity` and validate it through a per-request workspace before merge. See [JSON ↔ Tracked Pipeline](#json--tracked-pipeline). Failures wrap into `ActivityError::unpersistable_definition` — loaded data that fails validation is not merged.
+6. **Merge and prefetch refs.** Initialize the store entity's fields in place (write-once). Collect cross-entity refs surfaced by the load, batch-check existence against the substrate, and auto-stub the confirmed hits.
 
-`EnsureMutable` shares this machinery. The strategy decides how much to
-load: `mutable_without_load` short-circuits the field fetch, but
-prerequisites still run unconditionally so path resolution stays sound.
+`EnsureMutable` shares this machinery. The strategy decides how much to load: `mutable_without_load` short-circuits the field fetch, but prerequisites still run unconditionally so path resolution stays sound.
 
-Authoritative code: [src/store/entity_server.rs](../../../src/store/entity_server.rs)
-— `load_fields` and `ensure_mutable`.
+## JSON ↔ Tracked Pipeline
+
+Two paths produce a verified `TrackedEntity` from JSON inside the server: the insert path (`WorkspaceRequest::Insert { json }`) and the substrate-load path (`substrate.load(...) -> json`). Both share the same pipeline: **JSON → TrackedEntity → import into per-request workspace → validate**. Substrate produces JSON and stops there; the workspace boundary speaks JSON for insert; the server is the conversion site.
+
+```mermaid
+flowchart LR
+    json["serde_json::Value<br/><i>insert / substrate.load</i>"]
+    tracked["TrackedEntity<br/><i>per-kind dispatch</i>"]
+    ws["per-request<br/>Workspace"]
+    viewer["ErasedXViewer"]
+    out["verified TrackedEntity<br/><i>handed to Store</i>"]
+
+    json --> tracked --> ws --> viewer --> out
+```
+
+| Site | Validated kinds | Scope |
+|---|---|---|
+| `Insert` | Structural + Semantic + CrossEntity | Whole entity |
+| Load round | Structural + Semantic + CrossEntity | Just the loaded fields |
+
+The per-request workspace is constructed over the server's own dispatcher (via the weak self-reference) and dropped at the end of the call. `Workspace::new` is cheap — one `Arc` clone plus a static-reference stamp for the validator.
 
 ## Persist Orchestration
 
@@ -182,8 +172,7 @@ flowchart LR
     gate -- "count > 0" --> fail["WorkspaceNotClean<br/>PendingCheckouts"]
 ```
 
-The snapshot is a `Vec<EntityChange>` — the store-owned handoff type
-defined in [src/store/lib/change.rs](../../../src/store/lib/change.rs):
+The snapshot is a `Vec<EntityChange>` — the store-owned handoff type:
 
 | Variant | Meaning |
 |---|---|
@@ -191,59 +180,37 @@ defined in [src/store/lib/change.rs](../../../src/store/lib/change.rs):
 | `Modified(TrackedEntity, Vec<&'static str>)` | Existing entity with the listed dirty fields. |
 | `Removed(AnyEntityRef)` | Substrate should delete. |
 
-Dirty state is cleared **only after** `substrate.persist` returns
-successfully — a substrate error leaves the store's change lists intact
-for a retry.
+Dirty state is cleared **only after** `substrate.persist` returns successfully — a substrate error leaves the store's change lists intact for a retry. Persist itself does not validate; it trusts that prior commits and inserts were already gated.
 
 ## Where Store Decides Validation Runs
 
-| Operation | Kinds run | Notes |
+| Operation | Kinds run | Scope |
 |---|---|---|
-| `Insert` | Structural, Semantic, CrossEntity | All fields; entity is new to the store. |
-| `Commit` of an `added` entity | Structural, Semantic, CrossEntity | Full check before the entity reaches the manager's canonical copy. |
-| `Commit` of an existing entity with dirty fields | CrossEntity (scoped to dirty fields) | Structural + semantic already ran at the workspace setter. |
-| `load_fields` | Structural, Semantic, CrossEntity (scoped to pending) | Load failures wrap as `unpersistable_definition`. |
+| `Insert` | Structural + Semantic + CrossEntity | Whole entity |
+| `Commit` | CrossEntity | Whole entity if newly added; dirty fields otherwise |
+| Load round (inside `load_fields` / `EnsureMutable`) | Structural + Semantic + CrossEntity | Just the loaded fields |
+| `Persist` | — | Trusts prior gates |
 
-The store never authors rules — it calls `validation::run_validations_for_entity`
-with a `ValidationKind` set chosen by the operation.
+Setter-time validation (Structural + Semantic per mutated field) runs on the workspace side and is documented in [workspace.md](workspace.md) — it is not a store decision.
 
-## Test Entry Point
-
-`pari::with(substrate, || async { ... })` is the isolated entry point
-used by tests and embedded scenarios. It builds a fresh `EntityServer`
-and `StoreManager`, installs the entity server as a thread-local
-override for the duration of the closure, drives the manager future
-internally via `futures::join!`, and tears the override down on exit —
-so the call needs no runtime-specific spawner. See
-[Runtime Independence](../framework.md#runtime-independence) for the
-production counterpart, `pari::init`.
-
-Authoritative code: [src/lib.rs](../../../src/lib.rs) — `pari::with` and
-`pari::init`; [src/store/entity_server.rs](../../../src/store/entity_server.rs)
-— `OverrideGuard` and the active-handle lookup.
+The store never authors rules — it triggers them through the per-request workspace's viewer with a `ValidationKind` set chosen by the operation.
 
 ## Pure And Orchestration Components
 
-"Pure" in the layer-model sense means the error contract, not the
-absence of side effects. The `StoreManager` is the layer's only async
-actor and mutates state, but it emits only `PrimitiveError` and has no
-substrate or validation dependencies — so it sits in the pure tier
-alongside the message and change data types.
+"Pure" in the layer-model sense means the error contract, not the absence of side effects. `Store` is the layer's only async component and mutates state, but it emits only `PrimitiveError` and has no substrate or validation dependencies — so it sits in the pure tier alongside the message and change data types.
 
-| Role | File(s) | Error type |
+| Role | Lives in | Error type |
 |---|---|---|
-| Pure | [lib/message.rs](../../../src/store/lib/message.rs), [lib/change.rs](../../../src/store/lib/change.rs), [manager.rs](../../../src/store/manager.rs) | `PrimitiveError` for `StoreManager` failures; message and change enums are plain data |
-| Orchestration | [entity_server.rs](../../../src/store/entity_server.rs) | `ActivityError` — wraps manager `PrimitiveError`s via `map_store_primitive`, forwards substrate and validation `ActivityError`s unchanged |
+| Pure | `Store`, wire-message types, change-handoff enum, internal store-side request/response types | `PrimitiveError` for `Store` failures; message and change types are plain data |
+| Orchestration | `StoreServer` (workspace-facing dispatcher impl, substrate calls, JSON pipeline, load/persist orchestration) | `ActivityError` — wraps store `PrimitiveError`s, forwards substrate and validation `ActivityError`s unchanged |
 
 ## Boundaries
 
 | Concern | Owner |
 |---|---|
-| In-memory entity state, change tracking, checkout set | `store` |
-| Persistence layout, codecs, resolvers, load strategies | `substrate` |
-| Caller-facing async API and setter-time validation | `workspace` |
-| Rule definition and execution logic | `validation` |
+| In-memory entity state, change tracking, checkout set, dispatch boundaries | `store` |
+| Persistence layout, codecs, resolvers, load strategies, JSON encoding | `substrate` |
+| Caller-facing async API, viewer/editor handles, validation rules, validation runner, setter-time validation | `workspace` |
 | Cross-layer error classification and aggregation | `error` |
 
-Store code that starts describing file layout, path resolution, or rule
-authoring has crossed out of this layer.
+Store code that starts describing file layout, path resolution, or rule authoring has crossed out of this layer.

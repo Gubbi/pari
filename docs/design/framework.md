@@ -155,7 +155,7 @@ flowchart LR
     store -.->|validation| workspace
 ```
 
-There are no globals: the integrator decides the lifetime and sharing of every component, and a process can host more than one composition side by side (for tests, for multi-tenant servers, for embedded scenarios).
+The integrator decides the lifetime and sharing of every component, and a process can host more than one composition side by side (for tests, for multi-tenant servers, for embedded scenarios).
 
 ### Runtime independence
 

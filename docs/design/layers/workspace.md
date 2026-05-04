@@ -13,7 +13,7 @@ The framework-level view is in [../framework.md](../framework.md). The layering 
 
 | Goal | Consequence for the design |
 |---|---|
-| No globals; integrators wire components themselves | A workspace is constructed over an `Arc<dyn Dispatcher>` to the store layer. There is no process-wide registration. |
+| Integrators construct the workspace explicitly | A workspace is constructed over an `Arc<dyn Dispatcher>` to the store layer; multiple workspaces over the same store coexist. |
 | Callers work in typed terms; store is type-erased | Workspace is the only site that converts between `EntityRef<T, _>` / `TrackedX<T>` and the `AnyEntityRef` / `TrackedEntity` the store speaks. |
 | One idiom for every operation | Each entry point is async, takes typed inputs, and returns `Result<_, ActivityError>`. |
 | Mutation is gated by checkout at the type level | The handle that exposes setters and lifecycle is constructed only by `Workspace::checkout`. |
