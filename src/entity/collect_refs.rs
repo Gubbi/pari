@@ -30,7 +30,7 @@ pub trait CollectRefs {
 
 impl<T: Entity<Parent = P>, P: ParentKind> CollectRefs for EntityRef<T, P> {
     fn collect_refs(&self, prefix: &str, refs: &mut Vec<(String, AnyEntityRef)>) {
-        refs.push((prefix.to_owned(), T::to_any_ref(self)));
+        refs.push((prefix.to_owned(), self.to_any_ref()));
     }
 }
 

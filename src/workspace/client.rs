@@ -84,7 +84,7 @@ impl EntityClient {
     where
         T::Delegate: From<T::Tracked>,
     {
-        let any_ref = T::to_any_ref(&entity_ref);
+        let any_ref = entity_ref.to_any_ref();
         let entity = match request(StoreRequest::Checkout { any_ref }).await {
             StoreResponse::Entity(e) => e,
             StoreResponse::Err(e) => return Err(e),

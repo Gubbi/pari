@@ -41,7 +41,7 @@ pub fn generate_workspace_parts(
                 pub async fn #fname(&self) -> ::std::result::Result<#ret_type, ::pari::error::ActivityError> {
                     if self.#fname.get().is_none() {
                         ::pari::workspace::EntityClient::load(
-                            <#entity_name as ::pari::entity::Entity>::to_any_ref(self.entity_ref()),
+                            self.entity_ref().to_any_ref(),
                             #fname_str,
                         ).await?;
                     }
@@ -62,7 +62,7 @@ pub fn generate_workspace_parts(
             quote! {
                 pub async fn #setter_name(&mut self, value: #ty) -> ::std::result::Result<(), ::pari::error::ActivityError> {
                     ::pari::workspace::EntityClient::ensure_mutable(
-                        <#entity_name as ::pari::entity::Entity>::to_any_ref(self.inner.entity_ref()),
+                        self.inner.entity_ref().to_any_ref(),
                         #fname_str,
                     ).await?;
 
@@ -124,9 +124,7 @@ pub fn generate_workspace_parts(
             /// Discard pending edits and release the checkout. Consumes
             /// the delegate.
             pub async fn undo_checkout(self) -> ::std::result::Result<(), ::pari::error::ActivityError> {
-                let any_ref = <#entity_name as ::pari::entity::Entity>::to_any_ref(
-                    self.inner.entity_ref(),
-                );
+                let any_ref = self.inner.entity_ref().to_any_ref();
                 match ::pari::workspace::lib::request::request(
                     ::pari::store::StoreRequest::UndoCheckout { any_ref },
                 )
