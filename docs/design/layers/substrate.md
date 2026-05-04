@@ -7,8 +7,9 @@ set of concrete backends built on top (`RepoSubstrate`,
 `InMemorySubstrate`, `VoidSubstrate`).
 
 Callers never touch substrate directly. The `store` layer invokes it
-during `resolve`, `load`, `ensure_mutable`, `has_ref`, and `persist`;
-substrate returns tracked data or unit acknowledgements.
+during `resolve`, `load`, `ensure_mutable`, `has_ref`, and `persist`.
+Substrate returns `serde_json::Value` payloads or unit acknowledgements;
+the store performs the JSON ↔ tracked conversion.
 
 The framework-level view is in [../framework.md](../framework.md). The
 layering rules are in [layer-model.md](layer-model.md). This document
@@ -24,18 +25,20 @@ into executor requests.
 | Backends stay small | A schema-driven default pipeline implements `load_strategy`, `exists`, `load`, and `persist`. Backends supply a `Resolver` + `Codec` + `Executor` and opt in via `SchemaBackedSubstrate`. |
 | Entity → bytes mapping is declarative | Each entity declares an [`EntitySchema`] with a `ref_asset` and zero or more `assets`. Field membership decides which asset a field load or mutation touches. |
 | Partial writes are optional, correctness is not | `AssetKind::supports_partial` decides whether the executor is asked for a `Patch` or a full `Put` — but the dirty-field membership calculation is the same either way. |
+| Wire boundary speaks JSON | Reads return `serde_json::Value`; writes consume the JSON projection of the entity. The trait surface never names `TrackedEntity`. |
 
-`substrate` depends on `entity` (tracked entities, refs, `EntityKind`),
+`substrate` depends on `entity` (refs, tracked entities, `EntityKind`),
 `error`, and the store-owned [`EntityChange`](../../../src/store/lib/change.rs)
-handoff type. It does not depend on `workspace`, and it does not depend
-on `EntityServer`/`StoreManager` internals.
+handoff type. It does not depend on `workspace`, and it does not see
+the store's orchestration internals — it is invoked through the
+`Substrate` trait alone.
 
 ## The `Substrate` Trait
 
 ```mermaid
 flowchart LR
-    store["store<br/>EntityServer"]
-    trait["<b>Substrate</b> trait<br/>load_strategy / exists / load / persist"]
+    store["store<br/><i>StoreServer</i>"]
+    trait["<b>Substrate</b> trait<br/>load_strategy / exists / load / persist / schema_for"]
     defaults["defaults.rs<br/>schema-driven pipeline"]
     res["Resolver<br/>path → Location"]
     cod["Codec<br/>Encoded ↔ field map"]
@@ -46,6 +49,8 @@ flowchart LR
     defaults --> cod
     defaults --> ex
 ```
+
+The trait surface speaks `&AnyEntityRef` for shape queries (load strategy, schema lookup) and `serde_json::Value` for entity payloads. `EntityKind` stays inside the layer as the per-kind dispatch vocabulary used by `schema_registry.rs`; it never appears in the trait's signatures.
 
 Associated types pin the backend's pipeline:
 
@@ -119,9 +124,10 @@ four compose the same three pipeline components:
 
 | Method | Behavior |
 |---|---|
-| `load_strategy(kind, field)` | Schema lookup only — no executor call. Wraps `PrimitiveError` as `ActivityError::invalid_persistence_layout`. |
+| `load_strategy(any_ref, field)` | Schema lookup only — no executor call. Wraps `PrimitiveError` as `ActivityError::invalid_persistence_layout`. |
+| `schema_for(any_ref)` | Returns the `&'static EntitySchema<Self::Slot>` for the ref's kind. Pure dispatch through `schema_registry.rs`. |
 | `exists(refs)` | One `AssetOp::Head` per ref against each ref asset's resolved `Location`. Batched through the executor in one call. |
-| `load(entity, fields)` | `AssetMapper::select_for_read(fields)` → resolve each asset's location from the entity's own JSON → `AssetOp::Get` batch → codec-decode each response into a `field → Value` map → merge into a clone of `entity`. |
+| `load(entity, fields)` | `AssetMapper::select_for_read(fields)` → resolve each asset's location from the entity's own JSON → `AssetOp::Get` batch → codec-decode each response into a `field → Value` map → return a `serde_json::Value` carrying the loaded fields, merged onto the entity's existing JSON projection. The store wraps the result into a tracked entity through its JSON ↔ tracked pipeline. |
 | `persist(changes)` | For each `EntityChange`: `Removed` emits `AssetOp::Delete` for every asset (resolved from a stub JSON); `Added` emits full-asset writes; `Modified` emits partial writes when the asset covers only a subset of the dirty fields. Everything is enqueued into one executor batch. |
 
 **Write-op selection** happens inside `AssetKind::write_op`:
@@ -183,9 +189,8 @@ store or validation orchestration sit in the pure tier.
 | Concern | Owner |
 |---|---|
 | Persistence contract, schema model, default pipeline, backends | `substrate` |
-| In-memory entity state, change tracking, persist/load orchestration | `store` |
-| Caller-facing async API, setter-time validation | `workspace` |
-| Rule definition and execution logic | `validation` |
+| In-memory entity state, change tracking, persist/load orchestration, JSON ↔ tracked conversion | `store` |
+| Caller-facing async API, viewer/editor handles, validation rules and runner | `workspace` |
 | Cross-layer error classification and aggregation | `error` |
 
 Substrate code that starts describing store dispatch, checkout rules,
