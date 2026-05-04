@@ -10,9 +10,9 @@ The authoritative architecture reference is [docs/design/layers/layer-model.md](
 - `workspace`
 - `store`
 - `substrate`
-- `validation`
 - `error`
-- `test`
+
+Validation lives inside `workspace` as a sub-area, not as a peer layer.
 
 ## Layer Map In Source
 
@@ -20,10 +20,11 @@ The authoritative architecture reference is [docs/design/layers/layer-model.md](
 src/
   entity/        entity-layer identity, plain entities, refs,
                  and tracked-field primitives                  -> see src/entity/CLAUDE.md
-  workspace/     workspace-layer caller-facing async API        -> see src/workspace/CLAUDE.md
-  store/         store-layer server/state/orchestration          -> see src/store/CLAUDE.md
+  workspace/     workspace-layer caller-facing async API,
+                 viewer/editor handles, validation rules        -> see src/workspace/CLAUDE.md
+  store/         store-layer server, state custodian,
+                 dispatch boundaries                            -> see src/store/CLAUDE.md
   substrate/     substrate-layer persistence contracts/backends -> see src/substrate/CLAUDE.md
-  validation/    validation-layer rules and schemas             -> see src/validation/CLAUDE.md
   error/         error-layer shared error infrastructure        -> see src/error/CLAUDE.md
   lib.rs         crate module wiring
 
@@ -31,7 +32,7 @@ pari-macros/
   proc-macro support for generated behavior across formal layers -> see pari-macros/CLAUDE.md
 
 tests/
-  test-layer integration coverage                              -> see tests/CLAUDE.md
+  integration coverage                                          -> see tests/CLAUDE.md
 ```
 
 `schemas/` contains generated JSON Schema outputs for plain entity types. It is an output directory, not an architectural layer.
@@ -40,15 +41,25 @@ When working in a subtree, also look for a `CLAUDE.md` file in that directory or
 
 ## Current Naming And Ownership
 
-- Use `TrackedEntity`, not `StoreEntity`, for the type-erased tracked wrapper enum in `src/entity/mod.rs`.
-- Use `EntityChange` from `src/store/lib/change.rs` for the store-to-substrate persist handoff.
-- Mutation is gated by typed `<Name>Delegate` handles. `EntityClient::resolve` returns a read-only `TrackedEntity`; `EntityClient::checkout::<T>(EntityRef<T, _>)` returns the typed `T::Delegate` (`RoleDelegate`, `WorkflowDelegate`, …) — setters and `commit(self)` / `undo_checkout(self)` live there. Delegates are not `Clone`. The contract is enforced at the type level.
-- `workspace` owns caller-facing async operations and operation error types.
-- `store` owns orchestration flow, in-memory state, checkout lifecycle, and persist orchestration. `EntityServer` is the stateless dispatcher workspace calls into; `StoreManager` is the singleton state-custodian actor and the store layer's only async actor.
-- `substrate` owns the persistence trait, pipeline, schema-backed defaults, and concrete backends.
-- `validation` owns rule definition and execution over tracked entities.
+- `TrackedEntity` is the type-erased tracked wrapper enum in `src/entity/mod.rs`. Construction is `pub(crate)` and reachable only through the store's JSON-to-tracked pipeline; substrate returns `serde_json::Value`, not `TrackedEntity`.
+- `EntityChange` from `src/store/lib/change.rs` is the store-to-substrate persist handoff.
+- Mutation is gated by typed workspace-bound handles. `Workspace::resolve(ref)` returns an `XViewer<'ws, T>` (read-only — typed async accessors, `validate` / `validate_with`). `Workspace::checkout::<T>(ref)` returns the typed `XEditor<'ws, T>` — setters and `commit(self)` / `undo_checkout(self)` live there. `XEditor` derefs to `XViewer` so reads work uniformly. Editors are not `Clone`. The contract is enforced at the type level.
+- `EntityRef<T, P>::to_any_ref(&self)` is an instance method (no associated-fn form in current code).
+- `workspace` owns caller-facing async operations, viewer/editor handles, validation rules and schemas, the runner, and the `Validator` type.
+- `store` owns orchestration flow, in-memory state, checkout lifecycle, persist orchestration, the `Dispatcher` (workspace-facing) and `StoreDispatcher` (state-actor-facing) trait boundaries, and the JSON ↔ tracked conversion. `StoreServer` is the stateless workspace-facing dispatcher; `Store` is the layer's only async actor and sole state custodian.
+- `substrate` owns the persistence trait, pipeline, schema-backed defaults, and concrete backends. The trait surface takes `&AnyEntityRef` (not `EntityKind`) and returns `serde_json::Value` for entity payloads.
 - `error` owns cross-cutting classification and aggregation, including `PariError`.
 - `pari-macros` is support code, not a separate architecture layer. Generated behavior belongs to the formal layer that owns that behavior.
+
+## Composition
+
+There are no globally-installed servers. Integrators wire components bottom-up:
+
+- `Store::start(spawn_fn)` returns `Arc<dyn StoreDispatcher>`.
+- `StoreServer::start(substrate, store_dispatcher)` returns `Arc<dyn Dispatcher>`.
+- `Workspace::new(server_dispatcher)` returns a `Workspace`.
+
+Multiple workspaces over the same server coexist; `StoreServer` itself constructs per-request workspaces internally for validation. The same composition is used in production and in tests.
 
 ## Entity Identity And Tracking
 
@@ -56,9 +67,8 @@ When working in a subtree, also look for a `CLAUDE.md` file in that directory or
 - Top-level refs use `EntityRef::new(id)`.
 - Embedded refs use `EntityRef::with_parent(id, parent)`.
 - Parent identity is part of semantic identity. Do not reintroduce workflow-id-only constructor helpers.
-- `TrackedField<T>` uses `initialize(value)` for write-once load/deserializer paths and `TrackedField::mutated(value)` for setter-side COW replacement.
+- `TrackedField<T>` paths: `loaded(value)` for the JSON-to-tracked pipeline (load and insert), `mutated(value)` for setter-side COW replacement.
 - Author cross-referenced entity trees iteratively: insert parent shell with empty steps → insert each embedded child (its parent now exists) → modify parent's steps to point at the children. Recursive across embedded depth. See `docs/design/layers/entities.md` *Authoring Constraints*.
-- There is no separate `#[derive(Tracked)]`, `TrackedMap`, or generic tracked framework in the current design.
 
 ## Structural Conventions
 
@@ -71,16 +81,15 @@ Every layer has pure components in `lib/` (emit only `PrimitiveError`) and orche
 Contain only `mod` declarations and `pub use` re-exports — no logic, no `impl` blocks, no free functions.
 
 **Runtime independence**
-Production code (`src/`) must not depend on `tokio` or any other specific async runtime. Use `futures` channels, await futures, and route any spawning through a caller-provided `SpawnFn`. See [docs/design/framework.md](/Users/vinuth/code/pari/docs/design/framework.md) — *Runtime Independence*.
+Production code (`src/`) must not depend on `tokio` or any other specific async runtime. Use `futures` channels, await futures, and route any spawning through a caller-provided `SpawnFn`. See [docs/design/framework.md](/Users/vinuth/code/pari/docs/design/framework.md) — *Runtime and Composition Integration*.
 
 ## Key Boundaries
 
-- `entity` code should not absorb store, substrate, or validation orchestration.
-- `workspace` should stay focused on caller-facing APIs over `EntityServer`.
-- `store` may depend on `entity`, `substrate`, `validation`, and `error`, but should not own persistence layout or caller ergonomics.
-- `substrate` may depend on `entity`, `error`, and explicit store-owned handoff types such as `EntityChange`, but not on Entity Server internals.
-- `validation` defines rules; it should not own persistence or store orchestration flow.
-- `test` may reach across production layers, but production layers must not depend on test code.
+- `entity` code should not absorb workspace, store, or substrate orchestration.
+- `workspace` should stay focused on caller-facing APIs, viewer/editor handles, and validation rule authoring/execution.
+- `store` may depend on `entity`, `substrate`, `workspace` (only via the validation back-edge through `Workspace::import_erased(...).validate_with(...)`), and `error`. It should not own persistence layout or caller ergonomics.
+- `substrate` may depend on `entity`, `error`, and explicit store-owned handoff types such as `EntityChange`, but not on `StoreServer`/`Store` internals.
+- Production layers must not depend on test code.
 
 ## Working Preferences
 
