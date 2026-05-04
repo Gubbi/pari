@@ -41,7 +41,7 @@ async fn unload_clean_entity_succeeds_and_reload_works(#[case] kind: SubstrateKi
         };
         assert_eq!(role.name().await.unwrap(), "Minimal Role");
 
-        EntityClient::unload(role_ref("eng-lead")).await.unwrap();
+        EntityClient::forget(role_ref("eng-lead")).await.unwrap();
 
         // Second access: stub re-fetches transparently.
         let resolved = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
@@ -79,7 +79,7 @@ async fn unload_picks_up_external_substrate_change() {
         let edited = original.replace("# Minimal Role", "# Externally Edited");
         std::fs::write(&role_file, edited).unwrap();
 
-        EntityClient::unload(role_ref("eng-lead")).await.unwrap();
+        EntityClient::forget(role_ref("eng-lead")).await.unwrap();
 
         // Resolve + accessor now refetches from the (modified) file.
         let resolved = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();

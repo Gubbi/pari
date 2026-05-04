@@ -1,4 +1,6 @@
-//! Pure data types for the store layer — messages and persist handoff.
+//! Pure data types for the store layer — wire-message envelopes and
+//! the persist handoff enum.
 
 pub mod change;
-pub mod message;
+pub(crate) mod store_request;
+pub mod workspace_request;

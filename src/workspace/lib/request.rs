@@ -1,15 +1,15 @@
-//! Pure helper for the workspace → entity-server dispatch.
+//! Pure helper for the workspace → store-server dispatch.
 //!
 //! Workspace's `client.rs` and the `#[derive(Entity)]`-generated
 //! `XDelegate` impls route every caller operation through this single
 //! function so the dispatcher lookup lives in one place.
 
-use crate::store::{entity_server::active_entity_server, StoreRequest, StoreResponse};
+use crate::store::{store_server::active_store_server, WorkspaceRequest, WorkspaceResponse};
 
-/// Dispatch `req` to the active entity server and await its reply.
+/// Dispatch `req` to the active store server and await its reply.
 ///
-/// Application-level failures arrive inside `StoreResponse::Err` and
+/// Application-level failures arrive inside `WorkspaceResponse::Err` and
 /// are forwarded unchanged.
-pub async fn request(req: StoreRequest) -> StoreResponse {
-    active_entity_server().dispatch(req).await
+pub async fn request(req: WorkspaceRequest) -> WorkspaceResponse {
+    active_store_server().dispatch(req).await
 }

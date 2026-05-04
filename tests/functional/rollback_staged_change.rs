@@ -1,6 +1,6 @@
 //! User job: roll back a staged change before persist.
 //!
-//! `undo_commit` reverts pending writes in two distinct cases:
+//! `revert` rolls pending writes in two distinct cases:
 //! a freshly-added entity is removed entirely; a modified-but-not-yet-
 //! persisted entity reverts to its prior persisted state. The
 //! committed-but-not-persisted snapshot lives only in the store, so
@@ -31,16 +31,14 @@ fn role_typed(id: &str) -> EntityRef<Role> {
 #[case::in_memory(SubstrateKind::InMemory)]
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
-async fn undo_commit_added_entity_removes_it(#[case] kind: SubstrateKind) {
+async fn revert_added_entity_removes_it(#[case] kind: SubstrateKind) {
     run_with(kind, || async {
         // Inserted but never persisted — purely an `added` entry.
         EntityClient::insert(a_minimal_role("eng-lead"))
             .await
             .unwrap();
 
-        EntityClient::undo_commit(role_ref("eng-lead"))
-            .await
-            .unwrap();
+        EntityClient::revert(role_ref("eng-lead")).await.unwrap();
 
         // Resolve fails — entity was never persisted and is no longer
         // in the store.
@@ -62,7 +60,7 @@ async fn undo_commit_added_entity_removes_it(#[case] kind: SubstrateKind) {
 #[case::in_memory(SubstrateKind::InMemory)]
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
-async fn undo_commit_modified_entity_reverts_to_persisted(#[case] kind: SubstrateKind) {
+async fn revert_modified_entity_resets_to_persisted(#[case] kind: SubstrateKind) {
     run_with(kind, || async {
         EntityClient::insert(a_minimal_role("eng-lead"))
             .await
@@ -78,9 +76,7 @@ async fn undo_commit_modified_entity_reverts_to_persisted(#[case] kind: Substrat
         role.set_name("Pending Change".to_string()).await.unwrap();
         role.commit().await.unwrap();
 
-        EntityClient::undo_commit(role_ref("eng-lead"))
-            .await
-            .unwrap();
+        EntityClient::revert(role_ref("eng-lead")).await.unwrap();
 
         // Resolve re-loads the persisted value.
         let resolved = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();

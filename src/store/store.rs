@@ -1,110 +1,31 @@
-//! [`StoreManager`] — state-custodian half of the store layer.
+//! [`Store`] — state-custodian half of the store layer.
 //!
-//! Owns the five collections that make up the store's in-memory state
-//! and serves [`StoreManagerRequest`]s one at a time. No substrate, no
-//! validation, no `ActivityError` — every failure is a
-//! [`PrimitiveError`] for the orchestrator above to classify.
+//! Owns the five collections that make up the in-memory state and serves
+//! [`StoreRequest`]s one at a time. No substrate, no validation, no
+//! `ActivityError` — every failure is a [`PrimitiveError`] for the
+//! orchestrator above to classify.
 
 use std::collections::{HashMap, HashSet};
 
-use futures::{
-    channel::{mpsc, oneshot},
-    StreamExt,
-};
+use futures::{channel::mpsc, StreamExt};
 
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
     error::primitive::PrimitiveError,
-    store::lib::change::EntityChange,
+    store::lib::{
+        change::EntityChange,
+        store_request::{StoreMessage, StoreRequest, StoreResponse},
+    },
 };
-
-// ---------------------------------------------------------------------------
-// Message types
-// ---------------------------------------------------------------------------
-
-/// Internal request surface between [`EntityServer`](super::entity_server::EntityServer)
-/// and the manager. Each variant corresponds to one state mutation or
-/// query; the orchestrator composes these into the caller-facing
-/// [`StoreRequest`](super::StoreRequest) operations.
-pub(crate) enum StoreManagerRequest {
-    // Reads
-    GetEntity {
-        any_ref: AnyEntityRef,
-    },
-    ContainsRef {
-        any_ref: AnyEntityRef,
-    },
-    IsFieldLoaded {
-        any_ref: AnyEntityRef,
-        field: String,
-    },
-    PendingCheckoutCount,
-    // Writes
-    InsertStubs {
-        refs: Vec<AnyEntityRef>,
-    },
-    InsertEntity {
-        entity: TrackedEntity,
-    },
-    Checkout {
-        any_ref: AnyEntityRef,
-    },
-    CommitCheckout {
-        entity: TrackedEntity,
-    },
-    UndoCheckout {
-        any_ref: AnyEntityRef,
-    },
-    UndoCommit {
-        any_ref: AnyEntityRef,
-    },
-    RemoveEntity {
-        any_ref: AnyEntityRef,
-    },
-    UnloadEntity {
-        any_ref: AnyEntityRef,
-    },
-    InitializeField {
-        any_ref: AnyEntityRef,
-        loaded: TrackedEntity,
-    },
-    // Persist lifecycle
-    TakePersistSnapshot,
-    CommitPersist,
-    // State queries
-    IsAdded {
-        any_ref: AnyEntityRef,
-    },
-}
-
-pub(crate) enum StoreManagerResponse {
-    Entity(TrackedEntity),
-    Entities(Vec<TrackedEntity>),
-    MaybeEntity(Option<TrackedEntity>),
-    Changes(Vec<EntityChange>),
-    Bool(bool),
-    Count(usize),
-    Unit,
-    Err(PrimitiveError),
-}
-
-pub(crate) struct StoreManagerMessage {
-    pub(crate) request: StoreManagerRequest,
-    pub(crate) reply: oneshot::Sender<StoreManagerResponse>,
-}
-
-// ---------------------------------------------------------------------------
-// Actor
-// ---------------------------------------------------------------------------
 
 /// Sole custodian of the store's in-memory state.
 ///
 /// `entities` holds every ref the store knows about — loaded, stubbed,
 /// or locally added. The three change-tracking sets (`added`,
 /// `modified`, `removed`) drive the persist snapshot. `checked_out`
-/// enforces the single-checkout rule and gates `persist`,
-/// `undo_commit`, `remove`, and `unload`.
-pub(crate) struct StoreManager {
+/// enforces the single-checkout rule and gates `persist`, `revert`,
+/// `remove`, and `forget`.
+pub(crate) struct Store {
     entities: HashMap<AnyEntityRef, TrackedEntity>,
     added: HashSet<AnyEntityRef>,
     modified: HashSet<AnyEntityRef>,
@@ -112,7 +33,7 @@ pub(crate) struct StoreManager {
     checked_out: HashSet<AnyEntityRef>,
 }
 
-impl StoreManager {
+impl Store {
     pub(crate) fn new() -> Self {
         Self {
             entities: HashMap::new(),
@@ -125,33 +46,31 @@ impl StoreManager {
 
     /// Actor loop — processes messages strictly sequentially. No
     /// interleaving, no locking.
-    pub(crate) async fn run(mut self, mut rx: mpsc::Receiver<StoreManagerMessage>) {
+    pub(crate) async fn run(mut self, mut rx: mpsc::Receiver<StoreMessage>) {
         while let Some(msg) = rx.next().await {
             let response = self.handle(msg.request);
             let _ = msg.reply.send(response);
         }
     }
 
-    fn handle(&mut self, request: StoreManagerRequest) -> StoreManagerResponse {
+    fn handle(&mut self, request: StoreRequest) -> StoreResponse {
         match request {
-            StoreManagerRequest::GetEntity { any_ref } => {
-                StoreManagerResponse::MaybeEntity(self.entities.get(&any_ref).cloned())
+            StoreRequest::GetEntity { any_ref } => {
+                StoreResponse::MaybeEntity(self.entities.get(&any_ref).cloned())
             }
-            StoreManagerRequest::ContainsRef { any_ref } => {
-                StoreManagerResponse::Bool(self.entities.contains_key(&any_ref))
+            StoreRequest::ContainsRef { any_ref } => {
+                StoreResponse::Bool(self.entities.contains_key(&any_ref))
             }
-            StoreManagerRequest::IsFieldLoaded { any_ref, field } => {
+            StoreRequest::IsFieldLoaded { any_ref, field } => {
                 let loaded = self
                     .entities
                     .get(&any_ref)
                     .map(|e| e.is_field_loaded(&field))
                     .unwrap_or(false);
-                StoreManagerResponse::Bool(loaded)
+                StoreResponse::Bool(loaded)
             }
-            StoreManagerRequest::PendingCheckoutCount => {
-                StoreManagerResponse::Count(self.checked_out.len())
-            }
-            StoreManagerRequest::InsertStubs { refs } => {
+            StoreRequest::PendingCheckoutCount => StoreResponse::Count(self.checked_out.len()),
+            StoreRequest::InsertStubs { refs } => {
                 let mut out = Vec::with_capacity(refs.len());
                 for any_ref in refs {
                     let stub = self
@@ -160,16 +79,16 @@ impl StoreManager {
                         .or_insert_with(|| TrackedEntity::make_stub(&any_ref));
                     out.push(stub.clone());
                 }
-                StoreManagerResponse::Entities(out)
+                StoreResponse::Entities(out)
             }
-            StoreManagerRequest::InsertEntity { entity } => {
+            StoreRequest::InsertEntity { entity } => {
                 let any_ref = entity.any_ref();
                 // A previously-loaded stub or a removed-then-readded entry
                 // may already occupy the slot; both are legitimate
                 // insert paths. Only an active occupant (added or
                 // modified) is a duplicate.
                 if self.added.contains(&any_ref) || self.modified.contains(&any_ref) {
-                    StoreManagerResponse::Err(PrimitiveError::entity_already_exists(
+                    StoreResponse::Err(PrimitiveError::entity_already_exists(
                         "entity already exists",
                         any_ref.id(),
                     ))
@@ -180,49 +99,47 @@ impl StoreManager {
                     } else {
                         self.added.insert(any_ref);
                     }
-                    StoreManagerResponse::Unit
+                    StoreResponse::Unit
                 }
             }
-            StoreManagerRequest::Checkout { any_ref } => match self.checkout(&any_ref) {
-                Ok(entity) => StoreManagerResponse::Entity(entity),
-                Err(e) => StoreManagerResponse::Err(e),
+            StoreRequest::Checkout { any_ref } => match self.checkout(&any_ref) {
+                Ok(entity) => StoreResponse::Entity(entity),
+                Err(e) => StoreResponse::Err(e),
             },
-            StoreManagerRequest::CommitCheckout { entity } => match self.commit_checkout(entity) {
-                Ok(()) => StoreManagerResponse::Unit,
-                Err(e) => StoreManagerResponse::Err(e),
+            StoreRequest::CommitCheckout { entity } => match self.commit_checkout(entity) {
+                Ok(()) => StoreResponse::Unit,
+                Err(e) => StoreResponse::Err(e),
             },
-            StoreManagerRequest::UndoCheckout { any_ref } => match self.undo_checkout(&any_ref) {
-                Ok(()) => StoreManagerResponse::Unit,
-                Err(e) => StoreManagerResponse::Err(e),
+            StoreRequest::UndoCheckout { any_ref } => match self.undo_checkout(&any_ref) {
+                Ok(()) => StoreResponse::Unit,
+                Err(e) => StoreResponse::Err(e),
             },
-            StoreManagerRequest::UndoCommit { any_ref } => match self.undo_commit(&any_ref) {
-                Ok(()) => StoreManagerResponse::Unit,
-                Err(e) => StoreManagerResponse::Err(e),
+            StoreRequest::Revert { any_ref } => match self.revert(&any_ref) {
+                Ok(()) => StoreResponse::Unit,
+                Err(e) => StoreResponse::Err(e),
             },
-            StoreManagerRequest::RemoveEntity { any_ref } => match self.remove_entity(&any_ref) {
-                Ok(entity) => StoreManagerResponse::Entity(entity),
-                Err(e) => StoreManagerResponse::Err(e),
+            StoreRequest::RemoveEntity { any_ref } => match self.remove_entity(&any_ref) {
+                Ok(entity) => StoreResponse::Entity(entity),
+                Err(e) => StoreResponse::Err(e),
             },
-            StoreManagerRequest::UnloadEntity { any_ref } => match self.unload_entity(&any_ref) {
-                Ok(()) => StoreManagerResponse::Unit,
-                Err(e) => StoreManagerResponse::Err(e),
+            StoreRequest::Forget { any_ref } => match self.forget(&any_ref) {
+                Ok(()) => StoreResponse::Unit,
+                Err(e) => StoreResponse::Err(e),
             },
-            StoreManagerRequest::InitializeField { any_ref, loaded } => {
+            StoreRequest::InitializeField { any_ref, loaded } => {
                 match self.initialize_field(&any_ref, loaded) {
-                    Ok(()) => StoreManagerResponse::Unit,
-                    Err(e) => StoreManagerResponse::Err(e),
+                    Ok(()) => StoreResponse::Unit,
+                    Err(e) => StoreResponse::Err(e),
                 }
             }
-            StoreManagerRequest::TakePersistSnapshot => {
-                StoreManagerResponse::Changes(self.take_persist_snapshot())
+            StoreRequest::TakePersistSnapshot => {
+                StoreResponse::Changes(self.take_persist_snapshot())
             }
-            StoreManagerRequest::CommitPersist => {
+            StoreRequest::CommitPersist => {
                 self.commit_persist();
-                StoreManagerResponse::Unit
+                StoreResponse::Unit
             }
-            StoreManagerRequest::IsAdded { any_ref } => {
-                StoreManagerResponse::Bool(self.added.contains(&any_ref))
-            }
+            StoreRequest::IsAdded { any_ref } => StoreResponse::Bool(self.added.contains(&any_ref)),
         }
     }
 
@@ -286,10 +203,10 @@ impl StoreManager {
         }
     }
 
-    fn undo_commit(&mut self, any_ref: &AnyEntityRef) -> Result<(), PrimitiveError> {
+    fn revert(&mut self, any_ref: &AnyEntityRef) -> Result<(), PrimitiveError> {
         if self.checked_out.contains(any_ref) {
             return Err(PrimitiveError::entity_still_checked_out(
-                "cannot undo commit while entity is checked out",
+                "cannot revert while entity is checked out",
                 any_ref.id(),
             ));
         }
@@ -304,7 +221,7 @@ impl StoreManager {
             Ok(())
         } else {
             Err(PrimitiveError::no_uncommitted_changes(
-                "no uncommitted changes to undo",
+                "no uncommitted changes to revert",
                 any_ref.id(),
             ))
         }
@@ -332,7 +249,7 @@ impl StoreManager {
         }
     }
 
-    fn unload_entity(&mut self, any_ref: &AnyEntityRef) -> Result<(), PrimitiveError> {
+    fn forget(&mut self, any_ref: &AnyEntityRef) -> Result<(), PrimitiveError> {
         if !self.entities.contains_key(any_ref) {
             return Err(PrimitiveError::entity_not_found(
                 "entity not found",
@@ -341,7 +258,7 @@ impl StoreManager {
         }
         if self.checked_out.contains(any_ref) {
             return Err(PrimitiveError::entity_still_checked_out(
-                "cannot unload a checked-out entity",
+                "cannot forget a checked-out entity",
                 any_ref.id(),
             ));
         }

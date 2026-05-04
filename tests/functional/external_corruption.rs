@@ -67,7 +67,7 @@ async fn malformed_yaml_frontmatter_surfaces_codec_error() {
         let corrupted = original.replacen("---\n", "---\nname: : not: valid: yaml\n", 1);
         std::fs::write(&role_file, corrupted).unwrap();
 
-        EntityClient::unload(role_ref("eng-lead")).await.unwrap();
+        EntityClient::forget(role_ref("eng-lead")).await.unwrap();
 
         let result = trigger_load("eng-lead").await;
         assert_unpersistable(result, |e| {
@@ -102,7 +102,7 @@ async fn unterminated_frontmatter_surfaces_codec_error() {
             .expect("expected frontmatter fences in persisted role");
         std::fs::write(&role_file, format!("{head}{tail}")).unwrap();
 
-        EntityClient::unload(role_ref("eng-lead")).await.unwrap();
+        EntityClient::forget(role_ref("eng-lead")).await.unwrap();
 
         let result = trigger_load("eng-lead").await;
         assert_unpersistable(result, |e| {
@@ -128,7 +128,7 @@ async fn missing_required_shape_surfaces_codec_error() {
 
         std::fs::write(&role_file, "this is not a role file\n").unwrap();
 
-        EntityClient::unload(role_ref("eng-lead")).await.unwrap();
+        EntityClient::forget(role_ref("eng-lead")).await.unwrap();
 
         let result = trigger_load("eng-lead").await;
         // Don't pin the exact primitive variant — the codec is free to

@@ -111,12 +111,12 @@ pub fn generate_workspace_parts(
             pub async fn commit(self) -> ::std::result::Result<(), ::pari::error::ActivityError> {
                 let entity = <#entity_name as ::pari::entity::Entity>::into_tracked_entity(self.inner);
                 match ::pari::workspace::lib::request::request(
-                    ::pari::store::StoreRequest::Commit { entity },
+                    ::pari::store::WorkspaceRequest::Commit { entity },
                 )
                 .await
                 {
-                    ::pari::store::StoreResponse::Unit => ::std::result::Result::Ok(()),
-                    ::pari::store::StoreResponse::Err(e) => ::std::result::Result::Err(e),
+                    ::pari::store::WorkspaceResponse::Unit => ::std::result::Result::Ok(()),
+                    ::pari::store::WorkspaceResponse::Err(e) => ::std::result::Result::Err(e),
                     _ => unreachable!(),
                 }
             }
@@ -126,12 +126,12 @@ pub fn generate_workspace_parts(
             pub async fn undo_checkout(self) -> ::std::result::Result<(), ::pari::error::ActivityError> {
                 let any_ref = self.inner.entity_ref().to_any_ref();
                 match ::pari::workspace::lib::request::request(
-                    ::pari::store::StoreRequest::UndoCheckout { any_ref },
+                    ::pari::store::WorkspaceRequest::UndoCheckout { any_ref },
                 )
                 .await
                 {
-                    ::pari::store::StoreResponse::Unit => ::std::result::Result::Ok(()),
-                    ::pari::store::StoreResponse::Err(e) => ::std::result::Result::Err(e),
+                    ::pari::store::WorkspaceResponse::Unit => ::std::result::Result::Ok(()),
+                    ::pari::store::WorkspaceResponse::Err(e) => ::std::result::Result::Err(e),
                     _ => unreachable!(),
                 }
             }

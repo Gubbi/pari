@@ -10,7 +10,7 @@
 //!
 //! Callers choose the `(fields, kinds)` tuple that matches their
 //! context: generated setters run Structural+Semantic on the one
-//! field they touch; `EntityServer` runs the full gate at insert,
+//! field they touch; `StoreServer` runs the full gate at insert,
 //! load, and commit. See `docs/design/layers/validation.md` for the
 //! full decision table.
 

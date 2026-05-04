@@ -1,14 +1,14 @@
 //! Pari — workflow runtime for hybrid human-agent teams.
 //!
 //! The runtime is organized around the formal `entity`, `workspace`, `store`,
-//! `substrate`, `validation`, and `error` layers.
+//! `substrate`, and `error` layers.
 //!
 //! Process setup happens through one of two entry points:
 //!
-//! - [`init`] publishes a process-wide [`EntityServer`] and spawns the
-//!   singleton `StoreManager` future via a caller-provided [`SpawnFn`].
-//! - [`with`] runs a closure against a thread-local entity server and
-//!   drives the manager future internally — used by tests so they need
+//! - [`init`] publishes a process-wide [`StoreServer`] and spawns the
+//!   [`Store`] actor future via a caller-provided [`SpawnFn`].
+//! - [`with`] runs a closure against a thread-local store server and
+//!   drives the actor future internally — used by tests so they need
 //!   no runtime-specific spawner.
 
 #![feature(error_generic_member_access)]
@@ -33,19 +33,17 @@ pub mod validation;
 pub mod workspace;
 
 use crate::{
-    store::{
-        install_global_entity_server, install_override_entity_server, EntityServer, StoreManager,
-    },
+    store::{install_global_store_server, install_override_store_server, Store, StoreServer},
     substrate::SchemaBackedSubstrate,
 };
 
-/// Caller-provided spawner used by [`init`] to drive the singleton
-/// `StoreManager` future. Production callers wire this to their async
-/// runtime of choice (e.g. `tokio::spawn`, `smol::spawn`).
+/// Caller-provided spawner used by [`init`] to drive the [`Store`]
+/// actor future. Production callers wire this to their async runtime
+/// of choice (e.g. `tokio::spawn`, `smol::spawn`).
 pub type SpawnFn = Arc<dyn Fn(BoxFuture<'static, ()>) + Send + Sync>;
 
-/// Publish a process-wide [`EntityServer`] over `substrate` and spawn
-/// the singleton `StoreManager` via `spawn_fn`. Panics if called twice.
+/// Publish a process-wide [`StoreServer`] over `substrate` and spawn
+/// the [`Store`] actor via `spawn_fn`. Panics if called twice.
 ///
 /// The runtime is not specified by `pari` — `spawn_fn` is the only
 /// integration point. Production callers pass a closure that hands the
@@ -55,19 +53,19 @@ where
     S: SchemaBackedSubstrate,
 {
     let (tx, rx) = mpsc::channel(32);
-    spawn_fn(Box::pin(StoreManager::new().run(rx)));
-    let server: Arc<dyn store::entity_server::Dispatcher> =
-        Arc::new(EntityServer::new(substrate, tx));
-    install_global_entity_server(server);
+    spawn_fn(Box::pin(Store::new().run(rx)));
+    let server: Arc<dyn store::store_server::Dispatcher> =
+        Arc::new(StoreServer::new(substrate, tx));
+    install_global_store_server(server);
 }
 
-/// Run `f` against an isolated [`EntityServer`] over `substrate`.
+/// Run `f` against an isolated [`StoreServer`] over `substrate`.
 ///
 /// The thread-local override is installed before `f` runs and torn
-/// down after; the singleton `StoreManager` future is driven inside
-/// this call via `futures::join!`, so callers do not need a
-/// runtime-specific spawner. Multiple `with` calls are isolated from
-/// each other and from any process-wide server installed by [`init`].
+/// down after; the [`Store`] actor future is driven inside this call
+/// via `futures::join!`, so callers do not need a runtime-specific
+/// spawner. Multiple `with` calls are isolated from each other and
+/// from any process-wide server installed by [`init`].
 pub async fn with<S, F, Fut>(substrate: S, f: F)
 where
     S: SchemaBackedSubstrate,
@@ -75,16 +73,16 @@ where
     Fut: Future<Output = ()>,
 {
     let (tx, rx) = mpsc::channel(32);
-    let manager_fut = StoreManager::new().run(rx);
-    let server: Arc<dyn store::entity_server::Dispatcher> =
-        Arc::new(EntityServer::new(substrate, tx));
+    let store_fut = Store::new().run(rx);
+    let server: Arc<dyn store::store_server::Dispatcher> =
+        Arc::new(StoreServer::new(substrate, tx));
 
     let user_fut = async move {
-        let _guard = install_override_entity_server(server);
+        let _guard = install_override_store_server(server);
         f().await;
-        // _guard drops here, releasing the entity-server Arc and closing
-        // the manager channel; manager_fut then exits.
+        // _guard drops here, releasing the store-server Arc and closing
+        // the store channel; store_fut then exits.
     };
 
-    futures::join!(manager_fut, user_fut);
+    futures::join!(store_fut, user_fut);
 }

@@ -1,18 +1,17 @@
-//! [`EntityServer`] — stateless orchestrator for the store layer.
+//! [`StoreServer`] — stateless orchestrator for the store layer.
 //!
-//! Holds an `Arc<S>` substrate handle and a sender into the singleton
-//! `StoreManager`. Caller-facing operations from
-//! [`workspace`](crate::workspace) arrive as [`StoreRequest`] values and
-//! are handled directly via `&self` methods — no actor loop, no channel
-//! between workspace and the server. Each caller's task drives its own
-//! orchestration sequence (validation, substrate calls, manager
-//! round-trips) for that request.
+//! Holds an `Arc<S>` substrate handle and a sender into the [`Store`]
+//! actor. Caller-facing operations from [`workspace`](crate::workspace)
+//! arrive as [`WorkspaceRequest`] values and are handled directly via
+//! `&self` methods — no actor loop, no channel between workspace and
+//! the server. Each caller's task drives its own orchestration sequence
+//! (validation, substrate calls, store round-trips) for that request.
 //!
 //! Two registrations provide workspace's entry point: a process-wide
-//! `GLOBAL_ENTITY_SERVER` published by [`install_global_entity_server`]
-//! (used by [`crate::init`]), and a thread-local `OVERRIDE_ENTITY_SERVER`
-//! installed by [`install_override_entity_server`] (used by
-//! [`crate::with`]). [`active_entity_server`] prefers the override.
+//! `GLOBAL_STORE_SERVER` published by [`install_global_store_server`]
+//! (used by [`crate::init`]), and a thread-local `OVERRIDE_STORE_SERVER`
+//! installed by [`install_override_store_server`] (used by
+//! [`crate::with`]). [`active_store_server`] prefers the override.
 
 use std::{
     cell::RefCell,
@@ -30,9 +29,9 @@ use futures::{
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
     error::{primitive::PrimitiveError, ActivityError},
-    store::{
-        lib::message::{StoreRequest, StoreResponse},
-        manager::{StoreManagerMessage, StoreManagerRequest, StoreManagerResponse},
+    store::lib::{
+        store_request::{StoreMessage, StoreRequest, StoreResponse},
+        workspace_request::{WorkspaceRequest, WorkspaceResponse},
     },
     substrate::SchemaBackedSubstrate,
     validation::{run_validations_for_entity, ValidationKind},
@@ -45,28 +44,28 @@ use crate::{
 /// Type-erased dispatch surface. The workspace layer calls into this
 /// trait so it does not need to be generic over the substrate.
 pub(crate) trait Dispatcher: Send + Sync {
-    fn dispatch<'a>(&'a self, request: StoreRequest) -> BoxFuture<'a, StoreResponse>;
+    fn dispatch<'a>(&'a self, request: WorkspaceRequest) -> BoxFuture<'a, WorkspaceResponse>;
 }
 
 // ---------------------------------------------------------------------------
-// EntityServer
+// StoreServer
 // ---------------------------------------------------------------------------
 
 /// Stateless orchestrator for the store layer.
 ///
-/// Holds a sender to the singleton `StoreManager` actor and a shared
-/// substrate handle. Multiple instances may coexist; they all dispatch
-/// into the same `StoreManager`.
-pub(crate) struct EntityServer<S> {
-    store_tx: mpsc::Sender<StoreManagerMessage>,
+/// Holds a sender to the [`Store`] actor and a shared substrate handle.
+/// Multiple instances may coexist; they all dispatch into the same
+/// [`Store`].
+pub(crate) struct StoreServer<S> {
+    store_tx: mpsc::Sender<StoreMessage>,
     substrate: Arc<S>,
 }
 
-impl<S> EntityServer<S>
+impl<S> StoreServer<S>
 where
     S: SchemaBackedSubstrate,
 {
-    pub(crate) fn new(substrate: S, store_tx: mpsc::Sender<StoreManagerMessage>) -> Self {
+    pub(crate) fn new(substrate: S, store_tx: mpsc::Sender<StoreMessage>) -> Self {
         Self {
             store_tx,
             substrate: Arc::new(substrate),
@@ -77,60 +76,60 @@ where
     // Request dispatch
     // -----------------------------------------------------------------------
 
-    async fn handle(&self, request: StoreRequest) -> StoreResponse {
+    async fn handle(&self, request: WorkspaceRequest) -> WorkspaceResponse {
         match request {
-            StoreRequest::Resolve { any_ref } => match self.resolve(any_ref).await {
-                Ok(entity) => StoreResponse::Entity(entity),
-                Err(e) => StoreResponse::Err(e),
+            WorkspaceRequest::Resolve { any_ref } => match self.resolve(any_ref).await {
+                Ok(entity) => WorkspaceResponse::Entity(entity),
+                Err(e) => WorkspaceResponse::Err(e),
             },
-            StoreRequest::HasRef { any_ref } => match self.resolve(any_ref).await {
-                Ok(_) => StoreResponse::Bool(true),
-                Err(ActivityError::NonExistentData { .. }) => StoreResponse::Bool(false),
-                Err(e) => StoreResponse::Err(e),
+            WorkspaceRequest::HasRef { any_ref } => match self.resolve(any_ref).await {
+                Ok(_) => WorkspaceResponse::Bool(true),
+                Err(ActivityError::NonExistentData { .. }) => WorkspaceResponse::Bool(false),
+                Err(e) => WorkspaceResponse::Err(e),
             },
-            StoreRequest::Insert { entity } => match self.insert(entity).await {
-                Ok(()) => StoreResponse::Unit,
-                Err(e) => StoreResponse::Err(e),
+            WorkspaceRequest::Insert { entity } => match self.insert(entity).await {
+                Ok(()) => WorkspaceResponse::Unit,
+                Err(e) => WorkspaceResponse::Err(e),
             },
-            StoreRequest::Checkout { any_ref } => match self.checkout(any_ref).await {
-                Ok(entity) => StoreResponse::Entity(entity),
-                Err(e) => StoreResponse::Err(e),
+            WorkspaceRequest::Checkout { any_ref } => match self.checkout(any_ref).await {
+                Ok(entity) => WorkspaceResponse::Entity(entity),
+                Err(e) => WorkspaceResponse::Err(e),
             },
-            StoreRequest::Commit { entity } => match self.commit(entity).await {
-                Ok(()) => StoreResponse::Unit,
-                Err(e) => StoreResponse::Err(e),
+            WorkspaceRequest::Commit { entity } => match self.commit(entity).await {
+                Ok(()) => WorkspaceResponse::Unit,
+                Err(e) => WorkspaceResponse::Err(e),
             },
-            StoreRequest::Remove { any_ref } => match self.remove(any_ref).await {
-                Ok(entity) => StoreResponse::Entity(entity),
-                Err(e) => StoreResponse::Err(e),
+            WorkspaceRequest::Remove { any_ref } => match self.remove(any_ref).await {
+                Ok(entity) => WorkspaceResponse::Entity(entity),
+                Err(e) => WorkspaceResponse::Err(e),
             },
-            StoreRequest::Persist => match self.persist().await {
-                Ok(()) => StoreResponse::Unit,
-                Err(e) => StoreResponse::Err(e),
+            WorkspaceRequest::Persist => match self.persist().await {
+                Ok(()) => WorkspaceResponse::Unit,
+                Err(e) => WorkspaceResponse::Err(e),
             },
-            StoreRequest::Load { any_ref, field } => {
+            WorkspaceRequest::Load { any_ref, field } => {
                 match self.load_fields(&any_ref, &[&field], true).await {
-                    Ok(()) => StoreResponse::Unit,
-                    Err(e) => StoreResponse::Err(e),
+                    Ok(()) => WorkspaceResponse::Unit,
+                    Err(e) => WorkspaceResponse::Err(e),
                 }
             }
-            StoreRequest::EnsureMutable { any_ref, field } => {
+            WorkspaceRequest::EnsureMutable { any_ref, field } => {
                 match self.ensure_mutable(&any_ref, &field).await {
-                    Ok(()) => StoreResponse::Unit,
-                    Err(e) => StoreResponse::Err(e),
+                    Ok(()) => WorkspaceResponse::Unit,
+                    Err(e) => WorkspaceResponse::Err(e),
                 }
             }
-            StoreRequest::UndoCheckout { any_ref } => match self.undo_checkout(any_ref).await {
-                Ok(()) => StoreResponse::Unit,
-                Err(e) => StoreResponse::Err(e),
+            WorkspaceRequest::UndoCheckout { any_ref } => match self.undo_checkout(any_ref).await {
+                Ok(()) => WorkspaceResponse::Unit,
+                Err(e) => WorkspaceResponse::Err(e),
             },
-            StoreRequest::UndoCommit { any_ref } => match self.undo_commit(any_ref).await {
-                Ok(()) => StoreResponse::Unit,
-                Err(e) => StoreResponse::Err(e),
+            WorkspaceRequest::Revert { any_ref } => match self.revert(any_ref).await {
+                Ok(()) => WorkspaceResponse::Unit,
+                Err(e) => WorkspaceResponse::Err(e),
             },
-            StoreRequest::Unload { any_ref } => match self.unload(any_ref).await {
-                Ok(()) => StoreResponse::Unit,
-                Err(e) => StoreResponse::Err(e),
+            WorkspaceRequest::Forget { any_ref } => match self.forget(any_ref).await {
+                Ok(()) => WorkspaceResponse::Unit,
+                Err(e) => WorkspaceResponse::Err(e),
             },
         }
     }
@@ -158,12 +157,12 @@ where
         }
 
         let mut stubs = match self
-            .store_send(StoreManagerRequest::InsertStubs {
+            .store_send(StoreRequest::InsertStubs {
                 refs: vec![any_ref.clone()],
             })
             .await?
         {
-            StoreManagerResponse::Entities(v) => v,
+            StoreResponse::Entities(v) => v,
             _ => unreachable!(),
         };
 
@@ -183,22 +182,19 @@ where
         .await?;
 
         match self
-            .store_send(StoreManagerRequest::InsertEntity { entity })
+            .store_send(StoreRequest::InsertEntity { entity })
             .await?
         {
-            StoreManagerResponse::Unit => Ok(()),
-            StoreManagerResponse::Err(e) => Err(map_store_primitive(e, "store.insert")),
+            StoreResponse::Unit => Ok(()),
+            StoreResponse::Err(e) => Err(map_store_primitive(e, "store.insert")),
             _ => unreachable!(),
         }
     }
 
     async fn checkout(&self, any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
-        match self
-            .store_send(StoreManagerRequest::Checkout { any_ref })
-            .await?
-        {
-            StoreManagerResponse::Entity(e) => Ok(e),
-            StoreManagerResponse::Err(e) => Err(map_store_primitive(e, "store.checkout")),
+        match self.store_send(StoreRequest::Checkout { any_ref }).await? {
+            StoreResponse::Entity(e) => Ok(e),
+            StoreResponse::Err(e) => Err(map_store_primitive(e, "store.checkout")),
             _ => unreachable!(),
         }
     }
@@ -207,12 +203,12 @@ where
         let any_ref = entity.any_ref();
 
         let is_added = match self
-            .store_send(StoreManagerRequest::IsAdded {
+            .store_send(StoreRequest::IsAdded {
                 any_ref: any_ref.clone(),
             })
             .await?
         {
-            StoreManagerResponse::Bool(b) => b,
+            StoreResponse::Bool(b) => b,
             _ => unreachable!(),
         };
 
@@ -234,32 +230,29 @@ where
         }
 
         match self
-            .store_send(StoreManagerRequest::CommitCheckout { entity })
+            .store_send(StoreRequest::CommitCheckout { entity })
             .await?
         {
-            StoreManagerResponse::Unit => Ok(()),
-            StoreManagerResponse::Err(e) => Err(map_store_primitive(e, "store.commit")),
+            StoreResponse::Unit => Ok(()),
+            StoreResponse::Err(e) => Err(map_store_primitive(e, "store.commit")),
             _ => unreachable!(),
         }
     }
 
     async fn remove(&self, any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
         match self
-            .store_send(StoreManagerRequest::RemoveEntity { any_ref })
+            .store_send(StoreRequest::RemoveEntity { any_ref })
             .await?
         {
-            StoreManagerResponse::Entity(e) => Ok(e),
-            StoreManagerResponse::Err(e) => Err(map_store_primitive(e, "store.remove")),
+            StoreResponse::Entity(e) => Ok(e),
+            StoreResponse::Err(e) => Err(map_store_primitive(e, "store.remove")),
             _ => unreachable!(),
         }
     }
 
     async fn persist(&self) -> Result<(), ActivityError> {
-        let count = match self
-            .store_send(StoreManagerRequest::PendingCheckoutCount)
-            .await?
-        {
-            StoreManagerResponse::Count(n) => n,
+        let count = match self.store_send(StoreRequest::PendingCheckoutCount).await? {
+            StoreResponse::Count(n) => n,
             _ => unreachable!(),
         };
 
@@ -270,49 +263,40 @@ where
             ));
         }
 
-        let changes = match self
-            .store_send(StoreManagerRequest::TakePersistSnapshot)
-            .await?
-        {
-            StoreManagerResponse::Changes(c) => c,
+        let changes = match self.store_send(StoreRequest::TakePersistSnapshot).await? {
+            StoreResponse::Changes(c) => c,
             _ => unreachable!(),
         };
 
         self.substrate.persist(changes.into_iter()).await?;
 
-        self.store_send(StoreManagerRequest::CommitPersist).await?;
+        self.store_send(StoreRequest::CommitPersist).await?;
         Ok(())
     }
 
     async fn undo_checkout(&self, any_ref: AnyEntityRef) -> Result<(), ActivityError> {
         match self
-            .store_send(StoreManagerRequest::UndoCheckout { any_ref })
+            .store_send(StoreRequest::UndoCheckout { any_ref })
             .await?
         {
-            StoreManagerResponse::Unit => Ok(()),
-            StoreManagerResponse::Err(e) => Err(map_store_primitive(e, "store.undo_checkout")),
+            StoreResponse::Unit => Ok(()),
+            StoreResponse::Err(e) => Err(map_store_primitive(e, "store.undo_checkout")),
             _ => unreachable!(),
         }
     }
 
-    async fn undo_commit(&self, any_ref: AnyEntityRef) -> Result<(), ActivityError> {
-        match self
-            .store_send(StoreManagerRequest::UndoCommit { any_ref })
-            .await?
-        {
-            StoreManagerResponse::Unit => Ok(()),
-            StoreManagerResponse::Err(e) => Err(map_store_primitive(e, "store.undo_commit")),
+    async fn revert(&self, any_ref: AnyEntityRef) -> Result<(), ActivityError> {
+        match self.store_send(StoreRequest::Revert { any_ref }).await? {
+            StoreResponse::Unit => Ok(()),
+            StoreResponse::Err(e) => Err(map_store_primitive(e, "store.revert")),
             _ => unreachable!(),
         }
     }
 
-    async fn unload(&self, any_ref: AnyEntityRef) -> Result<(), ActivityError> {
-        match self
-            .store_send(StoreManagerRequest::UnloadEntity { any_ref })
-            .await?
-        {
-            StoreManagerResponse::Unit => Ok(()),
-            StoreManagerResponse::Err(e) => Err(map_store_primitive(e, "store.unload")),
+    async fn forget(&self, any_ref: AnyEntityRef) -> Result<(), ActivityError> {
+        match self.store_send(StoreRequest::Forget { any_ref }).await? {
+            StoreResponse::Unit => Ok(()),
+            StoreResponse::Err(e) => Err(map_store_primitive(e, "store.forget")),
             _ => unreachable!(),
         }
     }
@@ -370,13 +354,13 @@ where
             let mut pending = Vec::new();
             for field in fields {
                 match self
-                    .store_send(StoreManagerRequest::IsFieldLoaded {
+                    .store_send(StoreRequest::IsFieldLoaded {
                         any_ref: any_ref.clone(),
                         field: field.to_string(),
                     })
                     .await?
                 {
-                    StoreManagerResponse::Bool(false) => pending.push(*field),
+                    StoreResponse::Bool(false) => pending.push(*field),
                     _ => {}
                 }
             }
@@ -398,13 +382,13 @@ where
             let mut still_pending = Vec::new();
             for field in &pending {
                 match self
-                    .store_send(StoreManagerRequest::IsFieldLoaded {
+                    .store_send(StoreRequest::IsFieldLoaded {
                         any_ref: any_ref.clone(),
                         field: field.to_string(),
                     })
                     .await?
                 {
-                    StoreManagerResponse::Bool(false) => still_pending.push(*field),
+                    StoreResponse::Bool(false) => still_pending.push(*field),
                     _ => {}
                 }
             }
@@ -414,12 +398,12 @@ where
 
             // Fetch current entity snapshot for the substrate load call.
             let current = match self
-                .store_send(StoreManagerRequest::GetEntity {
+                .store_send(StoreRequest::GetEntity {
                     any_ref: any_ref.clone(),
                 })
                 .await?
             {
-                StoreManagerResponse::MaybeEntity(Some(e)) => e,
+                StoreResponse::MaybeEntity(Some(e)) => e,
                 _ => {
                     return Err(ActivityError::non_existent_data(
                         "store.load",
@@ -454,7 +438,7 @@ where
             .map_err(|e| ActivityError::unpersistable_definition("store.load", e.into_cause()))?;
 
             // Merge loaded fields into the store entity.
-            self.store_send(StoreManagerRequest::InitializeField {
+            self.store_send(StoreRequest::InitializeField {
                 any_ref: any_ref.clone(),
                 loaded: loaded.clone(),
             })
@@ -466,10 +450,10 @@ where
                 let mut not_in_store = Vec::new();
                 for r in all_refs {
                     match self
-                        .store_send(StoreManagerRequest::ContainsRef { any_ref: r.clone() })
+                        .store_send(StoreRequest::ContainsRef { any_ref: r.clone() })
                         .await?
                     {
-                        StoreManagerResponse::Bool(false) => not_in_store.push(r),
+                        StoreResponse::Bool(false) => not_in_store.push(r),
                         _ => {}
                     }
                 }
@@ -481,7 +465,7 @@ where
                             .filter_map(|(r, exists)| if exists { Some(r) } else { None })
                             .collect();
                         if !stubs.is_empty() {
-                            self.store_send(StoreManagerRequest::InsertStubs { refs: stubs })
+                            self.store_send(StoreRequest::InsertStubs { refs: stubs })
                                 .await?;
                         }
                     }
@@ -493,30 +477,27 @@ where
     }
 
     // -----------------------------------------------------------------------
-    // StoreManager communication helper
+    // Store communication helper
     // -----------------------------------------------------------------------
 
-    async fn store_send(
-        &self,
-        request: StoreManagerRequest,
-    ) -> Result<StoreManagerResponse, ActivityError> {
+    async fn store_send(&self, request: StoreRequest) -> Result<StoreResponse, ActivityError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         let mut tx = self.store_tx.clone();
-        tx.send(StoreManagerMessage {
+        tx.send(StoreMessage {
             request,
             reply: reply_tx,
         })
         .await
         .map_err(|_| {
             ActivityError::store_unavailable(
-                "entity_server",
-                PrimitiveError::store_unavailable("store manager unavailable"),
+                "store_server",
+                PrimitiveError::store_unavailable("store unavailable"),
             )
         })?;
         reply_rx.await.map_err(|_| {
             ActivityError::store_unavailable(
-                "entity_server",
-                PrimitiveError::store_unavailable("store manager reply dropped"),
+                "store_server",
+                PrimitiveError::store_unavailable("store reply dropped"),
             )
         })
     }
@@ -526,59 +507,59 @@ where
         any_ref: &AnyEntityRef,
     ) -> Result<Option<TrackedEntity>, ActivityError> {
         match self
-            .store_send(StoreManagerRequest::GetEntity {
+            .store_send(StoreRequest::GetEntity {
                 any_ref: any_ref.clone(),
             })
             .await?
         {
-            StoreManagerResponse::MaybeEntity(e) => Ok(e),
+            StoreResponse::MaybeEntity(e) => Ok(e),
             _ => unreachable!(),
         }
     }
 }
 
-impl<S> Dispatcher for EntityServer<S>
+impl<S> Dispatcher for StoreServer<S>
 where
     S: SchemaBackedSubstrate,
 {
-    fn dispatch<'a>(&'a self, request: StoreRequest) -> BoxFuture<'a, StoreResponse> {
+    fn dispatch<'a>(&'a self, request: WorkspaceRequest) -> BoxFuture<'a, WorkspaceResponse> {
         Box::pin(self.handle(request))
     }
 }
 
 // ---------------------------------------------------------------------------
-// Active entity server — workspace's single entry point
+// Active store server — workspace's single entry point
 // ---------------------------------------------------------------------------
 
-static GLOBAL_ENTITY_SERVER: OnceLock<Arc<dyn Dispatcher>> = OnceLock::new();
+static GLOBAL_STORE_SERVER: OnceLock<Arc<dyn Dispatcher>> = OnceLock::new();
 
 thread_local! {
-    static OVERRIDE_ENTITY_SERVER: RefCell<Option<Arc<dyn Dispatcher>>> = const { RefCell::new(None) };
+    static OVERRIDE_STORE_SERVER: RefCell<Option<Arc<dyn Dispatcher>>> = const { RefCell::new(None) };
 }
 
-/// The workspace layer's single entry point to whichever `EntityServer`
+/// The workspace layer's single entry point to whichever `StoreServer`
 /// is currently installed. Prefers the thread-local override (set by
 /// [`crate::with`]) over the process-wide registration.
-pub(crate) fn active_entity_server() -> Arc<dyn Dispatcher> {
-    OVERRIDE_ENTITY_SERVER
+pub(crate) fn active_store_server() -> Arc<dyn Dispatcher> {
+    OVERRIDE_STORE_SERVER
         .with(|o| o.borrow().clone())
         .unwrap_or_else(|| {
-            GLOBAL_ENTITY_SERVER
+            GLOBAL_STORE_SERVER
                 .get()
-                .expect("EntityServer not initialized")
+                .expect("StoreServer not initialized")
                 .clone()
         })
 }
 
-/// Install the process-wide `EntityServer`. Panics if called twice.
-pub(crate) fn install_global_entity_server(entity_server: Arc<dyn Dispatcher>) {
-    GLOBAL_ENTITY_SERVER
-        .set(entity_server)
+/// Install the process-wide `StoreServer`. Panics if called twice.
+pub(crate) fn install_global_store_server(store_server: Arc<dyn Dispatcher>) {
+    GLOBAL_STORE_SERVER
+        .set(store_server)
         .ok()
-        .expect("EntityServer already initialized");
+        .expect("StoreServer already initialized");
 }
 
-/// Guard returned by [`install_override_entity_server`]; restores the
+/// Guard returned by [`install_override_store_server`]; restores the
 /// previous thread-local override on drop.
 pub(crate) struct OverrideGuard {
     previous: Option<Arc<dyn Dispatcher>>,
@@ -586,15 +567,15 @@ pub(crate) struct OverrideGuard {
 
 impl Drop for OverrideGuard {
     fn drop(&mut self) {
-        OVERRIDE_ENTITY_SERVER.with(|s| *s.borrow_mut() = self.previous.take());
+        OVERRIDE_STORE_SERVER.with(|s| *s.borrow_mut() = self.previous.take());
     }
 }
 
-/// Install a thread-local `EntityServer` override; the returned guard
+/// Install a thread-local `StoreServer` override; the returned guard
 /// restores the previous value on drop. Used by [`crate::with`] to
 /// isolate test scopes from the process-wide registration.
-pub(crate) fn install_override_entity_server(entity_server: Arc<dyn Dispatcher>) -> OverrideGuard {
-    let previous = OVERRIDE_ENTITY_SERVER.with(|s| s.borrow_mut().replace(entity_server));
+pub(crate) fn install_override_store_server(store_server: Arc<dyn Dispatcher>) -> OverrideGuard {
+    let previous = OVERRIDE_STORE_SERVER.with(|s| s.borrow_mut().replace(store_server));
     OverrideGuard { previous }
 }
 
@@ -602,9 +583,8 @@ pub(crate) fn install_override_entity_server(entity_server: Arc<dyn Dispatcher>)
 // PrimitiveError → ActivityError mapping for store data operations
 // ---------------------------------------------------------------------------
 
-/// Classify a `StoreManager`-emitted [`PrimitiveError`] into the
-/// appropriate [`ActivityError`] kind for the orchestrating data
-/// operation.
+/// Classify a `Store`-emitted [`PrimitiveError`] into the appropriate
+/// [`ActivityError`] kind for the orchestrating data operation.
 fn map_store_primitive(e: PrimitiveError, component: &'static str) -> ActivityError {
     match &e {
         PrimitiveError::EntityNotFound { .. } => ActivityError::non_existent_data(component, e),

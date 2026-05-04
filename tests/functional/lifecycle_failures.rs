@@ -159,7 +159,7 @@ async fn remove_missing_entity_fails() {
 }
 
 #[tokio::test]
-async fn undo_commit_checked_out_entity_fails() {
+async fn revert_checked_out_entity_fails() {
     run_with(SubstrateKind::InMemory, || async {
         EntityClient::insert(a_minimal_role("eng-lead"))
             .await
@@ -167,7 +167,7 @@ async fn undo_commit_checked_out_entity_fails() {
         let _delegate = EntityClient::checkout(role_typed("eng-lead"))
             .await
             .unwrap();
-        let result = EntityClient::undo_commit(role_ref("eng-lead")).await;
+        let result = EntityClient::revert(role_ref("eng-lead")).await;
         assert_activity_error(
             result,
             checkout_lifecycle(|e| matches!(e, PrimitiveError::EntityStillCheckedOut { .. })),
@@ -177,13 +177,13 @@ async fn undo_commit_checked_out_entity_fails() {
 }
 
 #[tokio::test]
-async fn undo_commit_with_no_changes_fails() {
+async fn revert_with_no_changes_fails() {
     run_with(SubstrateKind::InMemory, || async {
         EntityClient::insert(a_minimal_role("eng-lead"))
             .await
             .unwrap();
         EntityClient::persist().await.unwrap();
-        let result = EntityClient::undo_commit(role_ref("eng-lead")).await;
+        let result = EntityClient::revert(role_ref("eng-lead")).await;
         assert_activity_error(
             result,
             checkout_lifecycle(|e| matches!(e, PrimitiveError::NoUncommittedChanges { .. })),
@@ -202,7 +202,7 @@ async fn unload_checked_out_entity_fails() {
         let _delegate = EntityClient::checkout(role_typed("eng-lead"))
             .await
             .unwrap();
-        let result = EntityClient::unload(role_ref("eng-lead")).await;
+        let result = EntityClient::forget(role_ref("eng-lead")).await;
         assert_activity_error(
             result,
             checkout_lifecycle(|e| matches!(e, PrimitiveError::EntityStillCheckedOut { .. })),
@@ -214,7 +214,7 @@ async fn unload_checked_out_entity_fails() {
 #[tokio::test]
 async fn unload_missing_entity_fails() {
     run_with(SubstrateKind::InMemory, || async {
-        let result = EntityClient::unload(role_ref("missing")).await;
+        let result = EntityClient::forget(role_ref("missing")).await;
         assert_activity_error(
             result,
             non_existent(|e| matches!(e, PrimitiveError::EntityNotFound { .. })),
@@ -229,7 +229,7 @@ async fn unload_unsaved_entity_fails() {
         EntityClient::insert(a_minimal_role("eng-lead"))
             .await
             .unwrap();
-        let result = EntityClient::unload(role_ref("eng-lead")).await;
+        let result = EntityClient::forget(role_ref("eng-lead")).await;
         assert_activity_error(
             result,
             checkout_lifecycle(|e| matches!(e, PrimitiveError::EntityHasUnsavedChanges { .. })),
