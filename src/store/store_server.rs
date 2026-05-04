@@ -17,21 +17,20 @@ use std::{
     cell::RefCell,
     future::Future,
     pin::Pin,
-    sync::{Arc, OnceLock},
+    sync::{Arc, OnceLock, Weak},
 };
 
-use futures::{
-    channel::{mpsc, oneshot},
-    future::BoxFuture,
-    SinkExt,
-};
+use futures::future::BoxFuture;
 
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
     error::{primitive::PrimitiveError, ActivityError},
-    store::lib::{
-        store_request::{StoreMessage, StoreRequest, StoreResponse},
-        workspace_request::{WorkspaceRequest, WorkspaceResponse},
+    store::{
+        lib::{
+            store_request::{StoreRequest, StoreResponse},
+            workspace_request::{WorkspaceRequest, WorkspaceResponse},
+        },
+        store::StoreDispatcher,
     },
     substrate::SchemaBackedSubstrate,
     validation::{run_validations_for_entity, ValidationKind},
@@ -53,23 +52,47 @@ pub(crate) trait Dispatcher: Send + Sync {
 
 /// Stateless orchestrator for the store layer.
 ///
-/// Holds a sender to the [`Store`] actor and a shared substrate handle.
-/// Multiple instances may coexist; they all dispatch into the same
-/// [`Store`].
+/// Holds a [`StoreDispatcher`] into the [`Store`] actor and a shared
+/// substrate handle, plus a weak self-reference so per-request
+/// workspaces can dispatch through the same outward surface callers
+/// hold. Multiple instances may dispatch into the same store.
 pub(crate) struct StoreServer<S> {
-    store_tx: mpsc::Sender<StoreMessage>,
+    store_dispatcher: Arc<dyn StoreDispatcher>,
     substrate: Arc<S>,
+    self_dispatcher: Weak<dyn Dispatcher>,
 }
 
 impl<S> StoreServer<S>
 where
     S: SchemaBackedSubstrate,
 {
-    pub(crate) fn new(substrate: S, store_tx: mpsc::Sender<StoreMessage>) -> Self {
-        Self {
-            store_tx,
-            substrate: Arc::new(substrate),
-        }
+    /// Wire a [`StoreServer`] over `substrate` and a `StoreDispatcher`
+    /// into the [`Store`] actor, and return its workspace-facing
+    /// [`Dispatcher`] handle.
+    ///
+    /// Uses [`Arc::new_cyclic`] so the server can hold a `Weak` back-
+    /// reference to its own outward dispatcher; the strong reference
+    /// the caller holds is what keeps the cycle balanced. The strong
+    /// edge is dispatcher → server; the weak edge is server →
+    /// dispatcher.
+    pub(crate) fn start(
+        substrate: S,
+        store_dispatcher: Arc<dyn StoreDispatcher>,
+    ) -> Arc<dyn Dispatcher> {
+        let substrate = Arc::new(substrate);
+        Arc::new_cyclic(|weak: &Weak<StoreServer<S>>| StoreServer {
+            store_dispatcher,
+            substrate,
+            self_dispatcher: weak.clone() as Weak<dyn Dispatcher>,
+        })
+    }
+
+    /// Weak handle to the workspace-facing dispatcher this server is
+    /// installed behind. Used by per-request workspace construction
+    /// (see Thread H).
+    #[allow(dead_code)]
+    pub(crate) fn self_dispatcher(&self) -> Weak<dyn Dispatcher> {
+        self.self_dispatcher.clone()
     }
 
     // -----------------------------------------------------------------------
@@ -481,25 +504,10 @@ where
     // -----------------------------------------------------------------------
 
     async fn store_send(&self, request: StoreRequest) -> Result<StoreResponse, ActivityError> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        let mut tx = self.store_tx.clone();
-        tx.send(StoreMessage {
-            request,
-            reply: reply_tx,
-        })
-        .await
-        .map_err(|_| {
-            ActivityError::store_unavailable(
-                "store_server",
-                PrimitiveError::store_unavailable("store unavailable"),
-            )
-        })?;
-        reply_rx.await.map_err(|_| {
-            ActivityError::store_unavailable(
-                "store_server",
-                PrimitiveError::store_unavailable("store reply dropped"),
-            )
-        })
+        self.store_dispatcher
+            .dispatch(request)
+            .await
+            .map_err(|e| ActivityError::store_unavailable("store_server", e))
     }
 
     async fn store_get_entity(

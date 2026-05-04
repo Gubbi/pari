@@ -33,7 +33,11 @@ pub mod validation;
 pub mod workspace;
 
 use crate::{
-    store::{install_global_store_server, install_override_store_server, Store, StoreServer},
+    store::{
+        install_global_store_server, install_override_store_server,
+        store::{ChannelStoreDispatcher, Store, StoreDispatcher},
+        store_server::StoreServer,
+    },
     substrate::SchemaBackedSubstrate,
 };
 
@@ -52,10 +56,8 @@ pub fn init<S>(substrate: S, spawn_fn: SpawnFn)
 where
     S: SchemaBackedSubstrate,
 {
-    let (tx, rx) = mpsc::channel(32);
-    spawn_fn(Box::pin(Store::new().run(rx)));
-    let server: Arc<dyn store::store_server::Dispatcher> =
-        Arc::new(StoreServer::new(substrate, tx));
+    let store_dispatcher = Store::start(&spawn_fn);
+    let server = StoreServer::start(substrate, store_dispatcher);
     install_global_store_server(server);
 }
 
@@ -73,16 +75,16 @@ where
     Fut: Future<Output = ()>,
 {
     let (tx, rx) = mpsc::channel(32);
-    let store_fut = Store::new().run(rx);
-    let server: Arc<dyn store::store_server::Dispatcher> =
-        Arc::new(StoreServer::new(substrate, tx));
+    let store_run = Store::new().run(rx);
+    let store_dispatcher: Arc<dyn StoreDispatcher> = Arc::new(ChannelStoreDispatcher::new(tx));
+    let server = StoreServer::start(substrate, store_dispatcher);
 
     let user_fut = async move {
         let _guard = install_override_store_server(server);
         f().await;
         // _guard drops here, releasing the store-server Arc and closing
-        // the store channel; store_fut then exits.
+        // the store channel; store_run then exits.
     };
 
-    futures::join!(store_fut, user_fut);
+    futures::join!(store_run, user_fut);
 }

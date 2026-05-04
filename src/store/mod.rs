@@ -19,7 +19,4 @@ pub use lib::{
     change::EntityChange,
     workspace_request::{WorkspaceRequest, WorkspaceResponse},
 };
-pub(crate) use store::Store;
-pub(crate) use store_server::{
-    install_global_store_server, install_override_store_server, StoreServer,
-};
+pub(crate) use store_server::{install_global_store_server, install_override_store_server};

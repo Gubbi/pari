@@ -5,9 +5,16 @@
 //! `ActivityError` — every failure is a [`PrimitiveError`] for the
 //! orchestrator above to classify.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
-use futures::{channel::mpsc, StreamExt};
+use futures::{
+    channel::{mpsc, oneshot},
+    future::BoxFuture,
+    SinkExt, StreamExt,
+};
 
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
@@ -16,7 +23,66 @@ use crate::{
         change::EntityChange,
         store_request::{StoreMessage, StoreRequest, StoreResponse},
     },
+    SpawnFn,
 };
+
+// ---------------------------------------------------------------------------
+// StoreDispatcher trait — server → store-actor wire interface
+// ---------------------------------------------------------------------------
+
+/// Dispatch surface from [`StoreServer`](super::store_server::StoreServer)
+/// into the [`Store`] actor. Hides the underlying channel envelope.
+///
+/// Channel-level transport failures surface as `Err(PrimitiveError)` so
+/// the orchestrating server can classify them as
+/// `ActivityError::store_unavailable`, separate from operation-level
+/// failures the actor returns inside [`StoreResponse::Err`].
+pub(crate) trait StoreDispatcher: Send + Sync {
+    fn dispatch<'a>(
+        &'a self,
+        req: StoreRequest,
+    ) -> BoxFuture<'a, Result<StoreResponse, PrimitiveError>>;
+}
+
+/// Channel-backed [`StoreDispatcher`] returned by [`Store::start`].
+pub(crate) struct ChannelStoreDispatcher {
+    tx: mpsc::Sender<StoreMessage>,
+}
+
+impl ChannelStoreDispatcher {
+    /// Construct a [`ChannelStoreDispatcher`] over an existing
+    /// [`mpsc::Sender<StoreMessage>`]. Used by callers that need to
+    /// drive the actor inline (e.g. [`crate::with`]) instead of
+    /// spawning it through [`Store::start`].
+    pub(crate) fn new(tx: mpsc::Sender<StoreMessage>) -> Self {
+        Self { tx }
+    }
+}
+
+impl StoreDispatcher for ChannelStoreDispatcher {
+    fn dispatch<'a>(
+        &'a self,
+        req: StoreRequest,
+    ) -> BoxFuture<'a, Result<StoreResponse, PrimitiveError>> {
+        Box::pin(async move {
+            let (reply_tx, reply_rx) = oneshot::channel();
+            let mut tx = self.tx.clone();
+            tx.send(StoreMessage {
+                request: req,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| PrimitiveError::store_unavailable("store unavailable"))?;
+            reply_rx
+                .await
+                .map_err(|_| PrimitiveError::store_unavailable("store reply dropped"))
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Store — actor and lifecycle
+// ---------------------------------------------------------------------------
 
 /// Sole custodian of the store's in-memory state.
 ///
@@ -42,6 +108,17 @@ impl Store {
             removed: HashSet::new(),
             checked_out: HashSet::new(),
         }
+    }
+
+    /// Construct a [`Store`], spawn its actor loop via `spawn_fn`, and
+    /// return a channel-backed [`StoreDispatcher`] connected to it.
+    ///
+    /// The runtime is the integrator's choice — `spawn_fn` is the only
+    /// async-runtime touch-point inside `pari`.
+    pub(crate) fn start(spawn_fn: &SpawnFn) -> Arc<dyn StoreDispatcher> {
+        let (tx, rx) = mpsc::channel(32);
+        spawn_fn(Box::pin(Store::new().run(rx)));
+        Arc::new(ChannelStoreDispatcher { tx })
     }
 
     /// Actor loop — processes messages strictly sequentially. No
