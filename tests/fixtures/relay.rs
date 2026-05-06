@@ -5,11 +5,11 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 use pari::{
     entities::{
-        relay::{Relay, StateMapEntry, TrackedRelay},
+        relay::{Relay, StateMapEntry},
         role::Role,
         workflow::{ReusableWorkflow, Step, Workflow},
     },
-    entity::{EntityRef, TrackedEntity, WorkflowParent},
+    entity::{EntityRef, WorkflowParent},
     types::Raci,
 };
 
@@ -22,7 +22,7 @@ pub fn a_minimal_relay(
     workflow_id: &str,
     accountable_role_id: &str,
     reusable_workflow_id: &str,
-) -> TrackedEntity {
+) -> Relay {
     let parent = WorkflowParent::Workflow(EntityRef::<Workflow>::new(workflow_id));
     let mut state_map: HashMap<String, StateMapEntry> = HashMap::new();
     state_map.insert(
@@ -47,7 +47,7 @@ pub fn a_minimal_relay(
         consulted: None,
         informed: None,
     };
-    TrackedEntity::from_relay(TrackedRelay::from(Relay {
+    Relay {
         entity_ref: EntityRef::with_parent(id, parent),
         name: "Approval Handoff".to_string(),
         description: None,
@@ -60,7 +60,7 @@ pub fn a_minimal_relay(
         intercepts: None,
         guidance: None,
         extensions: Default::default(),
-    }))
+    }
 }
 
 /// Steps payload for a parent workflow's final shape: a single

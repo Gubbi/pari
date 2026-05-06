@@ -1,19 +1,19 @@
 //! Canonical [`Team`] sample data for tests.
 //!
-//! Each function returns a fully-formed [`TrackedEntity`] with a name
-//! that reads at the call site. Variants compose internally; callers
-//! see only the named result.
+//! Each function returns a fully-formed plain [`Team`] value with a
+//! name that reads at the call site. Variants compose internally;
+//! callers see only the named result.
 
 use pari::{
     entities::{
         role::Role,
-        team::{Team, TeamMember, TrackedTeam},
+        team::{Team, TeamMember},
     },
-    entity::{EntityRef, TrackedEntity},
+    entity::EntityRef,
 };
 
 /// Bare team with required fields populated; no roster, no composition.
-pub fn a_minimal_team(id: &str) -> TrackedEntity {
+pub fn a_minimal_team(id: &str) -> Team {
     team(
         id,
         "Minimal Team",
@@ -28,7 +28,7 @@ pub fn a_minimal_team(id: &str) -> TrackedEntity {
 ///
 /// `members` is a list of `(handle, role_id)` pairs; each `role_id` is
 /// resolved to a top-level `EntityRef<Role>`.
-pub fn a_team_with_members(id: &str, members: &[(&str, &str)]) -> TrackedEntity {
+pub fn a_team_with_members(id: &str, members: &[(&str, &str)]) -> Team {
     let members = members
         .iter()
         .map(|(handle, role_id)| TeamMember {
@@ -50,11 +50,7 @@ pub fn a_team_with_members(id: &str, members: &[(&str, &str)]) -> TrackedEntity 
 ///
 /// `includes` maps `(team_id, role_id)` so the included team's role
 /// resolves to a concrete handle. `imports` is a flat list of team ids.
-pub fn a_team_with_composition(
-    id: &str,
-    includes: &[(&str, &str)],
-    imports: &[&str],
-) -> TrackedEntity {
+pub fn a_team_with_composition(id: &str, includes: &[(&str, &str)], imports: &[&str]) -> Team {
     let include = includes
         .iter()
         .map(|(team_id, role_id)| {
@@ -96,8 +92,8 @@ fn team(
     members: Option<Vec<TeamMember>>,
     include: Option<Vec<(EntityRef<Team>, EntityRef<Role>)>>,
     import: Option<Vec<EntityRef<Team>>>,
-) -> TrackedEntity {
-    TrackedEntity::from_team(TrackedTeam::from(Team {
+) -> Team {
+    Team {
         entity_ref: EntityRef::new(id),
         name: name.to_string(),
         description: description.map(str::to_string),
@@ -105,5 +101,5 @@ fn team(
         include,
         import,
         extensions: Default::default(),
-    }))
+    }
 }

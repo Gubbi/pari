@@ -4,9 +4,9 @@ use indexmap::IndexMap;
 use pari::{
     entities::{
         role::Role,
-        workflow::{ReusableWorkflow, Step, TrackedReusableWorkflow},
+        workflow::{ReusableWorkflow, Step},
     },
-    entity::{EntityRef, TrackedEntity},
+    entity::EntityRef,
     types::{Raci, WorkflowSemantic, WorkflowStateEntry},
 };
 
@@ -20,7 +20,7 @@ pub fn a_reusable_workflow_with_review_step(
     id: &str,
     accountable_role_id: &str,
     approver_role_id: &str,
-) -> TrackedEntity {
+) -> ReusableWorkflow {
     let raci = Raci {
         responsible: vec![EntityRef::<Role>::new(accountable_role_id)],
         accountable: EntityRef::<Role>::new(accountable_role_id),
@@ -35,7 +35,7 @@ pub fn a_reusable_workflow_with_review_step(
             on_reject: "Review".to_string(),
         },
     );
-    TrackedEntity::from_reusable_workflow(TrackedReusableWorkflow::from(ReusableWorkflow {
+    ReusableWorkflow {
         entity_ref: EntityRef::new(id),
         name: "Approval Loop".to_string(),
         description: Some("A reusable approval flow.".to_string()),
@@ -62,5 +62,5 @@ pub fn a_reusable_workflow_with_review_step(
         intercepts: None,
         guidance: None,
         extensions: Default::default(),
-    }))
+    }
 }

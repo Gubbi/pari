@@ -1,19 +1,15 @@
 //! Canonical [`Task`] sample data for tests.
 
 use pari::{
-    entities::{
-        artifact_kind::ArtifactKind,
-        task::{Task, TrackedTask},
-        workflow::Workflow,
-    },
-    entity::{EntityRef, TrackedEntity, WorkflowParent},
+    entities::{artifact_kind::ArtifactKind, task::Task, workflow::Workflow},
+    entity::{EntityRef, WorkflowParent},
     types::{Artifact, TaskSemantic, TaskStateEntry},
 };
 
 /// Bare task embedded under `workflow_id`, producing an artifact of
 /// kind `artifact_kind_id`. Required fields populated; raci, intercepts,
 /// and guidance left absent so the workflow's raci flows through.
-pub fn a_minimal_task(id: &str, workflow_id: &str, artifact_kind_id: &str) -> TrackedEntity {
+pub fn a_minimal_task(id: &str, workflow_id: &str, artifact_kind_id: &str) -> Task {
     let parent = WorkflowParent::Workflow(EntityRef::<Workflow>::new(workflow_id));
     a_minimal_task_with_parent(id, parent, artifact_kind_id)
 }
@@ -25,8 +21,8 @@ pub fn a_minimal_task_with_parent(
     id: &str,
     parent: WorkflowParent,
     artifact_kind_id: &str,
-) -> TrackedEntity {
-    TrackedEntity::from_task(TrackedTask::from(Task {
+) -> Task {
+    Task {
         entity_ref: EntityRef::with_parent(id, parent),
         name: "Design Doc Draft".to_string(),
         description: None,
@@ -53,5 +49,5 @@ pub fn a_minimal_task_with_parent(
         intercepts: None,
         guidance: None,
         extensions: Default::default(),
-    }))
+    }
 }

@@ -7,9 +7,9 @@ use pari::{
     entities::{
         role::Role,
         task::Task,
-        workflow::{Step, TrackedWorkflow, Workflow},
+        workflow::{Step, Workflow},
     },
-    entity::{EntityRef, TrackedEntity, WorkflowParent},
+    entity::{EntityRef, WorkflowParent},
     types::{HookCall, Raci, WorkflowSemantic, WorkflowStateEntry, WorkflowTrigger},
 };
 
@@ -24,7 +24,7 @@ use pari::{
 /// The state list is `[InProgress, InReview, Done]` so the canonical
 /// final shape with a `Step::Review` does not also need a `set_states`
 /// in the same modify cycle.
-pub fn a_workflow_with_empty_steps(id: &str, accountable_role_id: &str) -> TrackedEntity {
+pub fn a_workflow_with_empty_steps(id: &str, accountable_role_id: &str) -> Workflow {
     let raci = canonical_raci(accountable_role_id);
     workflow(
         id,
@@ -43,7 +43,7 @@ pub fn a_workflow_with_intercepts(
     id: &str,
     accountable_role_id: &str,
     intercepts: HashMap<WorkflowTrigger, HookCall>,
-) -> TrackedEntity {
+) -> Workflow {
     let raci = canonical_raci(accountable_role_id);
     workflow(
         id,
@@ -116,8 +116,8 @@ fn workflow(
     states: Vec<WorkflowStateEntry>,
     steps: IndexMap<String, Step>,
     intercepts: Option<HashMap<WorkflowTrigger, HookCall>>,
-) -> TrackedEntity {
-    TrackedEntity::from_workflow(TrackedWorkflow::from(Workflow {
+) -> Workflow {
+    Workflow {
         entity_ref: EntityRef::new(id),
         name: "Design Workflow".to_string(),
         description: Some("A workflow for tests.".to_string()),
@@ -128,5 +128,5 @@ fn workflow(
         intercepts,
         guidance: None,
         extensions: Default::default(),
-    }))
+    }
 }

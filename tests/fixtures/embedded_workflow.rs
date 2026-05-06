@@ -5,9 +5,9 @@ use pari::{
     entities::{
         role::Role,
         task::Task,
-        workflow::{EmbeddedWorkflow, Step, TrackedEmbeddedWorkflow, Workflow},
+        workflow::{EmbeddedWorkflow, Step, Workflow},
     },
-    entity::{EntityRef, TrackedEntity, WorkflowParent},
+    entity::{EntityRef, WorkflowParent},
     types::{Raci, WorkflowSemantic, WorkflowStateEntry},
 };
 
@@ -17,7 +17,7 @@ pub fn a_minimal_embedded_workflow(
     id: &str,
     parent_workflow_id: &str,
     accountable_role_id: &str,
-) -> TrackedEntity {
+) -> EmbeddedWorkflow {
     let parent = WorkflowParent::Workflow(EntityRef::<Workflow>::new(parent_workflow_id));
     let raci = Raci {
         responsible: vec![EntityRef::<Role>::new(accountable_role_id)],
@@ -25,7 +25,7 @@ pub fn a_minimal_embedded_workflow(
         consulted: None,
         informed: None,
     };
-    TrackedEntity::from_embedded_workflow(TrackedEmbeddedWorkflow::from(EmbeddedWorkflow {
+    EmbeddedWorkflow {
         entity_ref: EntityRef::with_parent(id, parent),
         name: "Onboarding".to_string(),
         description: Some("A nested onboarding flow.".to_string()),
@@ -47,7 +47,7 @@ pub fn a_minimal_embedded_workflow(
         intercepts: None,
         guidance: None,
         extensions: Default::default(),
-    }))
+    }
 }
 
 /// Steps payload for the embedded workflow's final shape: a single

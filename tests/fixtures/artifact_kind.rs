@@ -1,13 +1,10 @@
 //! Canonical [`ArtifactKind`] sample data for tests.
 
-use pari::{
-    entities::artifact_kind::{ArtifactKind, TrackedArtifactKind},
-    entity::{EntityRef, TrackedEntity},
-};
+use pari::{entities::artifact_kind::ArtifactKind, entity::EntityRef};
 
 /// Bare artifact kind with required fields populated.
-pub fn a_minimal_artifact_kind(id: &str) -> TrackedEntity {
-    TrackedEntity::from_artifact_kind(TrackedArtifactKind::from(ArtifactKind {
+pub fn a_minimal_artifact_kind(id: &str) -> ArtifactKind {
+    ArtifactKind {
         entity_ref: EntityRef::new(id),
         name: "Design Doc".to_string(),
         description: None,
@@ -15,5 +12,5 @@ pub fn a_minimal_artifact_kind(id: &str) -> TrackedEntity {
         access: None,
         guidance: None,
         extensions: Default::default(),
-    }))
+    }
 }
