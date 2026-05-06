@@ -23,7 +23,7 @@ pub enum WorkspaceRequest {
         any_ref: AnyEntityRef,
     },
     Insert {
-        entity: TrackedEntity,
+        json: serde_json::Value,
     },
     Checkout {
         any_ref: AnyEntityRef,

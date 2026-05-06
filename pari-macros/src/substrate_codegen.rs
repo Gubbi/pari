@@ -27,6 +27,16 @@ pub fn generate_substrate_registry_parts(
         })
         .collect::<Vec<_>>();
 
+    let any_ref_from_json_arms = entries
+        .iter()
+        .map(|e| {
+            let name = &e.name;
+            quote! {
+                EntityKind::#name => ::serde_json::from_value(value).map(AnyEntityRef::#name),
+            }
+        })
+        .collect::<Vec<_>>();
+
     let tracked_to_json_arms = entries
         .iter()
         .map(|e| {
@@ -55,6 +65,43 @@ pub fn generate_substrate_registry_parts(
                     #(#any_ref_to_json_arms)*
                 }
             }
+
+            /// JSON → `AnyEntityRef` per-kind dispatch. Reads the
+            /// `kind` discriminator from the value and deserializes
+            /// into the matching typed `EntityRef` variant.
+            pub(crate) fn from_json_value(
+                value: ::serde_json::Value,
+            ) -> ::std::result::Result<Self, ::pari::error::primitive::PrimitiveError> {
+                let kind_str = value
+                    .get("kind")
+                    .and_then(::serde_json::Value::as_str)
+                    .ok_or_else(|| {
+                        ::pari::error::primitive::PrimitiveError::partial_payload_deserialization(
+                            "missing or invalid `kind` in entity_ref payload",
+                            "<unknown>".to_string(),
+                            "no `kind` discriminator".to_string(),
+                        )
+                    })?
+                    .to_owned();
+                let kind = EntityKind::from_str(&kind_str).ok_or_else(|| {
+                    ::pari::error::primitive::PrimitiveError::partial_payload_deserialization(
+                        "unknown entity kind in entity_ref payload",
+                        "<unknown>".to_string(),
+                        kind_str.clone(),
+                    )
+                })?;
+                let kind_label = kind_str;
+                match kind {
+                    #(#any_ref_from_json_arms)*
+                }
+                .map_err(|e| {
+                    ::pari::error::primitive::PrimitiveError::partial_payload_deserialization(
+                        "entity_ref deserialization failed",
+                        kind_label,
+                        e.to_string(),
+                    )
+                })
+            }
         }
     };
 
@@ -66,7 +113,9 @@ pub fn generate_substrate_registry_parts(
                 }
             }
 
-            pub fn from_json_value(
+            /// JSON → `TrackedEntity` per-kind dispatch. Reachable
+            /// only through the store's JSON pipeline.
+            pub(crate) fn from_json_value(
                 any_ref: &AnyEntityRef,
                 value: ::serde_json::Value,
             ) -> ::serde_json::Result<Self> {

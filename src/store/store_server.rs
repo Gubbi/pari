@@ -109,7 +109,7 @@ where
                 Err(ActivityError::NonExistentData { .. }) => WorkspaceResponse::Bool(false),
                 Err(e) => WorkspaceResponse::Err(e),
             },
-            WorkspaceRequest::Insert { entity } => match self.insert(entity).await {
+            WorkspaceRequest::Insert { json } => match self.insert(json).await {
                 Ok(()) => WorkspaceResponse::Unit,
                 Err(e) => WorkspaceResponse::Err(e),
             },
@@ -191,11 +191,10 @@ where
         Ok(stubs.pop().expect("InsertStubs returns one stub per ref"))
     }
 
-    async fn insert(&self, entity: TrackedEntity) -> Result<(), ActivityError> {
-        let workspace = self.per_request_workspace();
-        workspace
-            .validate_tracked(
-                entity.clone(),
+    async fn insert(&self, json: serde_json::Value) -> Result<(), ActivityError> {
+        let entity = self
+            .json_to_verified_tracked(
+                json,
                 &[],
                 &[
                     ValidationKind::Structural,
@@ -213,6 +212,55 @@ where
             StoreResponse::Err(e) => Err(map_store_primitive(e, "store.insert")),
             _ => unreachable!(),
         }
+    }
+
+    /// Pure conversion: JSON → [`TrackedEntity`]. Reads the entity-ref
+    /// payload to resolve the kind, then deserializes per-kind into
+    /// the matching tracked variant. Wraps deserialization errors as
+    /// `unpersistable_definition`.
+    fn json_to_tracked_state(
+        &self,
+        json: serde_json::Value,
+    ) -> Result<TrackedEntity, ActivityError> {
+        let any_ref_value = json.get("entity_ref").cloned().ok_or_else(|| {
+            ActivityError::unpersistable_definition(
+                "store.json_pipeline",
+                PrimitiveError::partial_payload_deserialization(
+                    "missing entity_ref in payload",
+                    "<unknown>".to_string(),
+                    "no `entity_ref` key".to_string(),
+                ),
+            )
+        })?;
+        let any_ref = AnyEntityRef::from_json_value(any_ref_value)
+            .map_err(|e| ActivityError::unpersistable_definition("store.json_pipeline", e))?;
+        TrackedEntity::from_json_value(&any_ref, json).map_err(|e| {
+            ActivityError::unpersistable_definition(
+                "store.json_pipeline",
+                PrimitiveError::partial_payload_deserialization(
+                    "tracked entity deserialization failed",
+                    any_ref.id().to_string(),
+                    e.to_string(),
+                ),
+            )
+        })
+    }
+
+    /// Full JSON pipeline: deserialize, import into a per-request
+    /// workspace, validate. Returns the verified `TrackedEntity` for
+    /// the caller to hand to the store actor.
+    async fn json_to_verified_tracked(
+        &self,
+        json: serde_json::Value,
+        fields: &[&str],
+        kinds: &[ValidationKind],
+    ) -> Result<TrackedEntity, ActivityError> {
+        let tracked = self.json_to_tracked_state(json)?;
+        let workspace = self.per_request_workspace();
+        workspace
+            .validate_tracked(tracked.clone(), fields, kinds)
+            .await?;
+        Ok(tracked)
     }
 
     async fn checkout(&self, any_ref: AnyEntityRef) -> Result<TrackedEntity, ActivityError> {
@@ -443,23 +491,13 @@ where
                 }
             };
 
+            // Fetch the loaded fields as JSON, then run the same JSON
+            // pipeline insert uses: deserialize, import into a
+            // per-request workspace, validate.
             let loaded_json = self.substrate.load(&current, &still_pending).await?;
-            let loaded = TrackedEntity::from_json_value(any_ref, loaded_json).map_err(|e| {
-                ActivityError::unpersistable_definition(
-                    "store.load",
-                    PrimitiveError::partial_payload_deserialization(
-                        "partial payload deserialization failed",
-                        any_ref.id().to_string(),
-                        e.to_string(),
-                    ),
-                )
-            })?;
-
-            // Validate loaded fields, wrapped as unpersistable if they fail.
-            let workspace = self.per_request_workspace();
-            workspace
-                .validate_tracked(
-                    loaded.clone(),
+            let loaded = self
+                .json_to_verified_tracked(
+                    loaded_json,
                     &still_pending,
                     &[
                         ValidationKind::Structural,

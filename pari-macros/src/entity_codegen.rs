@@ -67,13 +67,7 @@ pub fn generate_entity_derive_parts(
 
     let tracked_struct =
         generate_tracked_struct(vis, tracked_name, entity_ref_type, &domain_field_refs);
-    let tracked_impl = generate_tracked_impl(
-        name,
-        tracked_name,
-        entity_ref_type,
-        entity_ref_field.is_some(),
-        &domain_field_refs,
-    );
+    let tracked_impl = generate_tracked_impl(tracked_name, entity_ref_type, &domain_field_refs);
     let serialize_impl =
         generate_serialize_impl(tracked_name, entity_ref_field.is_some(), &domain_field_refs);
     let deserialize_impl = generate_deserialize_impl(
@@ -295,30 +289,10 @@ fn generate_tracked_struct(
 }
 
 fn generate_tracked_impl(
-    name: &Ident,
     tracked_name: &Ident,
     entity_ref_type: Option<&Type>,
-    has_entity_ref: bool,
     domain_fields: &[&Field],
 ) -> TokenStream2 {
-    let from_field_inits: Vec<TokenStream2> = domain_fields
-        .iter()
-        .map(|f| {
-            let fname = &f.ident;
-            quote! {
-                #fname: ::std::sync::Arc::new(
-                    ::pari::tracked::TrackedField::loaded(plain.#fname)
-                ),
-            }
-        })
-        .collect();
-
-    let entity_ref_from = if has_entity_ref {
-        quote! { entity_ref: plain.entity_ref, }
-    } else {
-        quote! {}
-    };
-
     let entity_ref_accessor = if let Some(ty) = entity_ref_type {
         quote! {
             pub fn entity_ref(&self) -> &#ty {
@@ -484,16 +458,10 @@ fn generate_tracked_impl(
         }
     };
 
+    // Note: no `From<#name> for #tracked_name`. The only construction
+    // path into the tracked companion is the store's JSON pipeline,
+    // which uses serde and `TrackedField::loaded` per field.
     quote! {
-        impl ::std::convert::From<#name> for #tracked_name {
-            fn from(plain: #name) -> Self {
-                Self {
-                    #entity_ref_from
-                    #(#from_field_inits)*
-                }
-            }
-        }
-
         impl #tracked_name {
             #entity_ref_accessor
 

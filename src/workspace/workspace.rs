@@ -95,20 +95,27 @@ impl Workspace {
 
     /// Add a new entity to the store.
     ///
-    /// Takes a typed plain entity; the workspace converts to the
-    /// type-erased [`TrackedEntity`] before dispatching. Thread H
-    /// reshapes this to take `T: Serialize` and serialize to JSON at
-    /// the wire boundary instead.
+    /// Serializes the plain entity to JSON at the workspace boundary
+    /// and ships JSON across the wire. The store completes the
+    /// JSON → tracked → validate pipeline before the entity reaches
+    /// the canonical in-memory copy.
     pub async fn insert<T>(&self, plain: T) -> Result<(), ActivityError>
     where
-        T: Entity,
-        T::Tracked: From<T>,
+        T: Entity + serde::Serialize,
     {
-        let tracked: T::Tracked = plain.into();
-        let entity = T::into_tracked_entity(tracked);
+        let json = serde_json::to_value(&plain).map_err(|e| {
+            ActivityError::unpersistable_definition(
+                "workspace.insert",
+                crate::error::primitive::PrimitiveError::entity_projection(
+                    "entity serialization failed",
+                    "<insert>".to_string(),
+                    e.to_string(),
+                ),
+            )
+        })?;
         match self
             .dispatcher
-            .dispatch(WorkspaceRequest::Insert { entity })
+            .dispatch(WorkspaceRequest::Insert { json })
             .await
         {
             WorkspaceResponse::Unit => Ok(()),
