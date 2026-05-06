@@ -180,8 +180,15 @@ impl Workspace {
         }
     }
 
-    /// Roll an entity back to its last persisted state.
-    pub async fn revert<T: Entity>(
+    /// Roll an entity back to its last persisted state and drop it
+    /// from the in-memory view.
+    ///
+    /// For a freshly added entity the entry is removed entirely; for a
+    /// modified-but-not-yet-persisted entity it resets to a stub and
+    /// loaded fields are dropped. After this call the entity is back
+    /// to substrate-truth in both cases — no local mutations remain
+    /// and any subsequent access re-fetches lazily.
+    pub async fn revert_and_forget<T: Entity>(
         &self,
         entity_ref: EntityRef<T, T::Parent>,
     ) -> Result<(), ActivityError> {
