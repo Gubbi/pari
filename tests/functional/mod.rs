@@ -32,7 +32,6 @@ pub mod author_reusable_workflow;
 #[path = "author_relay.rs"]
 pub mod author_relay;
 
-#[cfg(any())]
 #[path = "validation_failures.rs"]
 pub mod validation_failures;
 
@@ -40,7 +39,6 @@ pub mod validation_failures;
 #[path = "lifecycle_failures.rs"]
 pub mod lifecycle_failures;
 
-#[cfg(any())]
 #[path = "validation_timing.rs"]
 pub mod validation_timing;
 

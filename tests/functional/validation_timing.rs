@@ -16,7 +16,6 @@ use pari::{
     },
     entity::{EntityRef, WorkflowParent},
     error::{primitive::PrimitiveError, ActivityError},
-    workspace::EntityClient,
 };
 
 use crate::{
@@ -27,11 +26,11 @@ use crate::{
     },
 };
 
-fn workflow_typed(id: &str) -> EntityRef<Workflow> {
+fn workflow_ref(id: &str) -> EntityRef<Workflow> {
     EntityRef::new(id)
 }
 
-fn role_typed(id: &str) -> EntityRef<Role> {
+fn role_ref(id: &str) -> EntityRef<Role> {
     EntityRef::new(id)
 }
 
@@ -63,14 +62,10 @@ fn assert_validation_at(
 /// changes.
 #[tokio::test]
 async fn setter_structural_validation_fires_at_setter_time() {
-    run_with(SubstrateKind::InMemory, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::persist().await.unwrap();
-        let mut role = EntityClient::checkout(role_typed("eng-lead"))
-            .await
-            .unwrap();
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        workspace.persist().await.unwrap();
+        let mut role = workspace.checkout(role_ref("eng-lead")).await.unwrap();
         let result = role.set_name(String::new()).await;
         assert_validation_at(result, "name", |e| {
             matches!(e, PrimitiveError::EmptyRequiredValue { .. })
@@ -84,16 +79,16 @@ async fn setter_structural_validation_fires_at_setter_time() {
 /// fails the `on_reject_valid` semantic rule.
 #[tokio::test]
 async fn setter_semantic_validation_fires_at_setter_time() {
-    run_with(SubstrateKind::InMemory, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        workspace
+            .insert(a_workflow_with_empty_steps("DesignFlow", "eng-lead"))
             .await
             .unwrap();
-        EntityClient::insert(a_workflow_with_empty_steps("DesignFlow", "eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::persist().await.unwrap();
+        workspace.persist().await.unwrap();
 
-        let mut wf = EntityClient::checkout(workflow_typed("DesignFlow"))
+        let mut wf = workspace
+            .checkout(workflow_ref("DesignFlow"))
             .await
             .unwrap();
         let mut steps: IndexMap<String, Step> = IndexMap::new();
@@ -118,28 +113,30 @@ async fn setter_semantic_validation_fires_at_setter_time() {
 /// commit's `ref_check` on `steps`.
 #[tokio::test]
 async fn commit_cross_entity_validation_fires_for_setter_mutated_refs() {
-    run_with(SubstrateKind::InMemory, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        workspace
+            .insert(a_minimal_artifact_kind("design-doc"))
             .await
             .unwrap();
-        EntityClient::insert(a_minimal_artifact_kind("design-doc"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_workflow_with_empty_steps("DesignFlow", "eng-lead"))
+        workspace
+            .insert(a_workflow_with_empty_steps("DesignFlow", "eng-lead"))
             .await
             .unwrap();
         // A task that exists, then a step pointing at a different task
         // id that does NOT exist.
-        EntityClient::insert(a_minimal_task_with_parent(
-            "Real",
-            WorkflowParent::Workflow(EntityRef::<Workflow>::new("DesignFlow")),
-            "design-doc",
-        ))
-        .await
-        .unwrap();
-        EntityClient::persist().await.unwrap();
+        workspace
+            .insert(a_minimal_task_with_parent(
+                "Real",
+                WorkflowParent::Workflow(EntityRef::<Workflow>::new("DesignFlow")),
+                "design-doc",
+            ))
+            .await
+            .unwrap();
+        workspace.persist().await.unwrap();
 
-        let mut wf = EntityClient::checkout(workflow_typed("DesignFlow"))
+        let mut wf = workspace
+            .checkout(workflow_ref("DesignFlow"))
             .await
             .unwrap();
         let parent = WorkflowParent::Workflow(EntityRef::<Workflow>::new("DesignFlow"));
