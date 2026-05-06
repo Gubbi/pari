@@ -9,9 +9,8 @@
 
 use pari::{
     entities::role::Role,
-    entity::{AnyEntityRef, EntityRef},
+    entity::EntityRef,
     error::{primitive::PrimitiveError, ActivityError},
-    workspace::EntityClient,
 };
 
 use crate::{
@@ -19,11 +18,7 @@ use crate::{
     fixtures::role::a_minimal_role,
 };
 
-fn role_ref(id: &str) -> AnyEntityRef {
-    AnyEntityRef::Role(EntityRef::new(id))
-}
-
-fn role_typed(id: &str) -> EntityRef<Role> {
+fn role_ref(id: &str) -> EntityRef<Role> {
     EntityRef::new(id)
 }
 
@@ -49,11 +44,9 @@ fn workspace_not_clean(cause: impl Fn(&PrimitiveError) -> bool) -> impl Fn(&Acti
 
 #[tokio::test]
 async fn insert_duplicate_id_fails() {
-    run_with(SubstrateKind::InMemory, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        let result = EntityClient::insert(a_minimal_role("eng-lead")).await;
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        let result = workspace.insert(a_minimal_role("eng-lead")).await;
         assert_activity_error(
             result,
             checkout_lifecycle(|e| matches!(e, PrimitiveError::EntityAlreadyExists { .. })),
@@ -64,8 +57,8 @@ async fn insert_duplicate_id_fails() {
 
 #[tokio::test]
 async fn resolve_missing_entity_fails() {
-    run_with(SubstrateKind::InMemory, || async {
-        let result = EntityClient::resolve(role_ref("missing")).await;
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        let result = workspace.resolve(role_ref("missing")).await;
         assert_activity_error(
             result,
             non_existent(|e| matches!(e, PrimitiveError::EntityNotFound { .. })),
@@ -76,8 +69,8 @@ async fn resolve_missing_entity_fails() {
 
 #[tokio::test]
 async fn checkout_missing_entity_fails() {
-    run_with(SubstrateKind::InMemory, || async {
-        let result = EntityClient::checkout(role_typed("missing")).await;
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        let result = workspace.checkout(role_ref("missing")).await;
         assert_activity_error(
             result,
             non_existent(|e| matches!(e, PrimitiveError::EntityNotFound { .. })),
@@ -88,14 +81,10 @@ async fn checkout_missing_entity_fails() {
 
 #[tokio::test]
 async fn checkout_already_checked_out_fails() {
-    run_with(SubstrateKind::InMemory, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        let _delegate = EntityClient::checkout(role_typed("eng-lead"))
-            .await
-            .unwrap();
-        let result = EntityClient::checkout(role_typed("eng-lead")).await;
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        let _editor = workspace.checkout(role_ref("eng-lead")).await.unwrap();
+        let result = workspace.checkout(role_ref("eng-lead")).await;
         assert_activity_error(
             result,
             checkout_lifecycle(|e| matches!(e, PrimitiveError::AlreadyCheckedOut { .. })),
@@ -104,22 +93,18 @@ async fn checkout_already_checked_out_fails() {
     .await;
 }
 
-// commit-without-checkout is now a compile-time guarantee: TrackedEntity
+// commit-without-checkout is now a compile-time guarantee: XViewer
 // returned by `resolve` does not have a `commit` method. The generated
-// `XDelegate` is the only carrier of `commit` / `undo_checkout`, and
-// the only way to obtain a delegate is `checkout`. No runtime test
-// reaches this path through the public API.
+// `XEditor` is the only carrier of `commit` / `undo_checkout`, and the
+// only way to obtain an editor is `checkout`. No runtime test reaches
+// this path through the public API.
 
 #[tokio::test]
 async fn persist_with_pending_checkouts_fails() {
-    run_with(SubstrateKind::InMemory, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        let _delegate = EntityClient::checkout(role_typed("eng-lead"))
-            .await
-            .unwrap();
-        let result = EntityClient::persist().await;
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        let _editor = workspace.checkout(role_ref("eng-lead")).await.unwrap();
+        let result = workspace.persist().await;
         assert_activity_error(
             result,
             workspace_not_clean(|e| matches!(e, PrimitiveError::PendingCheckouts { .. })),
@@ -130,14 +115,10 @@ async fn persist_with_pending_checkouts_fails() {
 
 #[tokio::test]
 async fn remove_checked_out_entity_fails() {
-    run_with(SubstrateKind::InMemory, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        let _delegate = EntityClient::checkout(role_typed("eng-lead"))
-            .await
-            .unwrap();
-        let result = EntityClient::remove(role_ref("eng-lead")).await;
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        let _editor = workspace.checkout(role_ref("eng-lead")).await.unwrap();
+        let result = workspace.remove(role_ref("eng-lead")).await;
         assert_activity_error(
             result,
             checkout_lifecycle(|e| matches!(e, PrimitiveError::EntityStillCheckedOut { .. })),
@@ -148,8 +129,8 @@ async fn remove_checked_out_entity_fails() {
 
 #[tokio::test]
 async fn remove_missing_entity_fails() {
-    run_with(SubstrateKind::InMemory, || async {
-        let result = EntityClient::remove(role_ref("missing")).await;
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        let result = workspace.remove(role_ref("missing")).await;
         assert_activity_error(
             result,
             non_existent(|e| matches!(e, PrimitiveError::EntityNotFound { .. })),
@@ -160,14 +141,10 @@ async fn remove_missing_entity_fails() {
 
 #[tokio::test]
 async fn revert_checked_out_entity_fails() {
-    run_with(SubstrateKind::InMemory, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        let _delegate = EntityClient::checkout(role_typed("eng-lead"))
-            .await
-            .unwrap();
-        let result = EntityClient::revert(role_ref("eng-lead")).await;
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        let _editor = workspace.checkout(role_ref("eng-lead")).await.unwrap();
+        let result = workspace.revert_and_forget(role_ref("eng-lead")).await;
         assert_activity_error(
             result,
             checkout_lifecycle(|e| matches!(e, PrimitiveError::EntityStillCheckedOut { .. })),
@@ -178,12 +155,10 @@ async fn revert_checked_out_entity_fails() {
 
 #[tokio::test]
 async fn revert_with_no_changes_fails() {
-    run_with(SubstrateKind::InMemory, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::persist().await.unwrap();
-        let result = EntityClient::revert(role_ref("eng-lead")).await;
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        workspace.persist().await.unwrap();
+        let result = workspace.revert_and_forget(role_ref("eng-lead")).await;
         assert_activity_error(
             result,
             checkout_lifecycle(|e| matches!(e, PrimitiveError::NoUncommittedChanges { .. })),
@@ -193,16 +168,12 @@ async fn revert_with_no_changes_fails() {
 }
 
 #[tokio::test]
-async fn unload_checked_out_entity_fails() {
-    run_with(SubstrateKind::InMemory, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::persist().await.unwrap();
-        let _delegate = EntityClient::checkout(role_typed("eng-lead"))
-            .await
-            .unwrap();
-        let result = EntityClient::forget(role_ref("eng-lead")).await;
+async fn forget_checked_out_entity_fails() {
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        workspace.persist().await.unwrap();
+        let _editor = workspace.checkout(role_ref("eng-lead")).await.unwrap();
+        let result = workspace.forget(role_ref("eng-lead")).await;
         assert_activity_error(
             result,
             checkout_lifecycle(|e| matches!(e, PrimitiveError::EntityStillCheckedOut { .. })),
@@ -212,9 +183,9 @@ async fn unload_checked_out_entity_fails() {
 }
 
 #[tokio::test]
-async fn unload_missing_entity_fails() {
-    run_with(SubstrateKind::InMemory, || async {
-        let result = EntityClient::forget(role_ref("missing")).await;
+async fn forget_missing_entity_fails() {
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        let result = workspace.forget(role_ref("missing")).await;
         assert_activity_error(
             result,
             non_existent(|e| matches!(e, PrimitiveError::EntityNotFound { .. })),
@@ -224,12 +195,10 @@ async fn unload_missing_entity_fails() {
 }
 
 #[tokio::test]
-async fn unload_unsaved_entity_fails() {
-    run_with(SubstrateKind::InMemory, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        let result = EntityClient::forget(role_ref("eng-lead")).await;
+async fn forget_unsaved_entity_fails() {
+    run_with(SubstrateKind::InMemory, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        let result = workspace.forget(role_ref("eng-lead")).await;
         assert_activity_error(
             result,
             checkout_lifecycle(|e| matches!(e, PrimitiveError::EntityHasUnsavedChanges { .. })),

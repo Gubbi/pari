@@ -35,7 +35,6 @@ pub mod author_relay;
 #[path = "validation_failures.rs"]
 pub mod validation_failures;
 
-#[cfg(any())]
 #[path = "lifecycle_failures.rs"]
 pub mod lifecycle_failures;
 
@@ -51,6 +50,5 @@ pub mod rollback_staged_change;
 #[path = "refresh_entity_from_substrate.rs"]
 pub mod refresh_entity_from_substrate;
 
-#[cfg(any())]
 #[path = "external_corruption.rs"]
 pub mod external_corruption;
