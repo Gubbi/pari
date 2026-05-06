@@ -37,4 +37,4 @@ pub use lib::{
         ValidationSchema,
     },
 };
-pub use runner::{run_validations, run_validations_for_entity};
+pub use runner::run_validations;

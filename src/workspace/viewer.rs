@@ -9,7 +9,12 @@
 //! and [`Workspace::import`]. They cannot outlive the workspace they
 //! borrow, so a viewer leaving its session is a compile-time error.
 
-use crate::{entity::Entity, workspace::Workspace};
+use crate::{
+    entity::Entity,
+    error::ActivityError,
+    validation::{lib::schema::ValidatableTracked, ValidationKind},
+    workspace::Workspace,
+};
 
 /// Read-only, workspace-bound handle to a typed entity.
 pub struct XViewer<'ws, T: Entity> {
@@ -48,5 +53,35 @@ impl<'ws, T: Entity> XViewer<'ws, T> {
     #[doc(hidden)]
     pub fn __into_inner(self) -> <T as Entity>::Tracked {
         self.inner
+    }
+
+    /// Run the schema's full kind set (Structural + Semantic +
+    /// CrossEntity) over every loaded field.
+    pub async fn validate(&self) -> Result<(), ActivityError>
+    where
+        <T as Entity>::Tracked: ValidatableTracked<T>,
+    {
+        self.validate_with(
+            &[],
+            &[
+                ValidationKind::Structural,
+                ValidationKind::Semantic,
+                ValidationKind::CrossEntity,
+            ],
+        )
+        .await
+    }
+
+    /// Parameterised runner entry. `fields == &[]` means "every field
+    /// in the schema"; `kinds` selects which rule kinds to run.
+    pub async fn validate_with(
+        &self,
+        fields: &[&str],
+        kinds: &[ValidationKind],
+    ) -> Result<(), ActivityError>
+    where
+        <T as Entity>::Tracked: ValidatableTracked<T>,
+    {
+        crate::validation::run_validations::<T>(self, fields, kinds).await
     }
 }

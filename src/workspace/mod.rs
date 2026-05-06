@@ -15,10 +15,13 @@
 //! See `docs/design/layers/workspace.md` for the L3 design.
 
 mod editor;
+pub mod validation;
+mod validator;
 mod viewer;
 #[allow(clippy::module_inception)]
 mod workspace;
 
 pub use editor::XEditor;
+pub use validator::Validator;
 pub use viewer::XViewer;
 pub use workspace::Workspace;

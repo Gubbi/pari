@@ -1,46 +1,11 @@
+//! Per-entity validation glue plus the type-erased dispatch on
+//! `Workspace::validate_tracked`.
+
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::Ident;
 
 use crate::entity_registry::RegistryEntry;
-
-fn generate_registry_validation_dispatch(entries: &[RegistryEntry]) -> Vec<TokenStream2> {
-    entries
-        .iter()
-        .map(|e| {
-            let vname = &e.name;
-            let ty = &e.name;
-            quote! {
-                TrackedEntity::#vname(t) => {
-                    let viewer: ::pari::workspace::XViewer<'_, #ty> =
-                        workspace.import::<#ty>(t.clone());
-                    ::pari::validation::lib::runner::run_validations::<#ty>(
-                        &viewer, fields, kinds,
-                    )
-                    .await
-                }
-            }
-        })
-        .collect()
-}
-
-pub fn generate_tracked_entity_validation_impl(entries: &[RegistryEntry]) -> TokenStream2 {
-    let run_validations_arms = generate_registry_validation_dispatch(entries);
-    quote! {
-        impl TrackedEntity {
-            pub async fn run_validations(
-                &self,
-                workspace: &::pari::workspace::Workspace,
-                fields: &[&str],
-                kinds: &[::pari::validation::ValidationKind],
-            ) -> ::std::result::Result<(), ::pari::error::primitive::PrimitiveError> {
-                match self {
-                    #(#run_validations_arms)*
-                }
-            }
-        }
-    }
-}
 
 pub fn generate_validation_schema_access(
     entity_name: &Ident,
@@ -51,6 +16,48 @@ pub fn generate_validation_schema_access(
             static S: ::std::sync::OnceLock<::pari::entity::ValidationSchema<#entity_name>> =
                 ::std::sync::OnceLock::new();
             S.get_or_init(|| #schema_fn)
+        }
+    }
+}
+
+/// Emit `Workspace::validate_tracked` — the single crate-internal
+/// dispatch that runs validation against a type-erased
+/// [`TrackedEntity`]. Each match arm constructs a typed
+/// `XViewer<'_, Kind>` momentarily; no type-erased viewer is reified.
+///
+/// Used by [`StoreServer`](crate::store::StoreServer) at the
+/// validation gates (insert, commit, load) where the entity is held
+/// in its type-erased form.
+pub fn generate_workspace_validate_tracked(entries: &[RegistryEntry]) -> TokenStream2 {
+    let arms: Vec<TokenStream2> = entries
+        .iter()
+        .map(|e| {
+            let v = &e.name;
+            quote! {
+                TrackedEntity::#v(t) => self
+                    .import::<#v>(t)
+                    .validate_with(fields, kinds)
+                    .await,
+            }
+        })
+        .collect();
+
+    quote! {
+        impl ::pari::workspace::Workspace {
+            /// Run validation against a type-erased
+            /// [`TrackedEntity`]. Per-kind dispatch wraps the inner
+            /// tracked state as a typed `XViewer` for the duration of
+            /// the call.
+            pub(crate) async fn validate_tracked(
+                &self,
+                tracked: TrackedEntity,
+                fields: &[&str],
+                kinds: &[::pari::validation::ValidationKind],
+            ) -> ::std::result::Result<(), ::pari::error::ActivityError> {
+                match tracked {
+                    #(#arms)*
+                }
+            }
         }
     }
 }

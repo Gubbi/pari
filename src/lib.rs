@@ -32,8 +32,11 @@ pub use entity::{entities, tracked, types};
 pub use error::pari_error::PariError;
 pub mod store;
 pub mod substrate;
-pub mod validation;
 pub mod workspace;
+/// Validation lives inside the `workspace` layer; this re-export keeps
+/// the `pari::validation::*` paths used by `#[derive(Entity)]`-generated
+/// code and external callers stable across the relocation.
+pub use workspace::validation;
 
 /// Caller-provided spawner used by [`store::Store::start`] to drive
 /// the [`store::Store`] actor future. Production callers wire this to

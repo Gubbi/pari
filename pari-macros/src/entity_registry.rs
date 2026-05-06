@@ -15,7 +15,7 @@ use syn::{Ident, Token};
 use crate::{
     entity_codegen::generate_entity_registry_parts, store_codegen::generate_store_registry_parts,
     substrate_codegen::generate_substrate_registry_parts,
-    validation_codegen::generate_tracked_entity_validation_impl,
+    validation_codegen::generate_workspace_validate_tracked,
 };
 
 pub struct RegistryEntry {
@@ -74,7 +74,7 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         load_strategy_fn,
     } = substrate_parts;
 
-    let validation_tracked_entity_impl = generate_tracked_entity_validation_impl(&entries);
+    let validate_tracked_impl = generate_workspace_validate_tracked(&entries);
 
     quote! {
         #entity_kind
@@ -83,7 +83,7 @@ pub fn generate_registry(entries: Vec<RegistryEntry>) -> TokenStream2 {
         #entity_tracked_entity_impl
         #store_tracked_entity_impl
         #substrate_tracked_entity_impl
-        #validation_tracked_entity_impl
+        #validate_tracked_impl
         #any_entity_ref_impl
         #schema_trait
         #load_strategy_fn

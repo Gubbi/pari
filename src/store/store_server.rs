@@ -31,7 +31,7 @@ use crate::{
         store::StoreDispatcher,
     },
     substrate::SchemaBackedSubstrate,
-    validation::{run_validations_for_entity, ValidationKind},
+    validation::ValidationKind,
 };
 
 // ---------------------------------------------------------------------------
@@ -193,17 +193,17 @@ where
 
     async fn insert(&self, entity: TrackedEntity) -> Result<(), ActivityError> {
         let workspace = self.per_request_workspace();
-        run_validations_for_entity(
-            &workspace,
-            &entity,
-            &[],
-            &[
-                ValidationKind::Structural,
-                ValidationKind::Semantic,
-                ValidationKind::CrossEntity,
-            ],
-        )
-        .await?;
+        workspace
+            .validate_tracked(
+                entity.clone(),
+                &[],
+                &[
+                    ValidationKind::Structural,
+                    ValidationKind::Semantic,
+                    ValidationKind::CrossEntity,
+                ],
+            )
+            .await?;
 
         match self
             .store_send(StoreRequest::InsertEntity { entity })
@@ -238,26 +238,26 @@ where
 
         let workspace = self.per_request_workspace();
         if is_added {
-            run_validations_for_entity(
-                &workspace,
-                &entity,
-                &[],
-                &[
-                    ValidationKind::Structural,
-                    ValidationKind::Semantic,
-                    ValidationKind::CrossEntity,
-                ],
-            )
-            .await?;
+            workspace
+                .validate_tracked(
+                    entity.clone(),
+                    &[],
+                    &[
+                        ValidationKind::Structural,
+                        ValidationKind::Semantic,
+                        ValidationKind::CrossEntity,
+                    ],
+                )
+                .await?;
         } else if entity.has_dirty_fields() {
             let dirty = entity.dirty_fields();
-            run_validations_for_entity(
-                &workspace,
-                &entity,
-                dirty.as_slice(),
-                &[ValidationKind::CrossEntity],
-            )
-            .await?;
+            workspace
+                .validate_tracked(
+                    entity.clone(),
+                    dirty.as_slice(),
+                    &[ValidationKind::CrossEntity],
+                )
+                .await?;
         }
 
         match self
@@ -457,18 +457,20 @@ where
 
             // Validate loaded fields, wrapped as unpersistable if they fail.
             let workspace = self.per_request_workspace();
-            run_validations_for_entity(
-                &workspace,
-                &loaded,
-                &still_pending,
-                &[
-                    ValidationKind::Structural,
-                    ValidationKind::Semantic,
-                    ValidationKind::CrossEntity,
-                ],
-            )
-            .await
-            .map_err(|e| ActivityError::unpersistable_definition("store.load", e.into_cause()))?;
+            workspace
+                .validate_tracked(
+                    loaded.clone(),
+                    &still_pending,
+                    &[
+                        ValidationKind::Structural,
+                        ValidationKind::Semantic,
+                        ValidationKind::CrossEntity,
+                    ],
+                )
+                .await
+                .map_err(|e| {
+                    ActivityError::unpersistable_definition("store.load", e.into_cause())
+                })?;
 
             // Merge loaded fields into the store entity.
             self.store_send(StoreRequest::InitializeField {

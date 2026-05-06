@@ -16,21 +16,31 @@ use crate::{
     entity::{AnyEntityRef, Entity, EntityRef, TrackedEntity},
     error::ActivityError,
     store::{Dispatcher, WorkspaceRequest, WorkspaceResponse},
-    workspace::{editor::XEditor, viewer::XViewer},
+    workspace::{editor::XEditor, validator::Validator, viewer::XViewer},
 };
 
 /// Caller-facing async API over a [`Dispatcher`].
 pub struct Workspace {
     dispatcher: Arc<dyn Dispatcher>,
+    validator: Validator,
 }
 
 impl Workspace {
     /// Construct a workspace over `dispatcher`.
     ///
-    /// Cheap — one `Arc` clone. Per-request construction inside
-    /// server-side validation paths is fine.
+    /// Cheap — one `Arc` clone plus a free `Validator` stamp.
+    /// Per-request construction inside server-side validation paths is
+    /// fine.
     pub fn new(dispatcher: Arc<dyn Dispatcher>) -> Self {
-        Self { dispatcher }
+        Self {
+            dispatcher,
+            validator: Validator::new(),
+        }
+    }
+
+    /// The workspace's validator.
+    pub fn validator(&self) -> &Validator {
+        &self.validator
     }
 
     /// The dispatcher this workspace routes through. Generated viewer

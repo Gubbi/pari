@@ -93,8 +93,7 @@ pub fn generate_workspace_parts(entity_name: &Ident, domain_fields: &[&Field]) -
                     // self.workspace() for the duration of the await; the
                     // borrow ends before __viewer_mut() below.
                     let viewer = self.workspace().import::<#entity_name>(candidate);
-                    ::pari::validation::run_validations::<#entity_name>(
-                        &viewer,
+                    viewer.validate_with(
                         &[#fname_str],
                         &[
                             ::pari::validation::ValidationKind::Structural,
