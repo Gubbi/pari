@@ -82,6 +82,9 @@ impl<'ws, T: Entity> XViewer<'ws, T> {
     where
         <T as Entity>::Tracked: ValidatableTracked<T>,
     {
-        crate::validation::run_validations::<T>(self, fields, kinds).await
+        self.workspace
+            .validator()
+            .run::<T>(self, fields, kinds)
+            .await
     }
 }
