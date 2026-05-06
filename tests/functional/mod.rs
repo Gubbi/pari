@@ -8,7 +8,6 @@
 
 #![allow(dead_code)]
 
-#[cfg(any())]
 #[path = "author_role.rs"]
 pub mod author_role;
 

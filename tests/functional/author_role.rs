@@ -5,21 +5,17 @@
 //! `RepoSubstrate`-specific scenarios pin the on-disk file shape that
 //! external readers depend on.
 
-use pari::{
-    entity::{AnyEntityRef, EntityRef, TrackedEntity},
-    substrate::RepoSubstrate,
-    workspace::EntityClient,
-};
+use pari::{entities::role::Role, entity::EntityRef, substrate::RepoSubstrate};
 use rstest::rstest;
 use tempfile::TempDir;
 
 use crate::{
-    common::substrate::{run_with, SubstrateKind},
+    common::substrate::{run_with, with_workspace, SubstrateKind},
     fixtures::role::{a_minimal_role, a_role_with_optional_fields},
 };
 
-fn role_ref(id: &str) -> AnyEntityRef {
-    AnyEntityRef::Role(EntityRef::new(id))
+fn role_ref(id: &str) -> EntityRef<Role> {
+    EntityRef::new(id)
 }
 
 #[rstest]
@@ -27,16 +23,11 @@ fn role_ref(id: &str) -> AnyEntityRef {
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
 async fn minimal_role_is_observable_after_persist(#[case] kind: SubstrateKind) {
-    run_with(kind, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::persist().await.unwrap();
+    run_with(kind, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        workspace.persist().await.unwrap();
 
-        let entity = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let TrackedEntity::Role(role) = entity else {
-            panic!("expected Role")
-        };
+        let role = workspace.resolve(role_ref("eng-lead")).await.unwrap();
         assert_eq!(role.name().await.unwrap(), "Minimal Role");
         assert_eq!(role.purpose().await.unwrap(), "test purpose");
         assert_eq!(role.description().await.unwrap(), None);
@@ -50,16 +41,14 @@ async fn minimal_role_is_observable_after_persist(#[case] kind: SubstrateKind) {
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
 async fn role_with_optional_fields_is_observable_after_persist(#[case] kind: SubstrateKind) {
-    run_with(kind, || async {
-        EntityClient::insert(a_role_with_optional_fields("eng-lead"))
+    run_with(kind, |workspace| async move {
+        workspace
+            .insert(a_role_with_optional_fields("eng-lead"))
             .await
             .unwrap();
-        EntityClient::persist().await.unwrap();
+        workspace.persist().await.unwrap();
 
-        let entity = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let TrackedEntity::Role(role) = entity else {
-            panic!("expected Role")
-        };
+        let role = workspace.resolve(role_ref("eng-lead")).await.unwrap();
         assert_eq!(role.name().await.unwrap(), "Engineering Lead");
         assert_eq!(
             role.description().await.unwrap(),
@@ -80,30 +69,34 @@ async fn role_round_trips_repo_substrate_across_sessions() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().to_path_buf();
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        EntityClient::insert(a_role_with_optional_fields("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::persist().await.unwrap();
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            workspace
+                .insert(a_role_with_optional_fields("eng-lead"))
+                .await
+                .unwrap();
+            workspace.persist().await.unwrap();
+        },
+    )
     .await;
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        let entity = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let TrackedEntity::Role(role) = entity else {
-            panic!("expected Role")
-        };
-        assert_eq!(role.name().await.unwrap(), "Engineering Lead");
-        assert_eq!(
-            role.description().await.unwrap(),
-            Some("Owns delivery of the engineering roadmap.")
-        );
-        assert_eq!(role.purpose().await.unwrap(), "test purpose");
-        assert_eq!(
-            role.traits().await.unwrap(),
-            Some(["accountable".to_string(), "technical".to_string()].as_slice())
-        );
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            let role = workspace.resolve(role_ref("eng-lead")).await.unwrap();
+            assert_eq!(role.name().await.unwrap(), "Engineering Lead");
+            assert_eq!(
+                role.description().await.unwrap(),
+                Some("Owns delivery of the engineering roadmap.")
+            );
+            assert_eq!(role.purpose().await.unwrap(), "test purpose");
+            assert_eq!(
+                role.traits().await.unwrap(),
+                Some(["accountable".to_string(), "technical".to_string()].as_slice())
+            );
+        },
+    )
     .await;
 }
 
@@ -116,12 +109,16 @@ async fn repo_substrate_writes_expected_role_file() {
     let path = dir.path().to_path_buf();
     let role_file = path.join("common/roles/eng-lead.md");
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        EntityClient::insert(a_role_with_optional_fields("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::persist().await.unwrap();
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            workspace
+                .insert(a_role_with_optional_fields("eng-lead"))
+                .await
+                .unwrap();
+            workspace.persist().await.unwrap();
+        },
+    )
     .await;
 
     assert!(role_file.exists(), "expected {role_file:?} to be created");
