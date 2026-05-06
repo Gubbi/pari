@@ -358,13 +358,13 @@ fn generate_tracked_impl(
         if let Some(f) = first_required {
             let fname = &f.ident;
             quote! {
-                pub fn is_stub(&self) -> bool {
+                pub(crate) fn is_stub(&self) -> bool {
                     self.#fname.get().is_none()
                 }
             }
         } else {
             quote! {
-                pub fn is_stub(&self) -> bool { false }
+                pub(crate) fn is_stub(&self) -> bool { false }
             }
         }
     };
@@ -380,7 +380,7 @@ fn generate_tracked_impl(
             })
             .collect();
         quote! {
-            pub fn make_stub(entity_ref: #ty) -> Self {
+            pub(crate) fn make_stub(entity_ref: #ty) -> Self {
                 #tracked_name {
                     entity_ref,
                     #(#stub_field_inits)*
@@ -410,14 +410,14 @@ fn generate_tracked_impl(
 
     let all_refs_method = quote! {
         /// Returns all cross-entity refs with their dot-notation field paths.
-        pub fn all_refs_with_paths(&self) -> ::std::vec::Vec<(::std::string::String, ::pari::entity::AnyEntityRef)> {
+        pub(crate) fn all_refs_with_paths(&self) -> ::std::vec::Vec<(::std::string::String, ::pari::entity::AnyEntityRef)> {
             let mut pairs: ::std::vec::Vec<(::std::string::String, ::pari::entity::AnyEntityRef)> = ::std::vec::Vec::new();
             #(#all_refs_with_paths_pushes)*
             pairs
         }
 
         /// Returns all cross-entity refs (paths discarded).
-        pub fn all_refs(&self) -> ::std::vec::Vec<::pari::entity::AnyEntityRef> {
+        pub(crate) fn all_refs(&self) -> ::std::vec::Vec<::pari::entity::AnyEntityRef> {
             self.all_refs_with_paths().into_iter().map(|(_, r)| r).collect()
         }
     };
@@ -435,7 +435,7 @@ fn generate_tracked_impl(
         .collect();
 
     let initialize_into_method = quote! {
-        pub fn initialize_into(&self, target: &mut #tracked_name) {
+        pub(crate) fn initialize_into(&self, target: &mut #tracked_name) {
             #(#initialize_into_stmts)*
         }
     };
@@ -450,7 +450,7 @@ fn generate_tracked_impl(
         .collect();
 
     let is_field_loaded_method = quote! {
-        pub fn is_field_loaded(&self, field: &str) -> bool {
+        pub(crate) fn is_field_loaded(&self, field: &str) -> bool {
             match field {
                 #(#field_loaded_arms)*
                 _ => false,
@@ -465,21 +465,21 @@ fn generate_tracked_impl(
         impl #tracked_name {
             #entity_ref_accessor
 
-            pub fn has_dirty_fields(&self) -> bool {
+            pub(crate) fn has_dirty_fields(&self) -> bool {
                 #has_dirty_expr
             }
 
-            pub fn dirty_fields(&self) -> ::std::vec::Vec<&'static str> {
+            pub(crate) fn dirty_fields(&self) -> ::std::vec::Vec<&'static str> {
                 let mut out: ::std::vec::Vec<&'static str> = ::std::vec::Vec::new();
                 #(#dirty_field_checks)*
                 out
             }
 
-            pub fn merge_dirty_into(&self, target: &mut #tracked_name) {
+            pub(crate) fn merge_dirty_into(&self, target: &mut #tracked_name) {
                 #(#merge_stmts)*
             }
 
-            pub fn reset_dirty(&mut self) {
+            pub(crate) fn reset_dirty(&mut self) {
                 #(#reset_stmts)*
             }
 

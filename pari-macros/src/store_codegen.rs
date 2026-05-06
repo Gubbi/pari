@@ -104,57 +104,57 @@ pub fn generate_store_registry_parts(
 
     let tracked_entity_impl = quote! {
         impl TrackedEntity {
-            pub fn make_stub(any_ref: &AnyEntityRef) -> Self {
+            pub(crate) fn make_stub(any_ref: &AnyEntityRef) -> Self {
                 match any_ref {
                     #(#make_stub_arms)*
                 }
             }
 
-            pub fn all_refs(&self) -> ::std::vec::Vec<AnyEntityRef> {
+            pub(crate) fn all_refs(&self) -> ::std::vec::Vec<AnyEntityRef> {
                 match self {
                     #(#all_refs_arms)*
                 }
             }
 
-            pub fn initialize_into(&self, target: &mut TrackedEntity) {
+            pub(crate) fn initialize_into(&self, target: &mut TrackedEntity) {
                 match (self, target) {
                     #(#initialize_into_arms)*
                     _ => {}
                 }
             }
 
-            pub fn merge_dirty_into(&self, target: &mut TrackedEntity) {
+            pub(crate) fn merge_dirty_into(&self, target: &mut TrackedEntity) {
                 match (self, target) {
                     #(#merge_dirty_into_arms)*
                     _ => {}
                 }
             }
 
-            pub fn has_dirty_fields(&self) -> bool {
+            pub(crate) fn has_dirty_fields(&self) -> bool {
                 match self {
                     #(#has_dirty_arms)*
                 }
             }
 
-            pub fn dirty_fields(&self) -> ::std::vec::Vec<&'static str> {
+            pub(crate) fn dirty_fields(&self) -> ::std::vec::Vec<&'static str> {
                 match self {
                     #(#dirty_fields_arms)*
                 }
             }
 
-            pub fn reset_dirty(&mut self) {
+            pub(crate) fn reset_dirty(&mut self) {
                 match self {
                     #(#reset_dirty_arms)*
                 }
             }
 
-            pub fn is_stub(&self) -> bool {
+            pub(crate) fn is_stub(&self) -> bool {
                 match self {
                     #(#is_stub_arms)*
                 }
             }
 
-            pub fn is_field_loaded(&self, field: &str) -> bool {
+            pub(crate) fn is_field_loaded(&self, field: &str) -> bool {
                 match self {
                     #(#is_field_loaded_arms)*
                 }

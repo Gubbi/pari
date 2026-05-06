@@ -60,7 +60,7 @@ pub fn generate_substrate_registry_parts(
 
     let any_entity_ref_impl = quote! {
         impl AnyEntityRef {
-            pub fn to_json_value(&self) -> ::serde_json::Result<::serde_json::Value> {
+            pub(crate) fn to_json_value(&self) -> ::serde_json::Result<::serde_json::Value> {
                 match self {
                     #(#any_ref_to_json_arms)*
                 }
@@ -107,7 +107,7 @@ pub fn generate_substrate_registry_parts(
 
     let tracked_entity_impl = quote! {
         impl TrackedEntity {
-            pub fn to_json_value(&self) -> ::serde_json::Result<::serde_json::Value> {
+            pub(crate) fn to_json_value(&self) -> ::serde_json::Result<::serde_json::Value> {
                 match self {
                     #(#tracked_to_json_arms)*
                 }
