@@ -11,11 +11,9 @@
 #[path = "author_role.rs"]
 pub mod author_role;
 
-#[cfg(any())]
 #[path = "author_team.rs"]
 pub mod author_team;
 
-#[cfg(any())]
 #[path = "author_workflow.rs"]
 pub mod author_workflow;
 
@@ -23,19 +21,15 @@ pub mod author_workflow;
 #[path = "modify_persisted_entity.rs"]
 pub mod modify_persisted_entity;
 
-#[cfg(any())]
 #[path = "author_workflow_with_intercepts.rs"]
 pub mod author_workflow_with_intercepts;
 
-#[cfg(any())]
 #[path = "author_embedded_workflow.rs"]
 pub mod author_embedded_workflow;
 
-#[cfg(any())]
 #[path = "author_reusable_workflow.rs"]
 pub mod author_reusable_workflow;
 
-#[cfg(any())]
 #[path = "author_relay.rs"]
 pub mod author_relay;
 

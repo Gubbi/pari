@@ -5,20 +5,19 @@
 //! single-shot — no chicken-and-egg with embedded children.
 
 use pari::{
-    entity::{AnyEntityRef, EntityRef, TrackedEntity},
-    substrate::RepoSubstrate,
-    workspace::EntityClient,
+    entities::workflow::ReusableWorkflow, entity::EntityRef, substrate::RepoSubstrate,
+    workspace::Workspace,
 };
 use rstest::rstest;
 use tempfile::TempDir;
 
 use crate::{
-    common::substrate::{run_with, SubstrateKind},
+    common::substrate::{run_with, with_workspace, SubstrateKind},
     fixtures::{reusable_workflow::a_reusable_workflow_with_review_step, role::a_minimal_role},
 };
 
-fn reusable_workflow_ref(id: &str) -> AnyEntityRef {
-    AnyEntityRef::ReusableWorkflow(EntityRef::new(id))
+fn reusable_workflow_ref(id: &str) -> EntityRef<ReusableWorkflow> {
+    EntityRef::new(id)
 }
 
 #[rstest]
@@ -26,15 +25,13 @@ fn reusable_workflow_ref(id: &str) -> AnyEntityRef {
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
 async fn minimal_reusable_workflow_is_observable_after_persist(#[case] kind: SubstrateKind) {
-    run_with(kind, || async {
-        author_minimal_reusable_workflow().await;
+    run_with(kind, |workspace| async move {
+        author_minimal_reusable_workflow(&workspace).await;
 
-        let entity = EntityClient::resolve(reusable_workflow_ref("ApprovalLoop"))
+        let rwf = workspace
+            .resolve(reusable_workflow_ref("ApprovalLoop"))
             .await
             .unwrap();
-        let TrackedEntity::ReusableWorkflow(rwf) = entity else {
-            panic!("expected ReusableWorkflow")
-        };
         assert_eq!(rwf.name().await.unwrap(), "Approval Loop");
         let steps = rwf.steps().await.unwrap().clone();
         assert_eq!(steps.len(), 1);
@@ -51,20 +48,24 @@ async fn reusable_workflow_round_trips_repo_substrate() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().to_path_buf();
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        author_minimal_reusable_workflow().await;
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            author_minimal_reusable_workflow(&workspace).await;
+        },
+    )
     .await;
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        let entity = EntityClient::resolve(reusable_workflow_ref("ApprovalLoop"))
-            .await
-            .unwrap();
-        let TrackedEntity::ReusableWorkflow(rwf) = entity else {
-            panic!("expected ReusableWorkflow")
-        };
-        assert_eq!(rwf.name().await.unwrap(), "Approval Loop");
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            let rwf = workspace
+                .resolve(reusable_workflow_ref("ApprovalLoop"))
+                .await
+                .unwrap();
+            assert_eq!(rwf.name().await.unwrap(), "Approval Loop");
+        },
+    )
     .await;
 }
 
@@ -74,9 +75,12 @@ async fn repo_substrate_writes_expected_reusable_workflow_files() {
     let path = dir.path().to_path_buf();
     let rwf_file = path.join("common/workflows/ApprovalLoop/README.md");
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        author_minimal_reusable_workflow().await;
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            author_minimal_reusable_workflow(&workspace).await;
+        },
+    )
     .await;
 
     assert!(rwf_file.exists(), "expected {rwf_file:?}");
@@ -91,19 +95,16 @@ async fn repo_substrate_writes_expected_reusable_workflow_files() {
     );
 }
 
-async fn author_minimal_reusable_workflow() {
-    EntityClient::insert(a_minimal_role("eng-lead"))
+async fn author_minimal_reusable_workflow(workspace: &Workspace) {
+    workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+    workspace.insert(a_minimal_role("approver")).await.unwrap();
+    workspace
+        .insert(a_reusable_workflow_with_review_step(
+            "ApprovalLoop",
+            "eng-lead",
+            "approver",
+        ))
         .await
         .unwrap();
-    EntityClient::insert(a_minimal_role("approver"))
-        .await
-        .unwrap();
-    EntityClient::insert(a_reusable_workflow_with_review_step(
-        "ApprovalLoop",
-        "eng-lead",
-        "approver",
-    ))
-    .await
-    .unwrap();
-    EntityClient::persist().await.unwrap();
+    workspace.persist().await.unwrap();
 }

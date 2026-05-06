@@ -7,17 +7,16 @@
 use std::collections::HashMap;
 
 use pari::{
-    entities::hook::Hook,
-    entity::{AnyEntityRef, EntityRef, TrackedEntity},
+    entities::{hook::Hook, workflow::Workflow},
+    entity::EntityRef,
     substrate::RepoSubstrate,
     types::{HookCall, WorkflowTrigger},
-    workspace::EntityClient,
 };
 use rstest::rstest;
 use tempfile::TempDir;
 
 use crate::{
-    common::substrate::{run_with, SubstrateKind},
+    common::substrate::{run_with, with_workspace, SubstrateKind},
     fixtures::{
         hook::{a_hook_with_required_input, a_minimal_hook},
         role::a_minimal_role,
@@ -25,8 +24,8 @@ use crate::{
     },
 };
 
-fn workflow_ref(id: &str) -> AnyEntityRef {
-    AnyEntityRef::Workflow(EntityRef::new(id))
+fn workflow_ref(id: &str) -> EntityRef<Workflow> {
+    EntityRef::new(id)
 }
 
 fn intercept(hook_id: &str, with: Option<HashMap<String, String>>) -> HookCall {
@@ -41,32 +40,27 @@ fn intercept(hook_id: &str, with: Option<HashMap<String, String>>) -> HookCall {
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
 async fn minimal_workflow_with_intercept(#[case] kind: SubstrateKind) {
-    run_with(kind, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_hook("on-done-hook"))
+    run_with(kind, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        workspace
+            .insert(a_minimal_hook("on-done-hook"))
             .await
             .unwrap();
 
         let mut intercepts = HashMap::new();
         intercepts.insert(WorkflowTrigger::OnDone, intercept("on-done-hook", None));
 
-        EntityClient::insert(a_workflow_with_intercepts(
-            "DesignFlow",
-            "eng-lead",
-            intercepts,
-        ))
-        .await
-        .unwrap();
-        EntityClient::persist().await.unwrap();
-
-        let entity = EntityClient::resolve(workflow_ref("DesignFlow"))
+        workspace
+            .insert(a_workflow_with_intercepts(
+                "DesignFlow",
+                "eng-lead",
+                intercepts,
+            ))
             .await
             .unwrap();
-        let TrackedEntity::Workflow(wf) = entity else {
-            panic!("expected Workflow")
-        };
+        workspace.persist().await.unwrap();
+
+        let wf = workspace.resolve(workflow_ref("DesignFlow")).await.unwrap();
         let intercepts = wf
             .intercepts()
             .await
@@ -88,11 +82,10 @@ async fn minimal_workflow_with_intercept(#[case] kind: SubstrateKind) {
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
 async fn workflow_intercept_binds_hook_inputs(#[case] kind: SubstrateKind) {
-    run_with(kind, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_hook_with_required_input("summary-hook", "summary"))
+    run_with(kind, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        workspace
+            .insert(a_hook_with_required_input("summary-hook", "summary"))
             .await
             .unwrap();
 
@@ -104,21 +97,17 @@ async fn workflow_intercept_binds_hook_inputs(#[case] kind: SubstrateKind) {
             intercept("summary-hook", Some(bindings)),
         );
 
-        EntityClient::insert(a_workflow_with_intercepts(
-            "DesignFlow",
-            "eng-lead",
-            intercepts,
-        ))
-        .await
-        .unwrap();
-        EntityClient::persist().await.unwrap();
-
-        let entity = EntityClient::resolve(workflow_ref("DesignFlow"))
+        workspace
+            .insert(a_workflow_with_intercepts(
+                "DesignFlow",
+                "eng-lead",
+                intercepts,
+            ))
             .await
             .unwrap();
-        let TrackedEntity::Workflow(wf) = entity else {
-            panic!("expected Workflow")
-        };
+        workspace.persist().await.unwrap();
+
+        let wf = workspace.resolve(workflow_ref("DesignFlow")).await.unwrap();
         let intercepts = wf
             .intercepts()
             .await
@@ -146,43 +135,44 @@ async fn workflow_with_intercepts_round_trips_repo_substrate() {
     let path = dir.path().to_path_buf();
     let workflow_file = path.join("workflows/DesignFlow/README.md");
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_hook("on-done-hook"))
-            .await
-            .unwrap();
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+            workspace
+                .insert(a_minimal_hook("on-done-hook"))
+                .await
+                .unwrap();
 
-        let mut intercepts = HashMap::new();
-        intercepts.insert(WorkflowTrigger::OnDone, intercept("on-done-hook", None));
+            let mut intercepts = HashMap::new();
+            intercepts.insert(WorkflowTrigger::OnDone, intercept("on-done-hook", None));
 
-        EntityClient::insert(a_workflow_with_intercepts(
-            "DesignFlow",
-            "eng-lead",
-            intercepts,
-        ))
-        .await
-        .unwrap();
-        EntityClient::persist().await.unwrap();
-    })
+            workspace
+                .insert(a_workflow_with_intercepts(
+                    "DesignFlow",
+                    "eng-lead",
+                    intercepts,
+                ))
+                .await
+                .unwrap();
+            workspace.persist().await.unwrap();
+        },
+    )
     .await;
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        let entity = EntityClient::resolve(workflow_ref("DesignFlow"))
-            .await
-            .unwrap();
-        let TrackedEntity::Workflow(wf) = entity else {
-            panic!("expected Workflow")
-        };
-        let intercepts = wf
-            .intercepts()
-            .await
-            .unwrap()
-            .expect("intercepts populated")
-            .clone();
-        assert!(intercepts.contains_key(&WorkflowTrigger::OnDone));
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            let wf = workspace.resolve(workflow_ref("DesignFlow")).await.unwrap();
+            let intercepts = wf
+                .intercepts()
+                .await
+                .unwrap()
+                .expect("intercepts populated")
+                .clone();
+            assert!(intercepts.contains_key(&WorkflowTrigger::OnDone));
+        },
+    )
     .await;
 
     let contents = std::fs::read_to_string(&workflow_file).unwrap();

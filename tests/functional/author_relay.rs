@@ -7,16 +7,16 @@
 //! `Step::Relay`.
 
 use pari::{
-    entities::workflow::Workflow,
-    entity::{AnyEntityRef, EntityRef, TrackedEntity, WorkflowParent},
+    entities::{relay::Relay, workflow::Workflow},
+    entity::{EntityRef, WorkflowParent},
     substrate::RepoSubstrate,
-    workspace::EntityClient,
+    workspace::Workspace,
 };
 use rstest::rstest;
 use tempfile::TempDir;
 
 use crate::{
-    common::substrate::{run_with, SubstrateKind},
+    common::substrate::{run_with, with_workspace, SubstrateKind},
     fixtures::{
         relay::{a_minimal_relay, relay_step},
         reusable_workflow::a_reusable_workflow_with_review_step,
@@ -25,13 +25,13 @@ use crate::{
     },
 };
 
-fn workflow_ref(id: &str) -> AnyEntityRef {
-    AnyEntityRef::Workflow(EntityRef::new(id))
+fn workflow_ref(id: &str) -> EntityRef<Workflow> {
+    EntityRef::new(id)
 }
 
-fn relay_ref(id: &str, parent_workflow_id: &str) -> AnyEntityRef {
+fn relay_ref(id: &str, parent_workflow_id: &str) -> EntityRef<Relay, WorkflowParent> {
     let parent = WorkflowParent::Workflow(EntityRef::<Workflow>::new(parent_workflow_id));
-    AnyEntityRef::Relay(EntityRef::with_parent(id, parent))
+    EntityRef::with_parent(id, parent)
 }
 
 #[rstest]
@@ -39,25 +39,18 @@ fn relay_ref(id: &str, parent_workflow_id: &str) -> AnyEntityRef {
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
 async fn author_relay_in_workflow(#[case] kind: SubstrateKind) {
-    run_with(kind, || async {
-        author_workflow_with_relay().await;
+    run_with(kind, |workspace| async move {
+        author_workflow_with_relay(&workspace).await;
 
-        let entity = EntityClient::resolve(workflow_ref("DesignFlow"))
-            .await
-            .unwrap();
-        let TrackedEntity::Workflow(wf) = entity else {
-            panic!("expected Workflow")
-        };
+        let wf = workspace.resolve(workflow_ref("DesignFlow")).await.unwrap();
         let steps = wf.steps().await.unwrap().clone();
         assert_eq!(steps.len(), 1);
         assert!(steps.contains_key("Handoff"));
 
-        let relay_entity = EntityClient::resolve(relay_ref("Handoff", "DesignFlow"))
+        let relay = workspace
+            .resolve(relay_ref("Handoff", "DesignFlow"))
             .await
             .unwrap();
-        let TrackedEntity::Relay(relay) = relay_entity else {
-            panic!("expected Relay")
-        };
         assert_eq!(relay.delegates_to().await.unwrap().id(), "ApprovalLoop");
     })
     .await;
@@ -68,28 +61,27 @@ async fn relay_round_trips_repo_substrate() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().to_path_buf();
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        author_workflow_with_relay().await;
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            author_workflow_with_relay(&workspace).await;
+        },
+    )
     .await;
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        let entity = EntityClient::resolve(workflow_ref("DesignFlow"))
-            .await
-            .unwrap();
-        let TrackedEntity::Workflow(wf) = entity else {
-            panic!("expected Workflow")
-        };
-        assert!(wf.steps().await.unwrap().contains_key("Handoff"));
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            let wf = workspace.resolve(workflow_ref("DesignFlow")).await.unwrap();
+            assert!(wf.steps().await.unwrap().contains_key("Handoff"));
 
-        let relay_entity = EntityClient::resolve(relay_ref("Handoff", "DesignFlow"))
-            .await
-            .unwrap();
-        let TrackedEntity::Relay(relay) = relay_entity else {
-            panic!("expected Relay")
-        };
-        assert_eq!(relay.delegates_to().await.unwrap().id(), "ApprovalLoop");
-    })
+            let relay = workspace
+                .resolve(relay_ref("Handoff", "DesignFlow"))
+                .await
+                .unwrap();
+            assert_eq!(relay.delegates_to().await.unwrap().id(), "ApprovalLoop");
+        },
+    )
     .await;
 }
 
@@ -100,9 +92,12 @@ async fn repo_substrate_writes_expected_relay_files() {
     let workflow_file = path.join("workflows/DesignFlow/README.md");
     let relay_file = path.join("workflows/DesignFlow/Handoff/README.md");
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        author_workflow_with_relay().await;
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            author_workflow_with_relay(&workspace).await;
+        },
+    )
     .await;
 
     assert!(workflow_file.exists(), "expected {workflow_file:?}");
@@ -122,39 +117,39 @@ async fn repo_substrate_writes_expected_relay_files() {
 /// Iterative author flow: prerequisites, reusable workflow, workflow
 /// shell, relay (parent now exists), modify workflow steps to include
 /// the relay.
-async fn author_workflow_with_relay() {
-    EntityClient::insert(a_minimal_role("eng-lead"))
+async fn author_workflow_with_relay(workspace: &Workspace) {
+    workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+    workspace.insert(a_minimal_role("approver")).await.unwrap();
+    workspace
+        .insert(a_reusable_workflow_with_review_step(
+            "ApprovalLoop",
+            "eng-lead",
+            "approver",
+        ))
         .await
         .unwrap();
-    EntityClient::insert(a_minimal_role("approver"))
+    workspace
+        .insert(a_workflow_with_empty_steps("DesignFlow", "eng-lead"))
         .await
         .unwrap();
-    EntityClient::insert(a_reusable_workflow_with_review_step(
-        "ApprovalLoop",
-        "eng-lead",
-        "approver",
-    ))
-    .await
-    .unwrap();
-    EntityClient::insert(a_workflow_with_empty_steps("DesignFlow", "eng-lead"))
+    workspace
+        .insert(a_minimal_relay(
+            "Handoff",
+            "DesignFlow",
+            "eng-lead",
+            "ApprovalLoop",
+        ))
         .await
         .unwrap();
-    EntityClient::insert(a_minimal_relay(
-        "Handoff",
-        "DesignFlow",
-        "eng-lead",
-        "ApprovalLoop",
-    ))
-    .await
-    .unwrap();
-    EntityClient::persist().await.unwrap();
+    workspace.persist().await.unwrap();
 
-    let mut wf = EntityClient::checkout(EntityRef::<Workflow>::new("DesignFlow"))
+    let mut wf = workspace
+        .checkout(EntityRef::<Workflow>::new("DesignFlow"))
         .await
         .unwrap();
     wf.set_steps(relay_step("Handoff", "DesignFlow"))
         .await
         .unwrap();
     wf.commit().await.unwrap();
-    EntityClient::persist().await.unwrap();
+    workspace.persist().await.unwrap();
 }

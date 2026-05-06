@@ -4,24 +4,20 @@
 //! roles, included teams, imported teams) must already exist when the
 //! team is inserted because cross-entity validation runs at insert.
 
-use pari::{
-    entity::{AnyEntityRef, EntityRef, TrackedEntity},
-    substrate::RepoSubstrate,
-    workspace::EntityClient,
-};
+use pari::{entities::team::Team, entity::EntityRef, substrate::RepoSubstrate};
 use rstest::rstest;
 use tempfile::TempDir;
 
 use crate::{
-    common::substrate::{run_with, SubstrateKind},
+    common::substrate::{run_with, with_workspace, SubstrateKind},
     fixtures::{
         role::a_minimal_role,
         team::{a_minimal_team, a_team_with_composition, a_team_with_members},
     },
 };
 
-fn team_ref(id: &str) -> AnyEntityRef {
-    AnyEntityRef::Team(EntityRef::new(id))
+fn team_ref(id: &str) -> EntityRef<Team> {
+    EntityRef::new(id)
 }
 
 #[rstest]
@@ -29,14 +25,11 @@ fn team_ref(id: &str) -> AnyEntityRef {
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
 async fn minimal_team_is_observable_after_persist(#[case] kind: SubstrateKind) {
-    run_with(kind, || async {
-        EntityClient::insert(a_minimal_team("eng")).await.unwrap();
-        EntityClient::persist().await.unwrap();
+    run_with(kind, |workspace| async move {
+        workspace.insert(a_minimal_team("eng")).await.unwrap();
+        workspace.persist().await.unwrap();
 
-        let entity = EntityClient::resolve(team_ref("eng")).await.unwrap();
-        let TrackedEntity::Team(team) = entity else {
-            panic!("expected Team")
-        };
+        let team = workspace.resolve(team_ref("eng")).await.unwrap();
         assert_eq!(team.name().await.unwrap(), "Minimal Team");
         assert_eq!(team.description().await.unwrap(), Some("A team for tests."));
         assert!(team.members().await.unwrap().is_none());
@@ -51,27 +44,21 @@ async fn minimal_team_is_observable_after_persist(#[case] kind: SubstrateKind) {
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
 async fn team_with_members_is_observable_after_persist(#[case] kind: SubstrateKind) {
-    run_with(kind, || async {
+    run_with(kind, |workspace| async move {
         // Roles must exist before the team's cross-entity validation runs.
-        EntityClient::insert(a_minimal_role("eng-lead"))
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        workspace.insert(a_minimal_role("designer")).await.unwrap();
+
+        workspace
+            .insert(a_team_with_members(
+                "eng",
+                &[("@alice", "eng-lead"), ("@bob", "designer")],
+            ))
             .await
             .unwrap();
-        EntityClient::insert(a_minimal_role("designer"))
-            .await
-            .unwrap();
+        workspace.persist().await.unwrap();
 
-        EntityClient::insert(a_team_with_members(
-            "eng",
-            &[("@alice", "eng-lead"), ("@bob", "designer")],
-        ))
-        .await
-        .unwrap();
-        EntityClient::persist().await.unwrap();
-
-        let entity = EntityClient::resolve(team_ref("eng")).await.unwrap();
-        let TrackedEntity::Team(team) = entity else {
-            panic!("expected Team")
-        };
+        let team = workspace.resolve(team_ref("eng")).await.unwrap();
         let members = team
             .members()
             .await
@@ -94,61 +81,60 @@ async fn team_round_trips_repo_substrate_across_sessions() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().to_path_buf();
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        // Prerequisites: roles for members; teams for include/import.
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_role("designer"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_team("platform"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_team("ops")).await.unwrap();
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            // Prerequisites: roles for members; teams for include/import.
+            workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+            workspace.insert(a_minimal_role("designer")).await.unwrap();
+            workspace.insert(a_minimal_team("platform")).await.unwrap();
+            workspace.insert(a_minimal_team("ops")).await.unwrap();
 
-        EntityClient::insert(a_team_with_members(
-            "core",
-            &[("@alice", "eng-lead"), ("@bob", "designer")],
-        ))
-        .await
-        .unwrap();
-        EntityClient::persist().await.unwrap();
+            workspace
+                .insert(a_team_with_members(
+                    "core",
+                    &[("@alice", "eng-lead"), ("@bob", "designer")],
+                ))
+                .await
+                .unwrap();
+            workspace.persist().await.unwrap();
 
-        // Authored separately because composition references "core".
-        EntityClient::insert(a_team_with_composition(
-            "eng",
-            &[("platform", "eng-lead")],
-            &["ops"],
-        ))
-        .await
-        .unwrap();
-        EntityClient::persist().await.unwrap();
-    })
+            // Authored separately because composition references "core".
+            workspace
+                .insert(a_team_with_composition(
+                    "eng",
+                    &[("platform", "eng-lead")],
+                    &["ops"],
+                ))
+                .await
+                .unwrap();
+            workspace.persist().await.unwrap();
+        },
+    )
     .await;
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        let entity = EntityClient::resolve(team_ref("eng")).await.unwrap();
-        let TrackedEntity::Team(team) = entity else {
-            panic!("expected Team")
-        };
-        assert_eq!(team.name().await.unwrap(), "Composed Team");
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            let team = workspace.resolve(team_ref("eng")).await.unwrap();
+            assert_eq!(team.name().await.unwrap(), "Composed Team");
 
-        let include = team.include().await.unwrap().expect("include populated");
-        assert_eq!(include.len(), 1);
-        let (team_key, role_val) = &include[0];
-        assert_eq!(team_key.id(), "platform");
-        assert_eq!(role_val.id(), "eng-lead");
+            let include = team.include().await.unwrap().expect("include populated");
+            assert_eq!(include.len(), 1);
+            let (team_key, role_val) = &include[0];
+            assert_eq!(team_key.id(), "platform");
+            assert_eq!(role_val.id(), "eng-lead");
 
-        let import = team
-            .import()
-            .await
-            .unwrap()
-            .expect("import populated")
-            .to_vec();
-        assert_eq!(import.len(), 1);
-        assert_eq!(import[0].id(), "ops");
-    })
+            let import = team
+                .import()
+                .await
+                .unwrap()
+                .expect("import populated")
+                .to_vec();
+            assert_eq!(import.len(), 1);
+            assert_eq!(import[0].id(), "ops");
+        },
+    )
     .await;
 }
 
@@ -161,21 +147,21 @@ async fn repo_substrate_writes_expected_team_file() {
     let path = dir.path().to_path_buf();
     let team_file = path.join("common/teams/core.md");
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_role("designer"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_team_with_members(
-            "core",
-            &[("@alice", "eng-lead"), ("@bob", "designer")],
-        ))
-        .await
-        .unwrap();
-        EntityClient::persist().await.unwrap();
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+            workspace.insert(a_minimal_role("designer")).await.unwrap();
+            workspace
+                .insert(a_team_with_members(
+                    "core",
+                    &[("@alice", "eng-lead"), ("@bob", "designer")],
+                ))
+                .await
+                .unwrap();
+            workspace.persist().await.unwrap();
+        },
+    )
     .await;
 
     assert!(team_file.exists(), "expected {team_file:?} to be created");

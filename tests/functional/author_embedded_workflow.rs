@@ -8,15 +8,15 @@
 
 use pari::{
     entities::workflow::{EmbeddedWorkflow, Workflow},
-    entity::{AnyEntityRef, EntityRef, TrackedEntity, WorkflowParent},
+    entity::{EntityRef, WorkflowParent},
     substrate::RepoSubstrate,
-    workspace::EntityClient,
+    workspace::Workspace,
 };
 use rstest::rstest;
 use tempfile::TempDir;
 
 use crate::{
-    common::substrate::{run_with, SubstrateKind},
+    common::substrate::{run_with, with_workspace, SubstrateKind},
     fixtures::{
         artifact_kind::a_minimal_artifact_kind,
         embedded_workflow::{
@@ -28,13 +28,16 @@ use crate::{
     },
 };
 
-fn workflow_ref(id: &str) -> AnyEntityRef {
-    AnyEntityRef::Workflow(EntityRef::new(id))
+fn workflow_ref(id: &str) -> EntityRef<Workflow> {
+    EntityRef::new(id)
 }
 
-fn embedded_workflow_ref(id: &str, parent_workflow_id: &str) -> AnyEntityRef {
+fn embedded_workflow_ref(
+    id: &str,
+    parent_workflow_id: &str,
+) -> EntityRef<EmbeddedWorkflow, WorkflowParent> {
     let parent = WorkflowParent::Workflow(EntityRef::<Workflow>::new(parent_workflow_id));
-    AnyEntityRef::EmbeddedWorkflow(EntityRef::with_parent(id, parent))
+    EntityRef::with_parent(id, parent)
 }
 
 #[rstest]
@@ -42,26 +45,18 @@ fn embedded_workflow_ref(id: &str, parent_workflow_id: &str) -> AnyEntityRef {
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
 async fn author_embedded_workflow_with_task(#[case] kind: SubstrateKind) {
-    run_with(kind, || async {
-        author_nested_workflow().await;
+    run_with(kind, |workspace| async move {
+        author_nested_workflow(&workspace).await;
 
-        let parent_entity = EntityClient::resolve(workflow_ref("DesignFlow"))
-            .await
-            .unwrap();
-        let TrackedEntity::Workflow(parent_wf) = parent_entity else {
-            panic!("expected Workflow")
-        };
+        let parent_wf = workspace.resolve(workflow_ref("DesignFlow")).await.unwrap();
         let parent_steps = parent_wf.steps().await.unwrap().clone();
         assert_eq!(parent_steps.len(), 1);
         assert!(parent_steps.contains_key("Onboarding"));
 
-        let embedded_entity =
-            EntityClient::resolve(embedded_workflow_ref("Onboarding", "DesignFlow"))
-                .await
-                .unwrap();
-        let TrackedEntity::EmbeddedWorkflow(embedded) = embedded_entity else {
-            panic!("expected EmbeddedWorkflow")
-        };
+        let embedded = workspace
+            .resolve(embedded_workflow_ref("Onboarding", "DesignFlow"))
+            .await
+            .unwrap();
         assert_eq!(embedded.name().await.unwrap(), "Onboarding");
         let embedded_steps = embedded.steps().await.unwrap().clone();
         assert_eq!(embedded_steps.len(), 1);
@@ -75,29 +70,27 @@ async fn embedded_workflow_round_trips_repo_substrate() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().to_path_buf();
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        author_nested_workflow().await;
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            author_nested_workflow(&workspace).await;
+        },
+    )
     .await;
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        let parent_entity = EntityClient::resolve(workflow_ref("DesignFlow"))
-            .await
-            .unwrap();
-        let TrackedEntity::Workflow(parent_wf) = parent_entity else {
-            panic!("expected Workflow")
-        };
-        assert!(parent_wf.steps().await.unwrap().contains_key("Onboarding"));
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            let parent_wf = workspace.resolve(workflow_ref("DesignFlow")).await.unwrap();
+            assert!(parent_wf.steps().await.unwrap().contains_key("Onboarding"));
 
-        let embedded_entity =
-            EntityClient::resolve(embedded_workflow_ref("Onboarding", "DesignFlow"))
+            let embedded = workspace
+                .resolve(embedded_workflow_ref("Onboarding", "DesignFlow"))
                 .await
                 .unwrap();
-        let TrackedEntity::EmbeddedWorkflow(embedded) = embedded_entity else {
-            panic!("expected EmbeddedWorkflow")
-        };
-        assert!(embedded.steps().await.unwrap().contains_key("Welcome"));
-    })
+            assert!(embedded.steps().await.unwrap().contains_key("Welcome"));
+        },
+    )
     .await;
 }
 
@@ -109,9 +102,12 @@ async fn repo_substrate_writes_expected_embedded_workflow_files() {
     let embedded_file = path.join("workflows/DesignFlow/Onboarding/README.md");
     let task_file = path.join("workflows/DesignFlow/Onboarding/Welcome/README.md");
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        author_nested_workflow().await;
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            author_nested_workflow(&workspace).await;
+        },
+    )
     .await;
 
     assert!(parent_file.exists(), "expected {parent_file:?}");
@@ -127,45 +123,47 @@ async fn repo_substrate_writes_expected_embedded_workflow_files() {
 
 /// Iterative author flow: prerequisites, parent shell, embedded shell,
 /// task under embedded, modify embedded steps, modify parent steps.
-async fn author_nested_workflow() {
-    EntityClient::insert(a_minimal_role("eng-lead"))
+async fn author_nested_workflow(workspace: &Workspace) {
+    workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+    workspace
+        .insert(a_minimal_artifact_kind("design-doc"))
         .await
         .unwrap();
-    EntityClient::insert(a_minimal_artifact_kind("design-doc"))
+    workspace
+        .insert(a_workflow_with_empty_steps("DesignFlow", "eng-lead"))
         .await
         .unwrap();
-    EntityClient::insert(a_workflow_with_empty_steps("DesignFlow", "eng-lead"))
+    workspace
+        .insert(a_minimal_embedded_workflow(
+            "Onboarding",
+            "DesignFlow",
+            "eng-lead",
+        ))
         .await
         .unwrap();
-    EntityClient::insert(a_minimal_embedded_workflow(
-        "Onboarding",
-        "DesignFlow",
-        "eng-lead",
-    ))
-    .await
-    .unwrap();
 
     let task_parent =
         WorkflowParent::EmbeddedWorkflow(Box::new(EntityRef::<EmbeddedWorkflow, _>::with_parent(
             "Onboarding",
             WorkflowParent::Workflow(EntityRef::<Workflow>::new("DesignFlow")),
         )));
-    EntityClient::insert(a_minimal_task_with_parent(
-        "Welcome",
-        task_parent,
-        "design-doc",
-    ))
-    .await
-    .unwrap();
+    workspace
+        .insert(a_minimal_task_with_parent(
+            "Welcome",
+            task_parent,
+            "design-doc",
+        ))
+        .await
+        .unwrap();
 
-    EntityClient::persist().await.unwrap();
+    workspace.persist().await.unwrap();
 
     // Modify embedded workflow steps to reference the task.
     let embedded_typed = EntityRef::<EmbeddedWorkflow, _>::with_parent(
         "Onboarding",
         WorkflowParent::Workflow(EntityRef::<Workflow>::new("DesignFlow")),
     );
-    let mut embedded = EntityClient::checkout(embedded_typed).await.unwrap();
+    let mut embedded = workspace.checkout(embedded_typed).await.unwrap();
     embedded
         .set_steps(task_step_for_embedded(
             "Welcome",
@@ -177,7 +175,8 @@ async fn author_nested_workflow() {
     embedded.commit().await.unwrap();
 
     // Modify parent workflow steps to reference the embedded workflow.
-    let mut parent = EntityClient::checkout(EntityRef::<Workflow>::new("DesignFlow"))
+    let mut parent = workspace
+        .checkout(EntityRef::<Workflow>::new("DesignFlow"))
         .await
         .unwrap();
     parent
@@ -186,5 +185,5 @@ async fn author_nested_workflow() {
         .unwrap();
     parent.commit().await.unwrap();
 
-    EntityClient::persist().await.unwrap();
+    workspace.persist().await.unwrap();
 }
