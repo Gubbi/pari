@@ -284,27 +284,19 @@ where
             _ => unreachable!(),
         };
 
-        let workspace = self.per_request_workspace();
-        if is_added {
-            workspace
-                .validate_tracked(
-                    entity.clone(),
-                    &[],
-                    &[
-                        ValidationKind::Structural,
-                        ValidationKind::Semantic,
-                        ValidationKind::CrossEntity,
-                    ],
-                )
-                .await?;
-        } else if entity.has_dirty_fields() {
-            let dirty = entity.dirty_fields();
-            workspace
-                .validate_tracked(
-                    entity.clone(),
-                    dirty.as_slice(),
-                    &[ValidationKind::CrossEntity],
-                )
+        // Commit only re-runs CrossEntity. Structural and Semantic are
+        // already covered: insert ran them whole-entity at creation,
+        // and per-field setters ran them on each mutation. The scope
+        // is the only thing that differs — whole entity for a newly
+        // added one, dirty fields otherwise.
+        if is_added || entity.has_dirty_fields() {
+            let dirty = if is_added {
+                Vec::new()
+            } else {
+                entity.dirty_fields()
+            };
+            self.per_request_workspace()
+                .validate_tracked(entity.clone(), &dirty, &[ValidationKind::CrossEntity])
                 .await?;
         }
 
