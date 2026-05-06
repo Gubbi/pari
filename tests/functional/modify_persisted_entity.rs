@@ -8,15 +8,14 @@
 
 use pari::{
     entities::{relay::Relay, role::Role, team::Team, workflow::Workflow},
-    entity::{AnyEntityRef, EntityRef, TrackedEntity, WorkflowParent},
+    entity::{EntityRef, WorkflowParent},
     substrate::RepoSubstrate,
-    workspace::EntityClient,
 };
 use rstest::rstest;
 use tempfile::TempDir;
 
 use crate::{
-    common::substrate::{run_with, SubstrateKind},
+    common::substrate::{run_with, with_workspace, SubstrateKind},
     fixtures::{
         relay::a_minimal_relay,
         reusable_workflow::a_reusable_workflow_with_review_step,
@@ -26,29 +25,16 @@ use crate::{
     },
 };
 
-fn role_ref(id: &str) -> AnyEntityRef {
-    AnyEntityRef::Role(EntityRef::new(id))
-}
-
-fn role_typed(id: &str) -> EntityRef<Role> {
+fn role_ref(id: &str) -> EntityRef<Role> {
     EntityRef::new(id)
 }
 
-fn relay_ref(id: &str, workflow_id: &str) -> AnyEntityRef {
-    let parent = WorkflowParent::Workflow(EntityRef::<Workflow>::new(workflow_id));
-    AnyEntityRef::Relay(EntityRef::with_parent(id, parent))
-}
-
-fn relay_typed(id: &str, workflow_id: &str) -> EntityRef<Relay, WorkflowParent> {
+fn relay_ref(id: &str, workflow_id: &str) -> EntityRef<Relay, WorkflowParent> {
     let parent = WorkflowParent::Workflow(EntityRef::<Workflow>::new(workflow_id));
     EntityRef::with_parent(id, parent)
 }
 
-fn team_ref(id: &str) -> AnyEntityRef {
-    AnyEntityRef::Team(EntityRef::new(id))
-}
-
-fn team_typed(id: &str) -> EntityRef<Team> {
+fn team_ref(id: &str) -> EntityRef<Team> {
     EntityRef::new(id)
 }
 
@@ -57,23 +43,16 @@ fn team_typed(id: &str) -> EntityRef<Team> {
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
 async fn modify_required_field_within_session(#[case] kind: SubstrateKind) {
-    run_with(kind, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::persist().await.unwrap();
+    run_with(kind, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        workspace.persist().await.unwrap();
 
-        let mut role = EntityClient::checkout(role_typed("eng-lead"))
-            .await
-            .unwrap();
+        let mut role = workspace.checkout(role_ref("eng-lead")).await.unwrap();
         role.set_name("Engineering Lead".to_string()).await.unwrap();
         role.commit().await.unwrap();
-        EntityClient::persist().await.unwrap();
+        workspace.persist().await.unwrap();
 
-        let resolved = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let TrackedEntity::Role(role) = resolved else {
-            panic!("expected Role")
-        };
+        let role = workspace.resolve(role_ref("eng-lead")).await.unwrap();
         assert_eq!(role.name().await.unwrap(), "Engineering Lead");
     })
     .await;
@@ -84,40 +63,28 @@ async fn modify_required_field_within_session(#[case] kind: SubstrateKind) {
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
 async fn modify_optional_field_within_session(#[case] kind: SubstrateKind) {
-    run_with(kind, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::persist().await.unwrap();
+    run_with(kind, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        workspace.persist().await.unwrap();
 
         // None -> Some
-        let mut role = EntityClient::checkout(role_typed("eng-lead"))
-            .await
-            .unwrap();
+        let mut role = workspace.checkout(role_ref("eng-lead")).await.unwrap();
         role.set_description(Some("Owns delivery.".to_string()))
             .await
             .unwrap();
         role.commit().await.unwrap();
-        EntityClient::persist().await.unwrap();
+        workspace.persist().await.unwrap();
 
-        let resolved = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let TrackedEntity::Role(role) = resolved else {
-            panic!("expected Role")
-        };
+        let role = workspace.resolve(role_ref("eng-lead")).await.unwrap();
         assert_eq!(role.description().await.unwrap(), Some("Owns delivery."));
 
         // Some -> None
-        let mut role = EntityClient::checkout(role_typed("eng-lead"))
-            .await
-            .unwrap();
+        let mut role = workspace.checkout(role_ref("eng-lead")).await.unwrap();
         role.set_description(None).await.unwrap();
         role.commit().await.unwrap();
-        EntityClient::persist().await.unwrap();
+        workspace.persist().await.unwrap();
 
-        let resolved = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let TrackedEntity::Role(role) = resolved else {
-            panic!("expected Role")
-        };
+        let role = workspace.resolve(role_ref("eng-lead")).await.unwrap();
         assert_eq!(role.description().await.unwrap(), None);
     })
     .await;
@@ -132,33 +99,35 @@ async fn modify_field_across_repo_sessions() {
     let path = dir.path().to_path_buf();
     let role_file = path.join("common/roles/eng-lead.md");
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
-            .await
-            .unwrap();
-        EntityClient::persist().await.unwrap();
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+            workspace.persist().await.unwrap();
+        },
+    )
     .await;
 
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let mut role = EntityClient::checkout(role_typed("eng-lead"))
-            .await
-            .unwrap();
-        role.set_name("Engineering Lead".to_string()).await.unwrap();
-        role.commit().await.unwrap();
-        EntityClient::persist().await.unwrap();
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            workspace.resolve(role_ref("eng-lead")).await.unwrap();
+            let mut role = workspace.checkout(role_ref("eng-lead")).await.unwrap();
+            role.set_name("Engineering Lead".to_string()).await.unwrap();
+            role.commit().await.unwrap();
+            workspace.persist().await.unwrap();
+        },
+    )
     .await;
 
     // Third session: confirm the new value is observable through resolve.
-    pari::with(RepoSubstrate::new(path.clone()).unwrap(), || async {
-        let resolved = EntityClient::resolve(role_ref("eng-lead")).await.unwrap();
-        let TrackedEntity::Role(role) = resolved else {
-            panic!("expected Role")
-        };
-        assert_eq!(role.name().await.unwrap(), "Engineering Lead");
-    })
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            let role = workspace.resolve(role_ref("eng-lead")).await.unwrap();
+            assert_eq!(role.name().await.unwrap(), "Engineering Lead");
+        },
+    )
     .await;
 
     let contents = std::fs::read_to_string(&role_file).unwrap();
@@ -173,43 +142,44 @@ async fn modify_field_across_repo_sessions() {
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
 async fn modify_relay_delegates_to(#[case] kind: SubstrateKind) {
-    run_with(kind, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
+    run_with(kind, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        workspace.insert(a_minimal_role("approver")).await.unwrap();
+
+        workspace
+            .insert(a_reusable_workflow_with_review_step(
+                "ApprovalAlpha",
+                "eng-lead",
+                "approver",
+            ))
             .await
             .unwrap();
-        EntityClient::insert(a_minimal_role("approver"))
+        workspace
+            .insert(a_reusable_workflow_with_review_step(
+                "ApprovalBeta",
+                "eng-lead",
+                "approver",
+            ))
             .await
             .unwrap();
 
-        EntityClient::insert(a_reusable_workflow_with_review_step(
-            "ApprovalAlpha",
-            "eng-lead",
-            "approver",
-        ))
-        .await
-        .unwrap();
-        EntityClient::insert(a_reusable_workflow_with_review_step(
-            "ApprovalBeta",
-            "eng-lead",
-            "approver",
-        ))
-        .await
-        .unwrap();
-
-        EntityClient::insert(a_workflow_with_empty_steps("DesignFlow", "eng-lead"))
+        workspace
+            .insert(a_workflow_with_empty_steps("DesignFlow", "eng-lead"))
             .await
             .unwrap();
-        EntityClient::insert(a_minimal_relay(
-            "Handoff",
-            "DesignFlow",
-            "eng-lead",
-            "ApprovalAlpha",
-        ))
-        .await
-        .unwrap();
-        EntityClient::persist().await.unwrap();
+        workspace
+            .insert(a_minimal_relay(
+                "Handoff",
+                "DesignFlow",
+                "eng-lead",
+                "ApprovalAlpha",
+            ))
+            .await
+            .unwrap();
+        workspace.persist().await.unwrap();
 
-        let mut relay = EntityClient::checkout(relay_typed("Handoff", "DesignFlow"))
+        let mut relay = workspace
+            .checkout(relay_ref("Handoff", "DesignFlow"))
             .await
             .unwrap();
         relay
@@ -217,14 +187,12 @@ async fn modify_relay_delegates_to(#[case] kind: SubstrateKind) {
             .await
             .unwrap();
         relay.commit().await.unwrap();
-        EntityClient::persist().await.unwrap();
+        workspace.persist().await.unwrap();
 
-        let resolved = EntityClient::resolve(relay_ref("Handoff", "DesignFlow"))
+        let relay = workspace
+            .resolve(relay_ref("Handoff", "DesignFlow"))
             .await
             .unwrap();
-        let TrackedEntity::Relay(relay) = resolved else {
-            panic!("expected Relay")
-        };
         assert_eq!(relay.delegates_to().await.unwrap().id(), "ApprovalBeta");
     })
     .await;
@@ -235,27 +203,22 @@ async fn modify_relay_delegates_to(#[case] kind: SubstrateKind) {
 #[case::repo(SubstrateKind::Repo)]
 #[tokio::test]
 async fn modify_team_include_swap_pair(#[case] kind: SubstrateKind) {
-    run_with(kind, || async {
-        EntityClient::insert(a_minimal_role("eng-lead"))
+    run_with(kind, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        workspace.insert(a_minimal_role("designer")).await.unwrap();
+        workspace.insert(a_minimal_team("platform")).await.unwrap();
+        workspace.insert(a_minimal_team("ops")).await.unwrap();
+        workspace
+            .insert(a_team_with_composition(
+                "eng",
+                &[("platform", "eng-lead")],
+                &[],
+            ))
             .await
             .unwrap();
-        EntityClient::insert(a_minimal_role("designer"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_team("platform"))
-            .await
-            .unwrap();
-        EntityClient::insert(a_minimal_team("ops")).await.unwrap();
-        EntityClient::insert(a_team_with_composition(
-            "eng",
-            &[("platform", "eng-lead")],
-            &[],
-        ))
-        .await
-        .unwrap();
-        EntityClient::persist().await.unwrap();
+        workspace.persist().await.unwrap();
 
-        let mut team = EntityClient::checkout(team_typed("eng")).await.unwrap();
+        let mut team = workspace.checkout(team_ref("eng")).await.unwrap();
         team.set_include(Some(vec![(
             EntityRef::new("ops"),
             EntityRef::new("designer"),
@@ -263,12 +226,9 @@ async fn modify_team_include_swap_pair(#[case] kind: SubstrateKind) {
         .await
         .unwrap();
         team.commit().await.unwrap();
-        EntityClient::persist().await.unwrap();
+        workspace.persist().await.unwrap();
 
-        let resolved = EntityClient::resolve(team_ref("eng")).await.unwrap();
-        let TrackedEntity::Team(team) = resolved else {
-            panic!("expected Team")
-        };
+        let team = workspace.resolve(team_ref("eng")).await.unwrap();
         let include = team.include().await.unwrap().expect("include populated");
         assert_eq!(include.len(), 1);
         assert_eq!(include[0].0.id(), "ops");

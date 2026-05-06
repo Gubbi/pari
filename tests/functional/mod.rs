@@ -17,7 +17,6 @@ pub mod author_team;
 #[path = "author_workflow.rs"]
 pub mod author_workflow;
 
-#[cfg(any())]
 #[path = "modify_persisted_entity.rs"]
 pub mod modify_persisted_entity;
 
@@ -45,15 +44,12 @@ pub mod lifecycle_failures;
 #[path = "validation_timing.rs"]
 pub mod validation_timing;
 
-#[cfg(any())]
 #[path = "abandon_in_progress_edit.rs"]
 pub mod abandon_in_progress_edit;
 
-#[cfg(any())]
 #[path = "rollback_staged_change.rs"]
 pub mod rollback_staged_change;
 
-#[cfg(any())]
 #[path = "refresh_entity_from_substrate.rs"]
 pub mod refresh_entity_from_substrate;
 
