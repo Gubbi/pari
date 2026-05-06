@@ -28,7 +28,6 @@ pub struct EntityDeriveParts {
 pub fn generate_entity_derive_parts(
     ast: &DeriveInput,
     tracked_name: &Ident,
-    delegate_name: &Ident,
     kind_expr: &TokenStream2,
     parent_type: &TokenStream2,
     no_dispatch: bool,
@@ -86,7 +85,6 @@ pub fn generate_entity_derive_parts(
     let entity_impl = generate_entity_impl(
         name,
         tracked_name,
-        delegate_name,
         kind_expr,
         parent_type,
         no_dispatch,
@@ -740,7 +738,6 @@ fn generate_deserialize_impl(
 fn generate_entity_impl(
     name: &Ident,
     tracked_name: &Ident,
-    delegate_name: &Ident,
     kind_expr: &TokenStream2,
     parent_type: &TokenStream2,
     no_dispatch: bool,
@@ -805,7 +802,6 @@ fn generate_entity_impl(
 
             type Parent = #parent_type;
             type Tracked = #tracked_name;
-            type Delegate = #delegate_name;
 
             fn to_any_ref(
                 entity_ref: &::pari::entity::EntityRef<Self, Self::Parent>,

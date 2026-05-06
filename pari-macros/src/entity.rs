@@ -2,10 +2,11 @@
 //!
 //! Each application expands to a bundle of items whose ownership is split
 //! across formal layers: the tracked companion and `Entity` / `TrackedFor`
-//! impls (`entity`), async accessors and setters on the companion
-//! (`workspace`), validation schema access (`validation`), and custom serde
-//! impls that funnel the load path through
-//! [`TrackedField::initialize`](pari::entity::tracked::TrackedField::initialize)
+//! impls (`entity`), per-field async accessors on `XViewer<'ws, Name>`
+//! and per-field setters + lifecycle on `XEditor<'ws, Name>` (`workspace`),
+//! validation schema access (`validation`), and custom serde impls that
+//! funnel the load path through
+//! [`TrackedField::loaded`](pari::entity::tracked::TrackedField::loaded)
 //! (`entity`). This file stitches the parts together; the per-layer codegen
 //! lives in sibling `*_codegen.rs` modules so each layer's output can evolve
 //! independently.
@@ -23,14 +24,12 @@ use crate::{
 pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
     let name = &ast.ident;
     let tracked_name = syn::Ident::new(&format!("Tracked{name}"), name.span());
-    let delegate_name = syn::Ident::new(&format!("{name}Delegate"), name.span());
 
     let (kind_expr, parent_type, no_dispatch, schema_fn) = parse_entity_attr(&ast);
     let validation_schema_method = generate_validation_schema_access(name, &schema_fn);
     let entity_parts = match generate_entity_derive_parts(
         &ast,
         &tracked_name,
-        &delegate_name,
         &kind_expr,
         &parent_type,
         no_dispatch,
@@ -41,8 +40,7 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
     };
 
     let domain_field_refs = entity_parts.domain_fields.iter().collect::<Vec<_>>();
-    let workspace_parts =
-        generate_workspace_parts(name, &tracked_name, &delegate_name, &domain_field_refs);
+    let workspace_parts = generate_workspace_parts(name, &domain_field_refs);
 
     let crate::entity_codegen::EntityDeriveParts {
         tracked_struct,
@@ -55,8 +53,7 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
     } = entity_parts;
     let crate::workspace_codegen::WorkspaceParts {
         viewer_impl,
-        delegate_struct,
-        delegate_impl,
+        editor_impl,
     } = workspace_parts;
 
     quote! {
@@ -69,9 +66,7 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
         #deserialize_impl
 
         #viewer_impl
-
-        #delegate_struct
-        #delegate_impl
+        #editor_impl
     }
 }
 

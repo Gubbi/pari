@@ -33,4 +33,20 @@ impl<'ws, T: Entity> XViewer<'ws, T> {
     pub fn tracked(&self) -> &<T as Entity>::Tracked {
         &self.inner
     }
+
+    /// Mutable access to the tracked companion. Macro-internal — used
+    /// by generated `XEditor` setters in downstream crates that cannot
+    /// see the `pub(crate)` field directly.
+    #[doc(hidden)]
+    pub fn __tracked_mut(&mut self) -> &mut <T as Entity>::Tracked {
+        &mut self.inner
+    }
+
+    /// Move out of the viewer, returning the owned tracked companion.
+    /// Macro-internal — used by `XEditor::commit(self)` to hand the
+    /// tracked entity to the store.
+    #[doc(hidden)]
+    pub fn __into_inner(self) -> <T as Entity>::Tracked {
+        self.inner
+    }
 }

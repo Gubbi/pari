@@ -16,7 +16,7 @@ use crate::{
     entity::{AnyEntityRef, Entity, EntityRef, TrackedEntity},
     error::ActivityError,
     store::{Dispatcher, WorkspaceRequest, WorkspaceResponse},
-    workspace::viewer::XViewer,
+    workspace::{editor::XEditor, viewer::XViewer},
 };
 
 /// Caller-facing async API over a [`Dispatcher`].
@@ -108,15 +108,13 @@ impl Workspace {
     }
 
     /// Acquire single-writer mutation rights to an entity. The returned
-    /// per-type delegate carries a clone of this workspace's dispatcher
-    /// so its setters can dispatch through the same surface.
+    /// [`XEditor`] borrows this workspace; setters and the
+    /// `commit(self)` / `undo_checkout(self)` lifecycle dispatch
+    /// through the same surface every other workspace operation uses.
     pub async fn checkout<T: Entity>(
         &self,
         entity_ref: EntityRef<T, T::Parent>,
-    ) -> Result<T::Delegate, ActivityError>
-    where
-        T::Delegate: From<(T::Tracked, Arc<dyn Dispatcher>)>,
-    {
+    ) -> Result<XEditor<'_, T>, ActivityError> {
         let any_ref = entity_ref.to_any_ref();
         let entity = match self
             .dispatcher
@@ -129,7 +127,7 @@ impl Workspace {
         };
         let tracked = T::take(entity)
             .unwrap_or_else(|_| unreachable!("store returned mismatched variant for T"));
-        Ok(T::Delegate::from((tracked, Arc::clone(&self.dispatcher))))
+        Ok(XEditor::new(XViewer::new(tracked, self)))
     }
 
     /// Evict an entity from the store. Returns a viewer over the
