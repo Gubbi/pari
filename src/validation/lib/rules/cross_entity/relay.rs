@@ -1,7 +1,7 @@
 use crate::{
     entity::{entities::workflow::ReusableWorkflow, AnyEntityRef, Entity},
     error::primitive::PrimitiveError,
-    workspace::EntityClient,
+    workspace::Workspace,
 };
 
 /// For each `StateMapEntry` in `state_map`, checks that `maps_to` is a valid state id
@@ -10,11 +10,12 @@ use crate::{
 /// If `delegates_to` cannot be resolved (e.g. it doesn't exist), this rule silently
 /// returns no errors — existence is already checked by `delegates_to_exists`.
 pub async fn maps_to_states_exist(
+    workspace: &Workspace,
     delegates_to_id: &str,
     state_map: std::collections::HashMap<String, crate::entity::entities::relay::StateMapEntry>,
 ) -> Vec<PrimitiveError> {
     let any_ref = AnyEntityRef::ReusableWorkflow(crate::entity::EntityRef::new(delegates_to_id));
-    let tracked = match EntityClient::resolve(any_ref).await {
+    let tracked = match workspace.resolve_any(any_ref).await {
         Ok(t) => t,
         Err(_) => return vec![], // delegates_to missing — caught by delegates_to_exists
     };

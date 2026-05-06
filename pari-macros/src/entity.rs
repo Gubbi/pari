@@ -54,7 +54,7 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
         domain_fields: _,
     } = entity_parts;
     let crate::workspace_codegen::WorkspaceParts {
-        accessors,
+        viewer_impl,
         delegate_struct,
         delegate_impl,
     } = workspace_parts;
@@ -63,14 +63,12 @@ pub fn derive_entity_impl(ast: DeriveInput) -> TokenStream2 {
         #tracked_struct
         #tracked_impl
 
-        impl #tracked_name {
-            #(#accessors)*
-        }
-
         #entity_impl
         #tracked_for_impl
         #serialize_impl
         #deserialize_impl
+
+        #viewer_impl
 
         #delegate_struct
         #delegate_impl

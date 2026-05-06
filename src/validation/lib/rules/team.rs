@@ -10,6 +10,7 @@ use super::{
 use crate::{
     entity::entities::team::{Team, TrackedTeam},
     validation::lib::rules::cross_entity::team::{no_import_cycle, no_include_cycle},
+    workspace::XViewer,
 };
 
 pub fn team_validation_schema() -> ValidationSchema<Team> {
@@ -79,39 +80,40 @@ pub fn team_validation_schema() -> ValidationSchema<Team> {
 
     let mut cross_entity: std::collections::HashMap<&'static str, Vec<AnyCrossEntityRule<Team>>> =
         std::collections::HashMap::new();
-    cross_entity.insert(
-        "members",
-        vec![crate::ref_check_rule!(TrackedTeam, members)],
-    );
+    cross_entity.insert("members", vec![crate::ref_check_rule!(Team, members)]);
     cross_entity.insert(
         "include",
         vec![
-            crate::ref_check_rule!(TrackedTeam, include),
-            Box::new(|e: &TrackedTeam| {
-                let self_ref = e.entity_ref.clone();
-                let include = e
+            crate::ref_check_rule!(Team, include),
+            Box::new(|viewer: &XViewer<'_, Team>| {
+                let self_ref = viewer.tracked().entity_ref.clone();
+                let include = viewer
+                    .tracked()
                     .include
                     .get()
                     .and_then(|v| v.as_ref())
                     .cloned()
                     .unwrap_or_default();
-                Box::pin(async move { no_include_cycle(self_ref, include).await })
+                let workspace = viewer.workspace();
+                Box::pin(async move { no_include_cycle(workspace, self_ref, include).await })
             }),
         ],
     );
     cross_entity.insert(
         "import",
         vec![
-            crate::ref_check_rule!(TrackedTeam, import),
-            Box::new(|e: &TrackedTeam| {
-                let self_ref = e.entity_ref.clone();
-                let import = e
+            crate::ref_check_rule!(Team, import),
+            Box::new(|viewer: &XViewer<'_, Team>| {
+                let self_ref = viewer.tracked().entity_ref.clone();
+                let import = viewer
+                    .tracked()
                     .import
                     .get()
                     .and_then(|v| v.as_ref())
                     .cloned()
                     .unwrap_or_default();
-                Box::pin(async move { no_import_cycle(self_ref, import).await })
+                let workspace = viewer.workspace();
+                Box::pin(async move { no_import_cycle(workspace, self_ref, import).await })
             }),
         ],
     );

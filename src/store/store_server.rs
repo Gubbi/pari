@@ -1,23 +1,21 @@
 //! [`StoreServer`] — stateless orchestrator for the store layer.
 //!
-//! Holds an `Arc<S>` substrate handle and a sender into the [`Store`]
-//! actor. Caller-facing operations from [`workspace`](crate::workspace)
-//! arrive as [`WorkspaceRequest`] values and are handled directly via
-//! `&self` methods — no actor loop, no channel between workspace and
-//! the server. Each caller's task drives its own orchestration sequence
-//! (validation, substrate calls, store round-trips) for that request.
+//! Holds an `Arc<S>` substrate handle and a [`StoreDispatcher`] into the
+//! [`Store`] actor. Caller-facing operations from
+//! [`workspace`](crate::workspace) arrive as [`WorkspaceRequest`] values
+//! and are handled directly via `&self` methods — no actor loop, no
+//! channel between workspace and the server. Each caller's task drives
+//! its own orchestration sequence (validation, substrate calls, store
+//! round-trips) for that request.
 //!
-//! Two registrations provide workspace's entry point: a process-wide
-//! `GLOBAL_STORE_SERVER` published by [`install_global_store_server`]
-//! (used by [`crate::init`]), and a thread-local `OVERRIDE_STORE_SERVER`
-//! installed by [`install_override_store_server`] (used by
-//! [`crate::with`]). [`active_store_server`] prefers the override.
+//! Constructed through [`StoreServer::start`], which returns the
+//! workspace-facing [`Dispatcher`] handle. Integrators wire it directly
+//! into a [`Workspace`](crate::workspace::Workspace).
 
 use std::{
-    cell::RefCell,
     future::Future,
     pin::Pin,
-    sync::{Arc, OnceLock, Weak},
+    sync::{Arc, Weak},
 };
 
 use futures::future::BoxFuture;
@@ -42,7 +40,7 @@ use crate::{
 
 /// Type-erased dispatch surface. The workspace layer calls into this
 /// trait so it does not need to be generic over the substrate.
-pub(crate) trait Dispatcher: Send + Sync {
+pub trait Dispatcher: Send + Sync {
     fn dispatch<'a>(&'a self, request: WorkspaceRequest) -> BoxFuture<'a, WorkspaceResponse>;
 }
 
@@ -56,7 +54,7 @@ pub(crate) trait Dispatcher: Send + Sync {
 /// substrate handle, plus a weak self-reference so per-request
 /// workspaces can dispatch through the same outward surface callers
 /// hold. Multiple instances may dispatch into the same store.
-pub(crate) struct StoreServer<S> {
+pub struct StoreServer<S> {
     store_dispatcher: Arc<dyn StoreDispatcher>,
     substrate: Arc<S>,
     self_dispatcher: Weak<dyn Dispatcher>,
@@ -75,10 +73,7 @@ where
     /// the caller holds is what keeps the cycle balanced. The strong
     /// edge is dispatcher → server; the weak edge is server →
     /// dispatcher.
-    pub(crate) fn start(
-        substrate: S,
-        store_dispatcher: Arc<dyn StoreDispatcher>,
-    ) -> Arc<dyn Dispatcher> {
+    pub fn start(substrate: S, store_dispatcher: Arc<dyn StoreDispatcher>) -> Arc<dyn Dispatcher> {
         let substrate = Arc::new(substrate);
         Arc::new_cyclic(|weak: &Weak<StoreServer<S>>| StoreServer {
             store_dispatcher,
@@ -87,12 +82,16 @@ where
         })
     }
 
-    /// Weak handle to the workspace-facing dispatcher this server is
-    /// installed behind. Used by per-request workspace construction
-    /// (see Thread H).
-    #[allow(dead_code)]
-    pub(crate) fn self_dispatcher(&self) -> Weak<dyn Dispatcher> {
-        self.self_dispatcher.clone()
+    /// Construct a per-request [`Workspace`](crate::workspace::Workspace)
+    /// over the server's own dispatcher. Used by validation invocation
+    /// sites that need workspace-bound viewer access to in-store
+    /// entities.
+    fn per_request_workspace(&self) -> crate::workspace::Workspace {
+        let dispatcher = self
+            .self_dispatcher
+            .upgrade()
+            .expect("StoreServer self-dispatcher dropped while server is in use");
+        crate::workspace::Workspace::new(dispatcher)
     }
 
     // -----------------------------------------------------------------------
@@ -193,7 +192,9 @@ where
     }
 
     async fn insert(&self, entity: TrackedEntity) -> Result<(), ActivityError> {
+        let workspace = self.per_request_workspace();
         run_validations_for_entity(
+            &workspace,
             &entity,
             &[],
             &[
@@ -235,8 +236,10 @@ where
             _ => unreachable!(),
         };
 
+        let workspace = self.per_request_workspace();
         if is_added {
             run_validations_for_entity(
+                &workspace,
                 &entity,
                 &[],
                 &[
@@ -248,8 +251,13 @@ where
             .await?;
         } else if entity.has_dirty_fields() {
             let dirty = entity.dirty_fields();
-            run_validations_for_entity(&entity, dirty.as_slice(), &[ValidationKind::CrossEntity])
-                .await?;
+            run_validations_for_entity(
+                &workspace,
+                &entity,
+                dirty.as_slice(),
+                &[ValidationKind::CrossEntity],
+            )
+            .await?;
         }
 
         match self
@@ -448,7 +456,9 @@ where
             })?;
 
             // Validate loaded fields, wrapped as unpersistable if they fail.
+            let workspace = self.per_request_workspace();
             run_validations_for_entity(
+                &workspace,
                 &loaded,
                 &still_pending,
                 &[
@@ -533,58 +543,6 @@ where
     fn dispatch<'a>(&'a self, request: WorkspaceRequest) -> BoxFuture<'a, WorkspaceResponse> {
         Box::pin(self.handle(request))
     }
-}
-
-// ---------------------------------------------------------------------------
-// Active store server — workspace's single entry point
-// ---------------------------------------------------------------------------
-
-static GLOBAL_STORE_SERVER: OnceLock<Arc<dyn Dispatcher>> = OnceLock::new();
-
-thread_local! {
-    static OVERRIDE_STORE_SERVER: RefCell<Option<Arc<dyn Dispatcher>>> = const { RefCell::new(None) };
-}
-
-/// The workspace layer's single entry point to whichever `StoreServer`
-/// is currently installed. Prefers the thread-local override (set by
-/// [`crate::with`]) over the process-wide registration.
-pub(crate) fn active_store_server() -> Arc<dyn Dispatcher> {
-    OVERRIDE_STORE_SERVER
-        .with(|o| o.borrow().clone())
-        .unwrap_or_else(|| {
-            GLOBAL_STORE_SERVER
-                .get()
-                .expect("StoreServer not initialized")
-                .clone()
-        })
-}
-
-/// Install the process-wide `StoreServer`. Panics if called twice.
-pub(crate) fn install_global_store_server(store_server: Arc<dyn Dispatcher>) {
-    GLOBAL_STORE_SERVER
-        .set(store_server)
-        .ok()
-        .expect("StoreServer already initialized");
-}
-
-/// Guard returned by [`install_override_store_server`]; restores the
-/// previous thread-local override on drop.
-pub(crate) struct OverrideGuard {
-    previous: Option<Arc<dyn Dispatcher>>,
-}
-
-impl Drop for OverrideGuard {
-    fn drop(&mut self) {
-        OVERRIDE_STORE_SERVER.with(|s| *s.borrow_mut() = self.previous.take());
-    }
-}
-
-/// Install a thread-local `StoreServer` override; the returned guard
-/// restores the previous value on drop. Used by [`crate::with`] to
-/// isolate test scopes from the process-wide registration.
-pub(crate) fn install_override_store_server(store_server: Arc<dyn Dispatcher>) -> OverrideGuard {
-    let previous = OVERRIDE_STORE_SERVER.with(|s| s.borrow_mut().replace(store_server));
-    OverrideGuard { previous }
 }
 
 // ---------------------------------------------------------------------------

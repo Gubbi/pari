@@ -11,7 +11,14 @@ fn generate_registry_validation_dispatch(entries: &[RegistryEntry]) -> Vec<Token
             let vname = &e.name;
             let ty = &e.name;
             quote! {
-                TrackedEntity::#vname(e) => ::pari::validation::lib::runner::run_validations::<#ty>(e, fields, kinds).await,
+                TrackedEntity::#vname(t) => {
+                    let viewer: ::pari::workspace::XViewer<'_, #ty> =
+                        workspace.import::<#ty>(t.clone());
+                    ::pari::validation::lib::runner::run_validations::<#ty>(
+                        &viewer, fields, kinds,
+                    )
+                    .await
+                }
             }
         })
         .collect()
@@ -23,6 +30,7 @@ pub fn generate_tracked_entity_validation_impl(entries: &[RegistryEntry]) -> Tok
         impl TrackedEntity {
             pub async fn run_validations(
                 &self,
+                workspace: &::pari::workspace::Workspace,
                 fields: &[&str],
                 kinds: &[::pari::validation::ValidationKind],
             ) -> ::std::result::Result<(), ::pari::error::primitive::PrimitiveError> {

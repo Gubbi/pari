@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{entity::Entity, error::primitive::PrimitiveError};
+use crate::{entity::Entity, error::primitive::PrimitiveError, workspace::XViewer};
 
 // ---------------------------------------------------------------------------
 // Rule function type aliases
@@ -10,17 +10,20 @@ use crate::{entity::Entity, error::primitive::PrimitiveError};
 pub type AnyStructuralRule<E> =
     Box<dyn Fn(&<E as Entity>::Tracked) -> Vec<PrimitiveError> + Send + Sync>;
 
-/// Semantic rule: async closure that receives the whole tracked entity.
+/// Semantic rule: async closure that receives a workspace-bound viewer
+/// over the entity. Reading sibling fields and resolving cross-entity
+/// refs both flow through `viewer.workspace()`.
 pub type AnySemanticRule<E> = Box<
-    dyn for<'a> Fn(
-            &'a <E as Entity>::Tracked,
+    dyn for<'a, 'ws> Fn(
+            &'a XViewer<'ws, E>,
         ) -> std::pin::Pin<
             Box<dyn std::future::Future<Output = Vec<PrimitiveError>> + Send + 'a>,
         > + Send
         + Sync,
 >;
 
-/// Cross-entity rule: same signature as a semantic rule.
+/// Cross-entity rule: same signature as a semantic rule. Distinguished
+/// at the schema level by which kind a caller asks the runner to run.
 pub type AnyCrossEntityRule<E> = AnySemanticRule<E>;
 
 // ---------------------------------------------------------------------------

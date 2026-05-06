@@ -15,6 +15,7 @@ use crate::{
         common::parent_exists,
         intercepts::{intercept_hooks_exist, intercept_inputs_valid},
     },
+    workspace::XViewer,
 };
 
 pub fn task_validation_schema() -> ValidationSchema<Task> {
@@ -121,41 +122,43 @@ pub fn task_validation_schema() -> ValidationSchema<Task> {
         std::collections::HashMap::new();
     cross_entity.insert(
         "entity_ref",
-        vec![Box::new(|e: &TrackedTask| {
-            let parent = e.entity_ref.parent().cloned();
+        vec![Box::new(|viewer: &XViewer<'_, Task>| {
+            let parent = viewer.tracked().entity_ref.parent().cloned();
+            let workspace = viewer.workspace();
             Box::pin(async move {
                 match parent {
-                    Some(p) => parent_exists(p).await,
+                    Some(p) => parent_exists(workspace, p).await,
                     None => vec![],
                 }
             })
         })],
     );
-    cross_entity.insert("raci", vec![crate::ref_check_rule!(TrackedTask, raci)]);
-    cross_entity.insert(
-        "artifact",
-        vec![crate::ref_check_rule!(TrackedTask, artifact)],
-    );
+    cross_entity.insert("raci", vec![crate::ref_check_rule!(Task, raci)]);
+    cross_entity.insert("artifact", vec![crate::ref_check_rule!(Task, artifact)]);
     cross_entity.insert(
         "intercepts",
         vec![
-            Box::new(|e: &TrackedTask| {
-                let map = e
+            Box::new(|viewer: &XViewer<'_, Task>| {
+                let map = viewer
+                    .tracked()
                     .intercepts
                     .get()
                     .and_then(|v| v.as_ref())
                     .cloned()
                     .unwrap_or_default();
-                Box::pin(async move { intercept_hooks_exist(map, "intercepts").await })
+                let workspace = viewer.workspace();
+                Box::pin(async move { intercept_hooks_exist(workspace, map, "intercepts").await })
             }),
-            Box::new(|e: &TrackedTask| {
-                let map = e
+            Box::new(|viewer: &XViewer<'_, Task>| {
+                let map = viewer
+                    .tracked()
                     .intercepts
                     .get()
                     .and_then(|v| v.as_ref())
                     .cloned()
                     .unwrap_or_default();
-                Box::pin(async move { intercept_inputs_valid(map, "intercepts").await })
+                let workspace = viewer.workspace();
+                Box::pin(async move { intercept_inputs_valid(workspace, map, "intercepts").await })
             }),
         ],
     );

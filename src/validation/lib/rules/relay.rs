@@ -13,6 +13,7 @@ use crate::{
         intercepts::{intercept_hooks_exist, intercept_inputs_valid},
         relay::maps_to_states_exist,
     },
+    workspace::XViewer,
 };
 
 pub fn relay_validation_schema() -> ValidationSchema<Relay> {
@@ -119,11 +120,12 @@ pub fn relay_validation_schema() -> ValidationSchema<Relay> {
         std::collections::HashMap::new();
     cross_entity.insert(
         "entity_ref",
-        vec![Box::new(|e: &TrackedRelay| {
-            let parent = e.entity_ref.parent().cloned();
+        vec![Box::new(|viewer: &XViewer<'_, Relay>| {
+            let parent = viewer.tracked().entity_ref.parent().cloned();
+            let workspace = viewer.workspace();
             Box::pin(async move {
                 match parent {
-                    Some(p) => parent_exists(p).await,
+                    Some(p) => parent_exists(workspace, p).await,
                     None => vec![],
                 }
             })
@@ -131,44 +133,57 @@ pub fn relay_validation_schema() -> ValidationSchema<Relay> {
     );
     cross_entity.insert(
         "delegates_to",
-        vec![crate::ref_check_rule!(TrackedRelay, delegates_to)],
+        vec![crate::ref_check_rule!(Relay, delegates_to)],
     );
-    cross_entity.insert("raci", vec![crate::ref_check_rule!(TrackedRelay, raci)]);
+    cross_entity.insert("raci", vec![crate::ref_check_rule!(Relay, raci)]);
     cross_entity.insert(
         "state_map",
         vec![
-            crate::ref_check_rule!(TrackedRelay, state_map),
-            Box::new(|e: &TrackedRelay| {
-                let delegates_to_id = e
+            crate::ref_check_rule!(Relay, state_map),
+            Box::new(|viewer: &XViewer<'_, Relay>| {
+                let delegates_to_id = viewer
+                    .tracked()
                     .delegates_to
                     .get()
                     .map(|r| r.id().to_owned())
                     .unwrap_or_default();
-                let state_map = e.state_map.get().cloned().unwrap_or_default();
-                Box::pin(async move { maps_to_states_exist(&delegates_to_id, state_map).await })
+                let state_map = viewer
+                    .tracked()
+                    .state_map
+                    .get()
+                    .cloned()
+                    .unwrap_or_default();
+                let workspace = viewer.workspace();
+                Box::pin(async move {
+                    maps_to_states_exist(workspace, &delegates_to_id, state_map).await
+                })
             }),
         ],
     );
     cross_entity.insert(
         "intercepts",
         vec![
-            Box::new(|e: &TrackedRelay| {
-                let map = e
+            Box::new(|viewer: &XViewer<'_, Relay>| {
+                let map = viewer
+                    .tracked()
                     .intercepts
                     .get()
                     .and_then(|v| v.as_ref())
                     .cloned()
                     .unwrap_or_default();
-                Box::pin(async move { intercept_hooks_exist(map, "intercepts").await })
+                let workspace = viewer.workspace();
+                Box::pin(async move { intercept_hooks_exist(workspace, map, "intercepts").await })
             }),
-            Box::new(|e: &TrackedRelay| {
-                let map = e
+            Box::new(|viewer: &XViewer<'_, Relay>| {
+                let map = viewer
+                    .tracked()
                     .intercepts
                     .get()
                     .and_then(|v| v.as_ref())
                     .cloned()
                     .unwrap_or_default();
-                Box::pin(async move { intercept_inputs_valid(map, "intercepts").await })
+                let workspace = viewer.workspace();
+                Box::pin(async move { intercept_inputs_valid(workspace, map, "intercepts").await })
             }),
         ],
     );

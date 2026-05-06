@@ -1,29 +1,31 @@
-//! Code generation for the `workspace` layer's per-field accessors,
-//! per-field setters, and the per-entity `Delegate` mutation handle.
+//! Code generation for the `workspace` layer's per-entity
+//! [`XViewer<'ws, Name>`] accessors and the per-entity `Delegate`
+//! mutation handle.
 //!
 //! The generated items belong to the `workspace` layer: they are the
 //! runtime expression of the access and mutation patterns described in
 //! `docs/design/layers/workspace.md`. The macro crate only hosts the
 //! generation; the semantics are owned by `workspace`.
 //!
-//! Accessors live on the tracked companion (`TrackedX`) so they are
-//! reachable from any handle — checked-out delegates expose them
-//! through `Deref`. Setters and the `commit` / `undo_checkout`
-//! lifecycle live on the per-entity delegate (`XDelegate`) so mutation
-//! is reachable only after a successful checkout.
+//! Read accessors live on `XViewer<'ws, Name>` so they reach the
+//! workspace's dispatcher through the borrowed session. Setters,
+//! `commit(self)`, and `undo_checkout(self)` live on `XDelegate`,
+//! which carries a clone of the workspace's dispatcher so it can keep
+//! issuing requests after checkout.
 
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{Field, Ident, Type};
 
 pub struct WorkspaceParts {
-    pub accessors: Vec<TokenStream2>,
+    pub viewer_impl: TokenStream2,
     pub delegate_struct: TokenStream2,
     pub delegate_impl: TokenStream2,
 }
 
-/// Emit accessors on `TrackedX`, plus the per-entity `XDelegate`
-/// struct, its setters, and its `commit` / `undo_checkout` lifecycle.
+/// Emit per-field accessors on `XViewer<'_, Name>`, plus the per-entity
+/// `XDelegate` struct, its setters, and its `commit` /
+/// `undo_checkout` lifecycle.
 pub fn generate_workspace_parts(
     entity_name: &Ident,
     tracked_name: &Ident,
@@ -39,17 +41,30 @@ pub fn generate_workspace_parts(
             let fname_str = fname.as_ref().unwrap().to_string();
             quote! {
                 pub async fn #fname(&self) -> ::std::result::Result<#ret_type, ::pari::error::ActivityError> {
-                    if self.#fname.get().is_none() {
-                        ::pari::workspace::EntityClient::load(
-                            self.entity_ref().to_any_ref(),
-                            #fname_str,
-                        ).await?;
+                    if self.tracked().#fname.get().is_none() {
+                        let any_ref = self.tracked().entity_ref().to_any_ref();
+                        match self.workspace().__dispatcher().dispatch(
+                            ::pari::store::WorkspaceRequest::Load {
+                                any_ref,
+                                field: #fname_str.to_string(),
+                            },
+                        ).await {
+                            ::pari::store::WorkspaceResponse::Unit => {},
+                            ::pari::store::WorkspaceResponse::Err(e) => return ::std::result::Result::Err(e),
+                            _ => unreachable!(),
+                        }
                     }
-                    Ok(self.#fname.get().expect("field not loaded") #map_expr)
+                    Ok(self.tracked().#fname.get().expect("field not loaded") #map_expr)
                 }
             }
         })
         .collect();
+
+    let viewer_impl = quote! {
+        impl<'ws> ::pari::workspace::XViewer<'ws, #entity_name> {
+            #(#accessors)*
+        }
+    };
 
     let setters: Vec<TokenStream2> = domain_fields
         .iter()
@@ -61,16 +76,29 @@ pub fn generate_workspace_parts(
             let fname_str = fname.as_ref().unwrap().to_string();
             quote! {
                 pub async fn #setter_name(&mut self, value: #ty) -> ::std::result::Result<(), ::pari::error::ActivityError> {
-                    ::pari::workspace::EntityClient::ensure_mutable(
-                        self.inner.entity_ref().to_any_ref(),
-                        #fname_str,
-                    ).await?;
+                    let any_ref = self.inner.entity_ref().to_any_ref();
+                    match self.dispatcher.dispatch(
+                        ::pari::store::WorkspaceRequest::EnsureMutable {
+                            any_ref,
+                            field: #fname_str.to_string(),
+                        },
+                    ).await {
+                        ::pari::store::WorkspaceResponse::Unit => {},
+                        ::pari::store::WorkspaceResponse::Err(e) => return ::std::result::Result::Err(e),
+                        _ => unreachable!(),
+                    }
 
                     let mut candidate = self.inner.clone();
                     candidate.#fname = ::std::sync::Arc::new(::pari::tracked::TrackedField::mutated(value));
+                    let validated_field = ::std::sync::Arc::clone(&candidate.#fname);
+
+                    let workspace = ::pari::workspace::Workspace::new(
+                        ::std::sync::Arc::clone(&self.dispatcher),
+                    );
+                    let viewer = workspace.import::<#entity_name>(candidate);
 
                     ::pari::validation::run_validations::<#entity_name>(
-                        &candidate,
+                        &viewer,
                         &[#fname_str],
                         &[
                             ::pari::validation::ValidationKind::Structural,
@@ -78,7 +106,7 @@ pub fn generate_workspace_parts(
                         ],
                     ).await?;
 
-                    self.inner.#fname = ::std::sync::Arc::clone(&candidate.#fname);
+                    self.inner.#fname = validated_field;
                     Ok(())
                 }
             }
@@ -86,17 +114,22 @@ pub fn generate_workspace_parts(
         .collect();
 
     let delegate_struct = quote! {
-        /// Mutation handle returned by `EntityClient::checkout`. Owns
-        /// the checked-out tracked entity, exposes setters for each
-        /// domain field, and is consumed on `commit` or
-        /// `undo_checkout`. Not `Clone` — checkout is single-writer.
+        /// Mutation handle returned by `Workspace::checkout`. Owns the
+        /// checked-out tracked entity and a clone of the workspace's
+        /// dispatcher; consumed on `commit` or `undo_checkout`. Not
+        /// `Clone` — checkout is single-writer.
         pub struct #delegate_name {
             pub(crate) inner: #tracked_name,
+            pub(crate) dispatcher: ::std::sync::Arc<dyn ::pari::store::Dispatcher>,
         }
 
-        impl ::std::convert::From<#tracked_name> for #delegate_name {
-            fn from(inner: #tracked_name) -> Self {
-                Self { inner }
+        impl ::std::convert::From<(#tracked_name, ::std::sync::Arc<dyn ::pari::store::Dispatcher>)>
+            for #delegate_name
+        {
+            fn from(
+                (inner, dispatcher): (#tracked_name, ::std::sync::Arc<dyn ::pari::store::Dispatcher>),
+            ) -> Self {
+                Self { inner, dispatcher }
             }
         }
     };
@@ -110,11 +143,9 @@ pub fn generate_workspace_parts(
             /// the delegate.
             pub async fn commit(self) -> ::std::result::Result<(), ::pari::error::ActivityError> {
                 let entity = <#entity_name as ::pari::entity::Entity>::into_tracked_entity(self.inner);
-                match ::pari::workspace::lib::request::request(
+                match self.dispatcher.dispatch(
                     ::pari::store::WorkspaceRequest::Commit { entity },
-                )
-                .await
-                {
+                ).await {
                     ::pari::store::WorkspaceResponse::Unit => ::std::result::Result::Ok(()),
                     ::pari::store::WorkspaceResponse::Err(e) => ::std::result::Result::Err(e),
                     _ => unreachable!(),
@@ -125,11 +156,9 @@ pub fn generate_workspace_parts(
             /// the delegate.
             pub async fn undo_checkout(self) -> ::std::result::Result<(), ::pari::error::ActivityError> {
                 let any_ref = self.inner.entity_ref().to_any_ref();
-                match ::pari::workspace::lib::request::request(
+                match self.dispatcher.dispatch(
                     ::pari::store::WorkspaceRequest::UndoCheckout { any_ref },
-                )
-                .await
-                {
+                ).await {
                     ::pari::store::WorkspaceResponse::Unit => ::std::result::Result::Ok(()),
                     ::pari::store::WorkspaceResponse::Err(e) => ::std::result::Result::Err(e),
                     _ => unreachable!(),
@@ -146,7 +175,7 @@ pub fn generate_workspace_parts(
     };
 
     WorkspaceParts {
-        accessors,
+        viewer_impl,
         delegate_struct,
         delegate_impl,
     }

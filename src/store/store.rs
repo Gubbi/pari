@@ -37,7 +37,7 @@ use crate::{
 /// the orchestrating server can classify them as
 /// `ActivityError::store_unavailable`, separate from operation-level
 /// failures the actor returns inside [`StoreResponse::Err`].
-pub(crate) trait StoreDispatcher: Send + Sync {
+pub trait StoreDispatcher: Send + Sync {
     fn dispatch<'a>(
         &'a self,
         req: StoreRequest,
@@ -45,16 +45,15 @@ pub(crate) trait StoreDispatcher: Send + Sync {
 }
 
 /// Channel-backed [`StoreDispatcher`] returned by [`Store::start`].
-pub(crate) struct ChannelStoreDispatcher {
+pub struct ChannelStoreDispatcher {
     tx: mpsc::Sender<StoreMessage>,
 }
 
 impl ChannelStoreDispatcher {
     /// Construct a [`ChannelStoreDispatcher`] over an existing
     /// [`mpsc::Sender<StoreMessage>`]. Used by callers that need to
-    /// drive the actor inline (e.g. [`crate::with`]) instead of
-    /// spawning it through [`Store::start`].
-    pub(crate) fn new(tx: mpsc::Sender<StoreMessage>) -> Self {
+    /// drive the actor inline (e.g. test harnesses that don't spawn).
+    pub fn new(tx: mpsc::Sender<StoreMessage>) -> Self {
         Self { tx }
     }
 }
@@ -91,7 +90,7 @@ impl StoreDispatcher for ChannelStoreDispatcher {
 /// `modified`, `removed`) drive the persist snapshot. `checked_out`
 /// enforces the single-checkout rule and gates `persist`, `revert`,
 /// `remove`, and `forget`.
-pub(crate) struct Store {
+pub struct Store {
     entities: HashMap<AnyEntityRef, TrackedEntity>,
     added: HashSet<AnyEntityRef>,
     modified: HashSet<AnyEntityRef>,
@@ -100,7 +99,7 @@ pub(crate) struct Store {
 }
 
 impl Store {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             entities: HashMap::new(),
             added: HashSet::new(),
@@ -115,7 +114,7 @@ impl Store {
     ///
     /// The runtime is the integrator's choice — `spawn_fn` is the only
     /// async-runtime touch-point inside `pari`.
-    pub(crate) fn start(spawn_fn: &SpawnFn) -> Arc<dyn StoreDispatcher> {
+    pub fn start(spawn_fn: &SpawnFn) -> Arc<dyn StoreDispatcher> {
         let (tx, rx) = mpsc::channel(32);
         spawn_fn(Box::pin(Store::new().run(rx)));
         Arc::new(ChannelStoreDispatcher { tx })
@@ -123,7 +122,7 @@ impl Store {
 
     /// Actor loop — processes messages strictly sequentially. No
     /// interleaving, no locking.
-    pub(crate) async fn run(mut self, mut rx: mpsc::Receiver<StoreMessage>) {
+    pub async fn run(mut self, mut rx: mpsc::Receiver<StoreMessage>) {
         while let Some(msg) = rx.next().await {
             let response = self.handle(msg.request);
             let _ = msg.reply.send(response);

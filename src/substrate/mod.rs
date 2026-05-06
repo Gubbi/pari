@@ -22,8 +22,7 @@ mod substrate;
 mod void;
 
 pub use in_memory::{InMemoryStorage, InMemorySubstrate};
-pub use lib::pipeline;
-pub(crate) use lib::schema_registry::SchemaBackedSubstrate;
+pub use lib::{pipeline, schema_registry::SchemaBackedSubstrate};
 pub use repo::RepoSubstrate;
 pub use substrate::Substrate;
 pub use void::VoidSubstrate;

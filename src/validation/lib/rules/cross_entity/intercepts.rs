@@ -3,13 +3,14 @@ use std::collections::HashMap;
 use crate::{
     entity::{entities::hook::Hook, types::HookCall, AnyEntityRef, Entity},
     error::primitive::PrimitiveError,
-    workspace::EntityClient,
+    workspace::Workspace,
 };
 
 /// Checks that the hook ref in every `HookCall` in `intercepts` exists in the store.
 ///
 /// `field` is the field name used in sub-paths, e.g. `"intercepts"`.
 pub async fn intercept_hooks_exist<T>(
+    workspace: &Workspace,
     intercepts: HashMap<T, HookCall>,
     field: &str,
 ) -> Vec<PrimitiveError>
@@ -20,7 +21,7 @@ where
     for hook_call in intercepts.values() {
         let any_ref: AnyEntityRef = AnyEntityRef::Hook(hook_call.hook.clone());
         let id = any_ref.id().to_owned();
-        match EntityClient::has_ref(any_ref).await {
+        match workspace.has_any(any_ref).await {
             Ok(false) => errors.push(PrimitiveError::referenced_entity_absent(
                 format!("hook '{id}' referenced in '{field}' does not exist"),
                 format!("{field}.hook"),
@@ -39,6 +40,7 @@ where
 ///
 /// `field` is the field name used in sub-paths, e.g. `"intercepts"`.
 pub async fn intercept_inputs_valid<T>(
+    workspace: &Workspace,
     intercepts: HashMap<T, HookCall>,
     field: &str,
 ) -> Vec<PrimitiveError>
@@ -48,7 +50,7 @@ where
     let mut errors = vec![];
     for hook_call in intercepts.values() {
         let any_ref: AnyEntityRef = AnyEntityRef::Hook(hook_call.hook.clone());
-        let tracked = match EntityClient::resolve(any_ref).await {
+        let tracked = match workspace.resolve_any(any_ref).await {
             Ok(t) => t,
             Err(_) => continue, // hook missing — caught by intercept_hooks_exist
         };

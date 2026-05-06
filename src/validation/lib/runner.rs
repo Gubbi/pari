@@ -7,14 +7,18 @@ use crate::{
         kind::ValidationKind,
         lib::schema::{validate_field_selection, ValidatableTracked},
     },
+    workspace::XViewer,
 };
 
 /// Pure validation runner. Accumulates field-level rule failures into a
 /// `PrimitiveError::FieldValidationError`. Returns
 /// `Err(PrimitiveError::InvalidValidationFieldSelection)` if any requested
 /// field name is not in the schema.
+///
+/// Receives a workspace-bound viewer; rule bodies that need cross-entity
+/// access reach the store through `viewer.workspace()`.
 pub async fn run_validations<T: Entity>(
-    entity: &T::Tracked,
+    viewer: &XViewer<'_, T>,
     fields: &[&str],
     kinds: &[ValidationKind],
 ) -> Result<(), PrimitiveError>
@@ -32,6 +36,8 @@ where
         fields.to_vec()
     };
 
+    let entity = viewer.tracked();
+
     for field_name in &target_fields {
         let mut field_errors: Vec<PrimitiveError> = Vec::new();
 
@@ -44,7 +50,7 @@ where
         if kinds.contains(&ValidationKind::Semantic) {
             if let Some(rules) = schema.semantic.get(field_name) {
                 for rule in rules {
-                    field_errors.extend(rule(entity).await);
+                    field_errors.extend(rule(viewer).await);
                 }
             }
         }
@@ -52,7 +58,7 @@ where
         if kinds.contains(&ValidationKind::CrossEntity) {
             if let Some(rules) = schema.cross_entity.get(field_name) {
                 for rule in rules {
-                    field_errors.extend(rule(entity).await);
+                    field_errors.extend(rule(viewer).await);
                 }
             }
         }

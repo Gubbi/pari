@@ -6,7 +6,7 @@ use crate::{
         AnyEntityRef, Entity,
     },
     error::primitive::PrimitiveError,
-    workspace::EntityClient,
+    workspace::Workspace,
 };
 
 /// BFS over all work steps in the `ReusableWorkflow`'s step tree (including steps
@@ -14,9 +14,12 @@ use crate::{
 /// step is found anywhere in the tree.
 ///
 /// A single error is reported at the `steps` field regardless of depth.
-pub async fn no_relay_in_tree(steps: indexmap::IndexMap<String, Step>) -> Vec<PrimitiveError> {
+pub async fn no_relay_in_tree(
+    workspace: &Workspace,
+    steps: indexmap::IndexMap<String, Step>,
+) -> Vec<PrimitiveError> {
     let mut visited: HashSet<String> = HashSet::new();
-    if search_for_relay(steps, &mut visited).await {
+    if search_for_relay(workspace, steps, &mut visited).await {
         vec![PrimitiveError::workflow_graph_inconsistency(
             "reusable workflow must not contain Relay steps (directly or via EmbeddedWorkflow)",
             "relay_in_tree",
@@ -26,10 +29,11 @@ pub async fn no_relay_in_tree(steps: indexmap::IndexMap<String, Step>) -> Vec<Pr
     }
 }
 
-fn search_for_relay(
+fn search_for_relay<'a>(
+    workspace: &'a Workspace,
     steps: indexmap::IndexMap<String, Step>,
-    visited: &mut HashSet<String>,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send + '_>> {
+    visited: &'a mut HashSet<String>,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send + 'a>> {
     Box::pin(async move {
         for step in steps.into_values() {
             match step {
@@ -40,13 +44,13 @@ fn search_for_relay(
                         continue; // already visited — skip to avoid cycles
                     }
                     let any_ref: AnyEntityRef = AnyEntityRef::EmbeddedWorkflow(entity_ref);
-                    let tracked = match EntityClient::resolve(any_ref).await {
+                    let tracked = match workspace.resolve_any(any_ref).await {
                         Ok(t) => t,
                         Err(_) => continue,
                     };
                     if let Some(embedded) = EmbeddedWorkflow::extract(&tracked) {
                         if let Some(nested_steps) = embedded.steps.get() {
-                            if search_for_relay(nested_steps.clone(), visited).await {
+                            if search_for_relay(workspace, nested_steps.clone(), visited).await {
                                 return true;
                             }
                         }

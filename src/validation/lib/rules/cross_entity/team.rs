@@ -6,7 +6,7 @@ use crate::{
         AnyEntityRef, Entity, EntityRef,
     },
     error::primitive::PrimitiveError,
-    workspace::EntityClient,
+    workspace::Workspace,
 };
 
 /// BFS cycle detection for `include` edges.
@@ -14,10 +14,11 @@ use crate::{
 /// A cycle exists if the current team's ref appears in the transitive
 /// closure of `include` team-keys.
 pub async fn no_include_cycle(
+    workspace: &Workspace,
     self_ref: EntityRef<Team>,
     include: Vec<(EntityRef<Team>, EntityRef<Role>)>,
 ) -> Vec<PrimitiveError> {
-    if cycle_exists_include(self_ref, include).await {
+    if cycle_exists_include(workspace, self_ref, include).await {
         vec![PrimitiveError::workflow_graph_inconsistency(
             "team include graph contains a cycle",
             "include_cycle",
@@ -29,10 +30,11 @@ pub async fn no_include_cycle(
 
 /// BFS cycle detection for `import` edges.
 pub async fn no_import_cycle(
+    workspace: &Workspace,
     self_ref: EntityRef<Team>,
     import: Vec<EntityRef<Team>>,
 ) -> Vec<PrimitiveError> {
-    if cycle_exists_import(self_ref, import).await {
+    if cycle_exists_import(workspace, self_ref, import).await {
         vec![PrimitiveError::workflow_graph_inconsistency(
             "team import graph contains a cycle",
             "import_cycle",
@@ -43,6 +45,7 @@ pub async fn no_import_cycle(
 }
 
 async fn cycle_exists_include(
+    workspace: &Workspace,
     self_ref: EntityRef<Team>,
     include: Vec<(EntityRef<Team>, EntityRef<Role>)>,
 ) -> bool {
@@ -59,7 +62,7 @@ async fn cycle_exists_include(
             continue;
         }
         let any_ref = AnyEntityRef::Team(team_ref);
-        let tracked = match EntityClient::resolve(any_ref).await {
+        let tracked = match workspace.resolve_any(any_ref).await {
             Ok(t) => t,
             Err(_) => continue,
         };
@@ -74,7 +77,11 @@ async fn cycle_exists_include(
     false
 }
 
-async fn cycle_exists_import(self_ref: EntityRef<Team>, import: Vec<EntityRef<Team>>) -> bool {
+async fn cycle_exists_import(
+    workspace: &Workspace,
+    self_ref: EntityRef<Team>,
+    import: Vec<EntityRef<Team>>,
+) -> bool {
     let mut visited: HashSet<String> = HashSet::new();
     let mut queue: VecDeque<EntityRef<Team>> = import.into_iter().collect();
 
@@ -87,7 +94,7 @@ async fn cycle_exists_import(self_ref: EntityRef<Team>, import: Vec<EntityRef<Te
             continue;
         }
         let any_ref = AnyEntityRef::Team(team_ref);
-        let tracked = match EntityClient::resolve(any_ref).await {
+        let tracked = match workspace.resolve_any(any_ref).await {
             Ok(t) => t,
             Err(_) => continue,
         };

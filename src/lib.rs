@@ -1,15 +1,18 @@
 //! Pari — workflow runtime for hybrid human-agent teams.
 //!
-//! The runtime is organized around the formal `entity`, `workspace`, `store`,
-//! `substrate`, and `error` layers.
+//! The runtime is organized around the formal `entity`, `workspace`,
+//! `store`, `substrate`, and `error` layers.
 //!
-//! Process setup happens through one of two entry points:
+//! Integrators compose Pari from the bottom up:
 //!
-//! - [`init`] publishes a process-wide [`StoreServer`] and spawns the
-//!   [`Store`] actor future via a caller-provided [`SpawnFn`].
-//! - [`with`] runs a closure against a thread-local store server and
-//!   drives the actor future internally — used by tests so they need
-//!   no runtime-specific spawner.
+//! ```ignore
+//! let store_dispatcher  = pari::store::Store::start(&spawn_fn);
+//! let server_dispatcher = pari::store::StoreServer::start(substrate, store_dispatcher);
+//! let workspace         = pari::workspace::Workspace::new(server_dispatcher);
+//! ```
+//!
+//! There are no globals. The runtime is the integrator's choice —
+//! [`SpawnFn`] is the only async-runtime touch-point inside `pari`.
 
 #![feature(error_generic_member_access)]
 #![warn(clippy::pedantic)]
@@ -19,9 +22,9 @@
 // this crate itself (needed when #[derive(Entity)] is applied inside `pari`).
 extern crate self as pari;
 
-use std::{future::Future, sync::Arc};
+use std::sync::Arc;
 
-use futures::{channel::mpsc, future::BoxFuture};
+use futures::future::BoxFuture;
 
 pub mod entity;
 pub mod error;
@@ -32,59 +35,7 @@ pub mod substrate;
 pub mod validation;
 pub mod workspace;
 
-use crate::{
-    store::{
-        install_global_store_server, install_override_store_server,
-        store::{ChannelStoreDispatcher, Store, StoreDispatcher},
-        store_server::StoreServer,
-    },
-    substrate::SchemaBackedSubstrate,
-};
-
-/// Caller-provided spawner used by [`init`] to drive the [`Store`]
-/// actor future. Production callers wire this to their async runtime
-/// of choice (e.g. `tokio::spawn`, `smol::spawn`).
+/// Caller-provided spawner used by [`store::Store::start`] to drive
+/// the [`store::Store`] actor future. Production callers wire this to
+/// their async runtime of choice (e.g. `tokio::spawn`, `smol::spawn`).
 pub type SpawnFn = Arc<dyn Fn(BoxFuture<'static, ()>) + Send + Sync>;
-
-/// Publish a process-wide [`StoreServer`] over `substrate` and spawn
-/// the [`Store`] actor via `spawn_fn`. Panics if called twice.
-///
-/// The runtime is not specified by `pari` — `spawn_fn` is the only
-/// integration point. Production callers pass a closure that hands the
-/// future to their async runtime.
-pub fn init<S>(substrate: S, spawn_fn: SpawnFn)
-where
-    S: SchemaBackedSubstrate,
-{
-    let store_dispatcher = Store::start(&spawn_fn);
-    let server = StoreServer::start(substrate, store_dispatcher);
-    install_global_store_server(server);
-}
-
-/// Run `f` against an isolated [`StoreServer`] over `substrate`.
-///
-/// The thread-local override is installed before `f` runs and torn
-/// down after; the [`Store`] actor future is driven inside this call
-/// via `futures::join!`, so callers do not need a runtime-specific
-/// spawner. Multiple `with` calls are isolated from each other and
-/// from any process-wide server installed by [`init`].
-pub async fn with<S, F, Fut>(substrate: S, f: F)
-where
-    S: SchemaBackedSubstrate,
-    F: FnOnce() -> Fut,
-    Fut: Future<Output = ()>,
-{
-    let (tx, rx) = mpsc::channel(32);
-    let store_run = Store::new().run(rx);
-    let store_dispatcher: Arc<dyn StoreDispatcher> = Arc::new(ChannelStoreDispatcher::new(tx));
-    let server = StoreServer::start(substrate, store_dispatcher);
-
-    let user_fut = async move {
-        let _guard = install_override_store_server(server);
-        f().await;
-        // _guard drops here, releasing the store-server Arc and closing
-        // the store channel; store_run then exits.
-    };
-
-    futures::join!(store_run, user_fut);
-}

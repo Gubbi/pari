@@ -21,6 +21,7 @@ use crate::{
         intercepts::{intercept_hooks_exist, intercept_inputs_valid},
         workflow::no_relay_in_tree,
     },
+    workspace::XViewer,
 };
 
 macro_rules! common_structural {
@@ -111,9 +112,11 @@ pub fn workflow_validation_schema() -> ValidationSchema<Workflow> {
     semantic.insert(
         "steps",
         vec![
-            Box::new(|e: &TrackedWorkflow| Box::pin(depends_on_valid(e))),
-            Box::new(|e: &TrackedWorkflow| Box::pin(on_reject_valid(e))),
-            Box::new(|e: &TrackedWorkflow| Box::pin(reviewing_state_required(e))),
+            Box::new(|viewer: &XViewer<'_, Workflow>| Box::pin(depends_on_valid(viewer.tracked()))),
+            Box::new(|viewer: &XViewer<'_, Workflow>| Box::pin(on_reject_valid(viewer.tracked()))),
+            Box::new(|viewer: &XViewer<'_, Workflow>| {
+                Box::pin(reviewing_state_required(viewer.tracked()))
+            }),
         ],
     );
 
@@ -121,31 +124,32 @@ pub fn workflow_validation_schema() -> ValidationSchema<Workflow> {
         &'static str,
         Vec<AnyCrossEntityRule<Workflow>>,
     > = std::collections::HashMap::new();
-    cross_entity.insert(
-        "steps",
-        vec![crate::ref_check_rule!(TrackedWorkflow, steps)],
-    );
-    cross_entity.insert("raci", vec![crate::ref_check_rule!(TrackedWorkflow, raci)]);
+    cross_entity.insert("steps", vec![crate::ref_check_rule!(Workflow, steps)]);
+    cross_entity.insert("raci", vec![crate::ref_check_rule!(Workflow, raci)]);
     cross_entity.insert(
         "intercepts",
         vec![
-            Box::new(|e: &TrackedWorkflow| {
-                let map = e
+            Box::new(|viewer: &XViewer<'_, Workflow>| {
+                let map = viewer
+                    .tracked()
                     .intercepts
                     .get()
                     .and_then(|v| v.as_ref())
                     .cloned()
                     .unwrap_or_default();
-                Box::pin(async move { intercept_hooks_exist(map, "intercepts").await })
+                let workspace = viewer.workspace();
+                Box::pin(async move { intercept_hooks_exist(workspace, map, "intercepts").await })
             }),
-            Box::new(|e: &TrackedWorkflow| {
-                let map = e
+            Box::new(|viewer: &XViewer<'_, Workflow>| {
+                let map = viewer
+                    .tracked()
                     .intercepts
                     .get()
                     .and_then(|v| v.as_ref())
                     .cloned()
                     .unwrap_or_default();
-                Box::pin(async move { intercept_inputs_valid(map, "intercepts").await })
+                let workspace = viewer.workspace();
+                Box::pin(async move { intercept_inputs_valid(workspace, map, "intercepts").await })
             }),
         ],
     );
@@ -167,9 +171,15 @@ pub fn reusable_workflow_validation_schema() -> ValidationSchema<ReusableWorkflo
     semantic.insert(
         "steps",
         vec![
-            Box::new(|e: &TrackedReusableWorkflow| Box::pin(depends_on_valid_reusable(e))),
-            Box::new(|e: &TrackedReusableWorkflow| Box::pin(on_reject_valid_reusable(e))),
-            Box::new(|e: &TrackedReusableWorkflow| Box::pin(reviewing_state_required_reusable(e))),
+            Box::new(|viewer: &XViewer<'_, ReusableWorkflow>| {
+                Box::pin(depends_on_valid_reusable(viewer.tracked()))
+            }),
+            Box::new(|viewer: &XViewer<'_, ReusableWorkflow>| {
+                Box::pin(on_reject_valid_reusable(viewer.tracked()))
+            }),
+            Box::new(|viewer: &XViewer<'_, ReusableWorkflow>| {
+                Box::pin(reviewing_state_required_reusable(viewer.tracked()))
+            }),
         ],
     );
 
@@ -180,37 +190,39 @@ pub fn reusable_workflow_validation_schema() -> ValidationSchema<ReusableWorkflo
     cross_entity.insert(
         "steps",
         vec![
-            crate::ref_check_rule!(TrackedReusableWorkflow, steps),
-            Box::new(|e: &TrackedReusableWorkflow| {
-                let steps = e.steps.get().cloned().unwrap_or_default();
-                Box::pin(async move { no_relay_in_tree(steps).await })
+            crate::ref_check_rule!(ReusableWorkflow, steps),
+            Box::new(|viewer: &XViewer<'_, ReusableWorkflow>| {
+                let steps = viewer.tracked().steps.get().cloned().unwrap_or_default();
+                let workspace = viewer.workspace();
+                Box::pin(async move { no_relay_in_tree(workspace, steps).await })
             }),
         ],
     );
-    cross_entity.insert(
-        "raci",
-        vec![crate::ref_check_rule!(TrackedReusableWorkflow, raci)],
-    );
+    cross_entity.insert("raci", vec![crate::ref_check_rule!(ReusableWorkflow, raci)]);
     cross_entity.insert(
         "intercepts",
         vec![
-            Box::new(|e: &TrackedReusableWorkflow| {
-                let map = e
+            Box::new(|viewer: &XViewer<'_, ReusableWorkflow>| {
+                let map = viewer
+                    .tracked()
                     .intercepts
                     .get()
                     .and_then(|v| v.as_ref())
                     .cloned()
                     .unwrap_or_default();
-                Box::pin(async move { intercept_hooks_exist(map, "intercepts").await })
+                let workspace = viewer.workspace();
+                Box::pin(async move { intercept_hooks_exist(workspace, map, "intercepts").await })
             }),
-            Box::new(|e: &TrackedReusableWorkflow| {
-                let map = e
+            Box::new(|viewer: &XViewer<'_, ReusableWorkflow>| {
+                let map = viewer
+                    .tracked()
                     .intercepts
                     .get()
                     .and_then(|v| v.as_ref())
                     .cloned()
                     .unwrap_or_default();
-                Box::pin(async move { intercept_inputs_valid(map, "intercepts").await })
+                let workspace = viewer.workspace();
+                Box::pin(async move { intercept_inputs_valid(workspace, map, "intercepts").await })
             }),
         ],
     );
@@ -315,9 +327,15 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
     semantic.insert(
         "steps",
         vec![
-            Box::new(|e: &TrackedEmbeddedWorkflow| Box::pin(depends_on_valid_embedded(e))),
-            Box::new(|e: &TrackedEmbeddedWorkflow| Box::pin(on_reject_valid_embedded(e))),
-            Box::new(|e: &TrackedEmbeddedWorkflow| Box::pin(reviewing_state_required_embedded(e))),
+            Box::new(|viewer: &XViewer<'_, EmbeddedWorkflow>| {
+                Box::pin(depends_on_valid_embedded(viewer.tracked()))
+            }),
+            Box::new(|viewer: &XViewer<'_, EmbeddedWorkflow>| {
+                Box::pin(on_reject_valid_embedded(viewer.tracked()))
+            }),
+            Box::new(|viewer: &XViewer<'_, EmbeddedWorkflow>| {
+                Box::pin(reviewing_state_required_embedded(viewer.tracked()))
+            }),
         ],
     );
 
@@ -327,11 +345,12 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
     > = std::collections::HashMap::new();
     cross_entity.insert(
         "entity_ref",
-        vec![Box::new(|e: &TrackedEmbeddedWorkflow| {
-            let parent = e.entity_ref.parent().cloned();
+        vec![Box::new(|viewer: &XViewer<'_, EmbeddedWorkflow>| {
+            let parent = viewer.tracked().entity_ref.parent().cloned();
+            let workspace = viewer.workspace();
             Box::pin(async move {
                 match parent {
-                    Some(p) => parent_exists(p).await,
+                    Some(p) => parent_exists(workspace, p).await,
                     None => vec![],
                 }
             })
@@ -339,32 +358,33 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
     );
     cross_entity.insert(
         "steps",
-        vec![crate::ref_check_rule!(TrackedEmbeddedWorkflow, steps)],
+        vec![crate::ref_check_rule!(EmbeddedWorkflow, steps)],
     );
-    cross_entity.insert(
-        "raci",
-        vec![crate::ref_check_rule!(TrackedEmbeddedWorkflow, raci)],
-    );
+    cross_entity.insert("raci", vec![crate::ref_check_rule!(EmbeddedWorkflow, raci)]);
     cross_entity.insert(
         "intercepts",
         vec![
-            Box::new(|e: &TrackedEmbeddedWorkflow| {
-                let map = e
+            Box::new(|viewer: &XViewer<'_, EmbeddedWorkflow>| {
+                let map = viewer
+                    .tracked()
                     .intercepts
                     .get()
                     .and_then(|v| v.as_ref())
                     .cloned()
                     .unwrap_or_default();
-                Box::pin(async move { intercept_hooks_exist(map, "intercepts").await })
+                let workspace = viewer.workspace();
+                Box::pin(async move { intercept_hooks_exist(workspace, map, "intercepts").await })
             }),
-            Box::new(|e: &TrackedEmbeddedWorkflow| {
-                let map = e
+            Box::new(|viewer: &XViewer<'_, EmbeddedWorkflow>| {
+                let map = viewer
+                    .tracked()
                     .intercepts
                     .get()
                     .and_then(|v| v.as_ref())
                     .cloned()
                     .unwrap_or_default();
-                Box::pin(async move { intercept_inputs_valid(map, "intercepts").await })
+                let workspace = viewer.workspace();
+                Box::pin(async move { intercept_inputs_valid(workspace, map, "intercepts").await })
             }),
         ],
     );

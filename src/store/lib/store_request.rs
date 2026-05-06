@@ -15,7 +15,7 @@ use crate::{
 };
 
 /// Internal request surface between `StoreServer` and `Store`.
-pub(crate) enum StoreRequest {
+pub enum StoreRequest {
     // Reads
     GetEntity {
         any_ref: AnyEntityRef,
@@ -66,7 +66,7 @@ pub(crate) enum StoreRequest {
     },
 }
 
-pub(crate) enum StoreResponse {
+pub enum StoreResponse {
     Entity(TrackedEntity),
     Entities(Vec<TrackedEntity>),
     MaybeEntity(Option<TrackedEntity>),
@@ -77,7 +77,7 @@ pub(crate) enum StoreResponse {
     Err(PrimitiveError),
 }
 
-pub(crate) struct StoreMessage {
-    pub(crate) request: StoreRequest,
-    pub(crate) reply: oneshot::Sender<StoreResponse>,
+pub struct StoreMessage {
+    pub request: StoreRequest,
+    pub reply: oneshot::Sender<StoreResponse>,
 }
