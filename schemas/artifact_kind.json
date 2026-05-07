@@ -1,32 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "additionalProperties": false,
-  "definitions": {
-    "ArtifactKindEntityRef": {
-      "properties": {
-        "id": {
-          "pattern": "^[a-z][a-z0-9-]*$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "ArtifactKind"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "kind"
-      ],
-      "title": "ArtifactKindEntityRef",
-      "type": "object"
-    }
-  },
+  "title": "ArtifactKind",
   "description": "A category of deliverable that a task can produce.\n\nTasks declare an [`Artifact`](crate::entity::types::Artifact) referencing an `ArtifactKind` (e.g. `design-doc`, `pull-request`) rather than encoding service details inline. This keeps the *what to produce* on the task and the *where/how it lives* — service, access rules, authoring guidance — on a reusable definition shared across workflows.",
-  "patternProperties": {
-    "^x-": true
-  },
+  "type": "object",
+  "required": [
+    "entity_ref",
+    "name",
+    "service"
+  ],
   "properties": {
     "access": {
       "type": [
@@ -56,11 +37,30 @@
       "type": "string"
     }
   },
-  "required": [
-    "entity_ref",
-    "name",
-    "service"
-  ],
-  "title": "ArtifactKind",
-  "type": "object"
+  "patternProperties": {
+    "^x-": true
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "ArtifactKindEntityRef": {
+      "title": "ArtifactKindEntityRef",
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "ArtifactKind"
+          ]
+        }
+      }
+    }
+  }
 }

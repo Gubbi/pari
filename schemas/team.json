@@ -1,69 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "additionalProperties": false,
-  "definitions": {
-    "RoleEntityRef": {
-      "properties": {
-        "id": {
-          "pattern": "^[a-z][a-z0-9-]*$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "Role"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "kind"
-      ],
-      "title": "RoleEntityRef",
-      "type": "object"
-    },
-    "TeamEntityRef": {
-      "properties": {
-        "id": {
-          "pattern": "^[a-z][a-z0-9-]*$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "Team"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "kind"
-      ],
-      "title": "TeamEntityRef",
-      "type": "object"
-    },
-    "TeamMember": {
-      "additionalProperties": false,
-      "properties": {
-        "handle": {
-          "pattern": "^@[a-z0-9._-]+$",
-          "type": "string"
-        },
-        "role": {
-          "$ref": "#/definitions/RoleEntityRef"
-        }
-      },
-      "required": [
-        "handle",
-        "role"
-      ],
-      "type": "object"
-    }
-  },
+  "title": "Team",
   "description": "A roster binding concrete handles (people or agents) to roles.\n\nWhere [`Role`] describes *what* a position does, `Team` describes *who* fills it. Composition via `include` and `import` lets larger orgs build teams from smaller ones without duplicating membership. Workflow execution resolves a `Role` reference to an actual handle by consulting the active team.",
-  "patternProperties": {
-    "^x-": true
-  },
+  "type": "object",
+  "required": [
+    "entity_ref",
+    "name"
+  ],
   "properties": {
     "description": {
       "type": [
@@ -75,16 +18,21 @@
       "$ref": "#/definitions/TeamEntityRef"
     },
     "import": {
-      "items": {
-        "$ref": "#/definitions/TeamEntityRef"
-      },
       "type": [
         "array",
         "null"
-      ]
+      ],
+      "items": {
+        "$ref": "#/definitions/TeamEntityRef"
+      }
     },
     "include": {
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
+        "type": "array",
         "items": [
           {
             "$ref": "#/definitions/TeamEntityRef"
@@ -94,31 +42,83 @@
           }
         ],
         "maxItems": 2,
-        "minItems": 2,
-        "type": "array"
-      },
-      "type": [
-        "array",
-        "null"
-      ]
+        "minItems": 2
+      }
     },
     "members": {
-      "items": {
-        "$ref": "#/definitions/TeamMember"
-      },
       "type": [
         "array",
         "null"
-      ]
+      ],
+      "items": {
+        "$ref": "#/definitions/TeamMember"
+      }
     },
     "name": {
       "type": "string"
     }
   },
-  "required": [
-    "entity_ref",
-    "name"
-  ],
-  "title": "Team",
-  "type": "object"
+  "patternProperties": {
+    "^x-": true
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "RoleEntityRef": {
+      "title": "RoleEntityRef",
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "Role"
+          ]
+        }
+      }
+    },
+    "TeamEntityRef": {
+      "title": "TeamEntityRef",
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "Team"
+          ]
+        }
+      }
+    },
+    "TeamMember": {
+      "type": "object",
+      "required": [
+        "handle",
+        "role"
+      ],
+      "properties": {
+        "handle": {
+          "type": "string",
+          "pattern": "^@[a-z0-9._-]+$"
+        },
+        "role": {
+          "$ref": "#/definitions/RoleEntityRef"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
 }

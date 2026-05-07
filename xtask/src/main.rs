@@ -26,22 +26,6 @@ fn write_schema<T: JsonSchema>(schemas_dir: &PathBuf, filename: &str) {
     println!("  wrote {filename}");
 }
 
-fn add_additional_properties_false(schemas_dir: &PathBuf, filename: &str) {
-    let path = schemas_dir.join(filename);
-    let content =
-        fs::read_to_string(&path).unwrap_or_else(|e| panic!("failed to read {filename}: {e}"));
-    let mut schema: serde_json::Value = serde_json::from_str(&content)
-        .unwrap_or_else(|e| panic!("failed to parse {filename}: {e}"));
-
-    if schema.get("patternProperties").is_some() {
-        schema["additionalProperties"] = serde_json::json!(false);
-        let json = serde_json::to_string_pretty(&schema)
-            .unwrap_or_else(|e| panic!("failed to serialize {filename}: {e}"));
-        fs::write(&path, json + "\n").unwrap_or_else(|e| panic!("failed to write {filename}: {e}"));
-        println!("  post-processed {filename} (additionalProperties: false)");
-    }
-}
-
 fn prune_stale_files(schemas_dir: &PathBuf, keep: &[&str]) {
     let entries = fs::read_dir(schemas_dir).expect("failed to read schemas dir");
     for entry in entries {
@@ -93,10 +77,6 @@ fn generate_schemas() {
     write_schema::<Task>(&schemas_dir, "task.json");
     write_schema::<Relay>(&schemas_dir, "relay.json");
     write_schema::<EmbeddedWorkflow>(&schemas_dir, "embedded_workflow.json");
-
-    for filename in &schema_files {
-        add_additional_properties_false(&schemas_dir, filename);
-    }
 
     println!("Done.");
 }

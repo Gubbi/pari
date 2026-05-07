@@ -1,298 +1,27 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "additionalProperties": false,
-  "definitions": {
-    "Artifact": {
-      "additionalProperties": false,
-      "description": "Task deliverable specification.",
-      "properties": {
-        "kind": {
-          "$ref": "#/definitions/ArtifactKindEntityRef"
-        },
-        "template": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "kind"
-      ],
-      "type": "object"
-    },
-    "ArtifactKindEntityRef": {
-      "properties": {
-        "id": {
-          "pattern": "^[a-z][a-z0-9-]*$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "ArtifactKind"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "kind"
-      ],
-      "title": "ArtifactKindEntityRef",
-      "type": "object"
-    },
-    "EmbeddedWorkflowEntityRef": {
-      "properties": {
-        "id": {
-          "pattern": "^[A-Z][A-Za-z0-9]*$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "EmbeddedWorkflow"
-          ],
-          "type": "string"
-        },
-        "parent": {
-          "$ref": "#/definitions/WorkflowParent"
-        }
-      },
-      "required": [
-        "id",
-        "kind",
-        "parent"
-      ],
-      "title": "EmbeddedWorkflowEntityRef",
-      "type": "object"
-    },
-    "HookCall": {
-      "additionalProperties": false,
-      "description": "Usage-site reference to a hook with optional input bindings.",
-      "properties": {
-        "hook": {
-          "$ref": "#/definitions/HookEntityRef"
-        },
-        "with": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": [
-            "object",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "hook"
-      ],
-      "type": "object"
-    },
-    "HookEntityRef": {
-      "properties": {
-        "id": {
-          "pattern": "^[a-z][a-z0-9-]*$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "Hook"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "kind"
-      ],
-      "title": "HookEntityRef",
-      "type": "object"
-    },
-    "Raci": {
-      "additionalProperties": false,
-      "description": "Accountability assignment for workflows and tasks.",
-      "properties": {
-        "accountable": {
-          "$ref": "#/definitions/RoleEntityRef"
-        },
-        "consulted": {
-          "items": {
-            "$ref": "#/definitions/RoleEntityRef"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "informed": {
-          "items": {
-            "$ref": "#/definitions/RoleEntityRef"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "responsible": {
-          "items": {
-            "$ref": "#/definitions/RoleEntityRef"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "accountable",
-        "responsible"
-      ],
-      "type": "object"
-    },
-    "ReusableWorkflowEntityRef": {
-      "properties": {
-        "id": {
-          "pattern": "^[A-Z][A-Za-z0-9]*$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "ReusableWorkflow"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "kind"
-      ],
-      "title": "ReusableWorkflowEntityRef",
-      "type": "object"
-    },
-    "RoleEntityRef": {
-      "properties": {
-        "id": {
-          "pattern": "^[a-z][a-z0-9-]*$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "Role"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "kind"
-      ],
-      "title": "RoleEntityRef",
-      "type": "object"
-    },
-    "TaskEntityRef": {
-      "properties": {
-        "id": {
-          "pattern": "^[A-Z][A-Za-z0-9]*$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "Task"
-          ],
-          "type": "string"
-        },
-        "parent": {
-          "$ref": "#/definitions/WorkflowParent"
-        }
-      },
-      "required": [
-        "id",
-        "kind",
-        "parent"
-      ],
-      "title": "TaskEntityRef",
-      "type": "object"
-    },
-    "TaskSemantic": {
-      "enum": [
-        "done",
-        "blocked",
-        "failed"
-      ],
-      "type": "string"
-    },
-    "TaskStateEntry": {
-      "additionalProperties": false,
-      "properties": {
-        "description": {
-          "type": "string"
-        },
-        "id": {
-          "pattern": "^[A-Z][A-Za-z0-9]*$",
-          "type": "string"
-        },
-        "semantic": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/TaskSemantic"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "required": [
-        "description",
-        "id"
-      ],
-      "type": "object"
-    },
-    "WorkflowEntityRef": {
-      "properties": {
-        "id": {
-          "pattern": "^[A-Z][A-Za-z0-9]*$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "Workflow"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "kind"
-      ],
-      "title": "WorkflowEntityRef",
-      "type": "object"
-    },
-    "WorkflowParent": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/WorkflowEntityRef"
-        },
-        {
-          "$ref": "#/definitions/ReusableWorkflowEntityRef"
-        },
-        {
-          "$ref": "#/definitions/EmbeddedWorkflowEntityRef"
-        }
-      ],
-      "description": "Closed parent hierarchy for entities embedded in the workflow tree.\n\nThe enum recurses through [`EmbeddedWorkflow`] so an embedded workflow can itself be a parent of further tasks, relays, and embeddings — the tree has no fixed depth. Variants are untagged in serde so the `parent` object is just the parent ref, with no wrapper discriminator."
-    }
-  },
+  "title": "Task",
   "description": "A leaf unit of work inside a workflow that produces a single artifact.\n\n`Task` is the atomic thing a role actually executes: it carries instructions, acceptance criteria, a declared deliverable, and its own lifecycle states. Tasks are embedded — their identity includes the enclosing workflow via [`WorkflowParent`] — because the same task id under two workflows is two distinct tasks with independent state.",
-  "patternProperties": {
-    "^x-": true
-  },
+  "type": "object",
+  "required": [
+    "artifact",
+    "criteria",
+    "entity_ref",
+    "instructions",
+    "name",
+    "purpose",
+    "states"
+  ],
   "properties": {
     "artifact": {
       "$ref": "#/definitions/Artifact"
     },
     "criteria": {
+      "type": "array",
       "items": {
         "type": "string"
       },
-      "minItems": 1,
-      "type": "array"
+      "minItems": 1
     },
     "description": {
       "type": [
@@ -310,20 +39,20 @@
       ]
     },
     "instructions": {
+      "type": "array",
       "items": {
         "type": "string"
       },
-      "minItems": 1,
-      "type": "array"
+      "minItems": 1
     },
     "intercepts": {
-      "additionalProperties": {
-        "$ref": "#/definitions/HookCall"
-      },
       "type": [
         "object",
         "null"
-      ]
+      ],
+      "additionalProperties": {
+        "$ref": "#/definitions/HookCall"
+      }
     },
     "name": {
       "type": "string"
@@ -342,22 +71,293 @@
       ]
     },
     "states": {
+      "type": "array",
       "items": {
         "$ref": "#/definitions/TaskStateEntry"
       },
-      "minItems": 2,
-      "type": "array"
+      "minItems": 2
     }
   },
-  "required": [
-    "artifact",
-    "criteria",
-    "entity_ref",
-    "instructions",
-    "name",
-    "purpose",
-    "states"
-  ],
-  "title": "Task",
-  "type": "object"
+  "patternProperties": {
+    "^x-": true
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Artifact": {
+      "description": "Task deliverable specification.",
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/ArtifactKindEntityRef"
+        },
+        "template": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "ArtifactKindEntityRef": {
+      "title": "ArtifactKindEntityRef",
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "ArtifactKind"
+          ]
+        }
+      }
+    },
+    "EmbeddedWorkflowEntityRef": {
+      "title": "EmbeddedWorkflowEntityRef",
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "parent"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "EmbeddedWorkflow"
+          ]
+        },
+        "parent": {
+          "$ref": "#/definitions/WorkflowParent"
+        }
+      }
+    },
+    "HookCall": {
+      "description": "Usage-site reference to a hook with optional input bindings.",
+      "type": "object",
+      "required": [
+        "hook"
+      ],
+      "properties": {
+        "hook": {
+          "$ref": "#/definitions/HookEntityRef"
+        },
+        "with": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "HookEntityRef": {
+      "title": "HookEntityRef",
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "Hook"
+          ]
+        }
+      }
+    },
+    "Raci": {
+      "description": "Accountability assignment for workflows and tasks.",
+      "type": "object",
+      "required": [
+        "accountable",
+        "responsible"
+      ],
+      "properties": {
+        "accountable": {
+          "$ref": "#/definitions/RoleEntityRef"
+        },
+        "consulted": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/RoleEntityRef"
+          }
+        },
+        "informed": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/RoleEntityRef"
+          }
+        },
+        "responsible": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RoleEntityRef"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReusableWorkflowEntityRef": {
+      "title": "ReusableWorkflowEntityRef",
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "ReusableWorkflow"
+          ]
+        }
+      }
+    },
+    "RoleEntityRef": {
+      "title": "RoleEntityRef",
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "Role"
+          ]
+        }
+      }
+    },
+    "TaskEntityRef": {
+      "title": "TaskEntityRef",
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "parent"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "Task"
+          ]
+        },
+        "parent": {
+          "$ref": "#/definitions/WorkflowParent"
+        }
+      }
+    },
+    "TaskSemantic": {
+      "type": "string",
+      "enum": [
+        "done",
+        "blocked",
+        "failed"
+      ]
+    },
+    "TaskStateEntry": {
+      "type": "object",
+      "required": [
+        "description",
+        "id"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9]*$"
+        },
+        "semantic": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TaskSemantic"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorkflowEntityRef": {
+      "title": "WorkflowEntityRef",
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "Workflow"
+          ]
+        }
+      }
+    },
+    "WorkflowParent": {
+      "description": "Closed parent hierarchy for entities embedded in the workflow tree.\n\nThe enum recurses through [`EmbeddedWorkflow`] so an embedded workflow can itself be a parent of further tasks, relays, and embeddings — the tree has no fixed depth. Variants are untagged in serde so the `parent` object is just the parent ref, with no wrapper discriminator.",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/WorkflowEntityRef"
+        },
+        {
+          "$ref": "#/definitions/ReusableWorkflowEntityRef"
+        },
+        {
+          "$ref": "#/definitions/EmbeddedWorkflowEntityRef"
+        }
+      ]
+    }
+  }
 }

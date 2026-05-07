@@ -1,32 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "additionalProperties": false,
-  "definitions": {
-    "RoleEntityRef": {
-      "properties": {
-        "id": {
-          "pattern": "^[a-z][a-z0-9-]*$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "Role"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "kind"
-      ],
-      "title": "RoleEntityRef",
-      "type": "object"
-    }
-  },
+  "title": "Role",
   "description": "A named responsibility within a team.\n\nRoles are the vocabulary teams use to say *who does what* without naming specific people. They are referenced by [`Raci`](crate::entity::types::Raci) assignments, team rosters, and review approvers — so a workflow can declare \"the accountable role is `pm`\" and the resolution to an actual handle happens through [`Team`](crate::entity::entities::team::Team).",
-  "patternProperties": {
-    "^x-": true
-  },
+  "type": "object",
+  "required": [
+    "entity_ref",
+    "name",
+    "purpose"
+  ],
   "properties": {
     "description": {
       "type": [
@@ -44,20 +25,39 @@
       "type": "string"
     },
     "traits": {
-      "items": {
-        "type": "string"
-      },
       "type": [
         "array",
         "null"
-      ]
+      ],
+      "items": {
+        "type": "string"
+      }
     }
   },
-  "required": [
-    "entity_ref",
-    "name",
-    "purpose"
-  ],
-  "title": "Role",
-  "type": "object"
+  "patternProperties": {
+    "^x-": true
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "RoleEntityRef": {
+      "title": "RoleEntityRef",
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "Role"
+          ]
+        }
+      }
+    }
+  }
 }

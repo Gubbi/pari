@@ -1,29 +1,74 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Hook",
+  "description": "A reusable instruction unit invoked at workflow or task lifecycle events.\n\nHooks decouple \"what to do when *X* happens\" from the workflow definition itself. A workflow or task references a hook through [`HookCall`](crate::entity::types::HookCall) on a specific trigger (`OnStart`, `OnDone`, …), supplying bindings for the hook's declared inputs. The hook's `instructions` are the contract the executor follows.",
+  "type": "object",
+  "required": [
+    "entity_ref",
+    "instructions",
+    "name"
+  ],
+  "properties": {
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "entity_ref": {
+      "$ref": "#/definitions/HookEntityRef"
+    },
+    "inputs": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/definitions/HookInput"
+      }
+    },
+    "instructions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "name": {
+      "type": "string"
+    }
+  },
+  "patternProperties": {
+    "^x-": true
+  },
   "additionalProperties": false,
   "definitions": {
     "HookEntityRef": {
-      "properties": {
-        "id": {
-          "pattern": "^[a-z][a-z0-9-]*$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "Hook"
-          ],
-          "type": "string"
-        }
-      },
+      "title": "HookEntityRef",
+      "type": "object",
       "required": [
         "id",
         "kind"
       ],
-      "title": "HookEntityRef",
-      "type": "object"
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "Hook"
+          ]
+        }
+      }
     },
     "HookInput": {
-      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "required"
+      ],
       "properties": {
         "description": {
           "type": [
@@ -38,52 +83,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "name",
-        "required"
-      ],
-      "type": "object"
+      "additionalProperties": false
     }
-  },
-  "description": "A reusable instruction unit invoked at workflow or task lifecycle events.\n\nHooks decouple \"what to do when *X* happens\" from the workflow definition itself. A workflow or task references a hook through [`HookCall`](crate::entity::types::HookCall) on a specific trigger (`OnStart`, `OnDone`, …), supplying bindings for the hook's declared inputs. The hook's `instructions` are the contract the executor follows.",
-  "patternProperties": {
-    "^x-": true
-  },
-  "properties": {
-    "description": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "entity_ref": {
-      "$ref": "#/definitions/HookEntityRef"
-    },
-    "inputs": {
-      "items": {
-        "$ref": "#/definitions/HookInput"
-      },
-      "type": [
-        "array",
-        "null"
-      ]
-    },
-    "instructions": {
-      "items": {
-        "type": "string"
-      },
-      "minItems": 1,
-      "type": "array"
-    },
-    "name": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "entity_ref",
-    "instructions",
-    "name"
-  ],
-  "title": "Hook",
-  "type": "object"
+  }
 }
