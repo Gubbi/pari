@@ -69,7 +69,7 @@ static FIELD_INDEX_CACHE: LazyLock<Mutex<HashMap<usize, HashMap<&'static str, As
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 impl<'a, S: Slot> SchemaAsset<'a, S> {
-    pub fn path_template(&self) -> &str {
+    pub fn path_template(&self) -> &'static str {
         match self {
             Self::RefAsset(asset) => asset.path_template,
             Self::Asset(asset) => asset.path_template,

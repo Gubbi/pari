@@ -1,7 +1,11 @@
 //! The [`Substrate`] trait — persistence contract the store calls into.
 
+use std::sync::Arc;
+
+use jsonschema::Validator;
+
 use crate::{
-    entity::{AnyEntityRef, TrackedEntity},
+    entity::{AnyEntityRef, EntityKind, TrackedEntity},
     error::ActivityError,
     store::EntityChange,
     substrate::{defaults, lib::schema_registry::SchemaBackedSubstrate, pipeline},
@@ -39,6 +43,20 @@ pub trait Substrate: Sized + Send + Sync + 'static {
     /// Short snake_case identifier for this backend, used in component strings.
     /// Format: `"{backend_name}"` e.g. `"repo_substrate"`, `"in_memory_substrate"`.
     fn substrate_name() -> &'static str;
+
+    /// Look up the projected JSON Schema validator for an asset slice.
+    ///
+    /// The validator's input shape is the asset's portion of the
+    /// entity's wire JSON — only the fields the asset covers. It runs
+    /// at the load boundary inside `defaults::load` to reject malformed
+    /// slice JSON before it merges into the entity accumulator.
+    ///
+    /// Each backend stamps its own `LazyLock<HashMap<...>>` populated
+    /// via [`schema_registry::build_validators_for`].
+    fn projected_validator_for(
+        kind: EntityKind,
+        asset_path: &'static str,
+    ) -> &'static Arc<Validator>;
 
     fn load_strategy(
         any_ref: &AnyEntityRef,

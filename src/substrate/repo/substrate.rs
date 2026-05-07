@@ -70,6 +70,23 @@ impl Substrate for RepoSubstrate {
     fn executor(&self) -> &Self::Executor {
         &self.executor
     }
+
+    fn projected_validator_for(
+        kind: crate::entity::EntityKind,
+        asset_path: &'static str,
+    ) -> &'static std::sync::Arc<jsonschema::Validator> {
+        static VALIDATORS: std::sync::LazyLock<
+            std::collections::HashMap<
+                (crate::entity::EntityKind, &'static str),
+                std::sync::Arc<jsonschema::Validator>,
+            >,
+        > = std::sync::LazyLock::new(
+            crate::substrate::lib::schema_registry::build_validators_for::<RepoSubstrate>,
+        );
+        VALIDATORS
+            .get(&(kind, asset_path))
+            .expect("projected validator missing for (kind, asset_path)")
+    }
 }
 
 fn cleanup_stale(root: &Path) -> Result<(), ActivityError> {

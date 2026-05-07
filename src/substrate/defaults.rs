@@ -146,7 +146,36 @@ where
             .codec()
             .decode(&encoded, asset.fields())
             .map_err(|e| ActivityError::unpersistable_definition(codec_component::<Sub>(), e))?;
-        merge_field_map_into_json(&mut accumulator, field_map);
+
+        // Build the asset's slice JSON in flattened form, validate it
+        // against the projected schema for this asset, then merge into
+        // the entity-level accumulator. Validation rejects malformed
+        // slices (e.g. unknown top-level keys, missing required fields
+        // covered by this asset) before they pollute the entity state.
+        let mut slice = serde_json::Map::new();
+        merge_field_map_into_json(&mut slice, field_map);
+        let slice_value = serde_json::Value::Object(slice);
+        let validator = Sub::projected_validator_for(any_ref.kind(), asset.path_template());
+        if let Err(err) = validator.validate(&slice_value) {
+            return Err(ActivityError::unpersistable_definition(
+                schema_component::<Sub>(),
+                PrimitiveError::partial_payload_deserialization(
+                    "asset slice failed schema validation",
+                    any_ref.id().to_string(),
+                    format!(
+                        "asset {} at {}: {}",
+                        any_ref.kind().as_str(),
+                        asset.path_template(),
+                        err
+                    ),
+                ),
+            ));
+        }
+        if let serde_json::Value::Object(slice) = slice_value {
+            for (k, v) in slice {
+                accumulator.insert(k, v);
+            }
+        }
     }
 
     Ok(serde_json::Value::Object(accumulator))

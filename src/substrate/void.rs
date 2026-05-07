@@ -123,4 +123,13 @@ impl Substrate for VoidSubstrate {
     ) -> Result<(), ActivityError> {
         Ok(())
     }
+
+    fn projected_validator_for(
+        _kind: crate::entity::EntityKind,
+        _asset_path: &'static str,
+    ) -> &'static std::sync::Arc<jsonschema::Validator> {
+        // VoidSubstrate has no entity schemas and its `load` always
+        // errors, so this method is unreachable on the load path.
+        unreachable!("VoidSubstrate has no projected validators")
+    }
 }
