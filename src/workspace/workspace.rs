@@ -10,14 +10,55 @@
 //! handled inside this module; downstream layers see only
 //! `AnyEntityRef` and `TrackedEntity`.
 
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    sync::{Arc, LazyLock},
+};
+
+use jsonschema::Validator as JsonValidator;
+use schemars::JsonSchema;
 
 use crate::{
-    entity::{AnyEntityRef, Entity, EntityRef, TrackedEntity},
-    error::ActivityError,
+    entities::{
+        artifact_kind::ArtifactKind,
+        hook::Hook,
+        relay::Relay,
+        role::Role,
+        task::Task,
+        team::Team,
+        workflow::{EmbeddedWorkflow, ReusableWorkflow, Workflow},
+    },
+    entity::{AnyEntityRef, Entity, EntityKind, EntityRef, TrackedEntity},
+    error::{primitive::PrimitiveError, ActivityError},
     store::{Dispatcher, WorkspaceRequest, WorkspaceResponse},
     workspace::{editor::XEditor, validator::Validator, viewer::XViewer},
 };
+
+/// Per-kind cache of compiled JSON Schema validators for the full
+/// entity shape. Used by `import_json` at the JSON ingest boundary so
+/// callers can validate raw JSON before deserializing into a tracked
+/// entity. Populated once at first access.
+static FULL_VALIDATORS: LazyLock<HashMap<EntityKind, Arc<JsonValidator>>> = LazyLock::new(|| {
+    fn entry<T: JsonSchema>() -> Arc<JsonValidator> {
+        let schema = serde_json::to_value(schemars::schema_for!(T))
+            .expect("schemars schema is always serializable");
+        Arc::new(
+            jsonschema::validator_for(&schema)
+                .expect("schemars-derived schema compiles into a validator"),
+        )
+    }
+    let mut m = HashMap::new();
+    m.insert(EntityKind::Role, entry::<Role>());
+    m.insert(EntityKind::Hook, entry::<Hook>());
+    m.insert(EntityKind::Team, entry::<Team>());
+    m.insert(EntityKind::ArtifactKind, entry::<ArtifactKind>());
+    m.insert(EntityKind::Workflow, entry::<Workflow>());
+    m.insert(EntityKind::ReusableWorkflow, entry::<ReusableWorkflow>());
+    m.insert(EntityKind::EmbeddedWorkflow, entry::<EmbeddedWorkflow>());
+    m.insert(EntityKind::Task, entry::<Task>());
+    m.insert(EntityKind::Relay, entry::<Relay>());
+    m
+});
 
 /// Caller-facing async API over a [`Dispatcher`].
 pub struct Workspace {
@@ -226,6 +267,43 @@ impl Workspace {
     /// workspace. Useful for validating an entity outside the store.
     pub fn import<T: Entity>(&self, tracked: T::Tracked) -> XViewer<'_, T> {
         XViewer::new(tracked, self)
+    }
+
+    /// Schema-validate raw JSON against `T`'s entity schema, deserialize
+    /// into the tracked form, and wrap as a viewer bound to this
+    /// workspace. The intended ingest path for callers that start with
+    /// JSON (CLI input, API request bodies, etc.) — schema failures
+    /// surface as `ValidationFailed` before a malformed payload reaches
+    /// the store.
+    pub fn import_json<T>(&self, value: serde_json::Value) -> Result<XViewer<'_, T>, ActivityError>
+    where
+        T: Entity + JsonSchema,
+        T::Tracked: serde::de::DeserializeOwned,
+    {
+        let validator = FULL_VALIDATORS
+            .get(&T::KIND)
+            .expect("validator registered for every entity kind");
+        validator.validate(&value).map_err(|err| {
+            ActivityError::validation_failed(
+                "workspace.import_json",
+                PrimitiveError::partial_payload_deserialization(
+                    "JSON failed entity schema validation",
+                    "<unknown>".to_string(),
+                    err.to_string(),
+                ),
+            )
+        })?;
+        let tracked: T::Tracked = serde_json::from_value(value).map_err(|err| {
+            ActivityError::validation_failed(
+                "workspace.import_json",
+                PrimitiveError::partial_payload_deserialization(
+                    "JSON could not be deserialized into the tracked entity",
+                    "<unknown>".to_string(),
+                    err.to_string(),
+                ),
+            )
+        })?;
+        Ok(XViewer::new(tracked, self))
     }
 
     // -----------------------------------------------------------------------
