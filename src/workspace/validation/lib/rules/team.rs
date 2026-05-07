@@ -1,9 +1,7 @@
 use super::{
     super::schema::{AnyCrossEntityRule, AnyStructuralRule, ValidationSchema},
     structural::{
-        primitives::{
-            kebab_case_id, non_empty_list, non_empty_str, opt_non_empty_str, x_prefix_keys,
-        },
+        primitives::{kebab_case_id, non_empty_list, non_empty_str, opt_non_empty_str},
         team::{include_structural, members_structural},
     },
 };
@@ -68,16 +66,6 @@ pub fn team_validation_schema() -> ValidationSchema<Team> {
                 .unwrap_or_default()
         })],
     );
-    structural.insert(
-        "extensions",
-        vec![Box::new(|e: &TrackedTeam| {
-            e.extensions
-                .get()
-                .map(|v| x_prefix_keys(v))
-                .unwrap_or_default()
-        })],
-    );
-
     let mut cross_entity: std::collections::HashMap<&'static str, Vec<AnyCrossEntityRule<Team>>> =
         std::collections::HashMap::new();
     cross_entity.insert("members", vec![crate::ref_check_rule!(Team, members)]);

@@ -1,7 +1,7 @@
 use super::{
     super::schema::{AnyCrossEntityRule, AnyStructuralRule, ValidationSchema},
     structural::{
-        primitives::{non_empty_str, opt_non_empty_str, pascal_case_id, x_prefix_keys},
+        primitives::{non_empty_str, opt_non_empty_str, pascal_case_id},
         raci::raci_structural,
         relay::{non_empty_map_state_map, pascal_case_state_keys},
     },
@@ -106,16 +106,6 @@ pub fn relay_validation_schema() -> ValidationSchema<Relay> {
             }),
         ],
     );
-    structural.insert(
-        "extensions",
-        vec![Box::new(|e: &TrackedRelay| {
-            e.extensions
-                .get()
-                .map(|v| x_prefix_keys(v))
-                .unwrap_or_default()
-        })],
-    );
-
     let mut cross_entity: std::collections::HashMap<&'static str, Vec<AnyCrossEntityRule<Relay>>> =
         std::collections::HashMap::new();
     cross_entity.insert(

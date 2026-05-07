@@ -6,7 +6,7 @@ use super::{
         reviewing_state_required_embedded, reviewing_state_required_reusable,
     },
     structural::{
-        primitives::{non_empty_str, opt_non_empty_str, pascal_case_id, x_prefix_keys},
+        primitives::{non_empty_str, opt_non_empty_str, pascal_case_id},
         raci::raci_structural,
         workflow::{states_valid_workflow, step_keys_pascal_case},
     },
@@ -90,16 +90,6 @@ macro_rules! common_structural {
                     .unwrap_or_default()
             })],
         );
-        structural.insert(
-            "extensions",
-            vec![Box::new(|e: &$Tracked| {
-                e.extensions
-                    .get()
-                    .map(|v| x_prefix_keys(v))
-                    .unwrap_or_default()
-            })],
-        );
-
         structural
     }};
 }
@@ -310,16 +300,6 @@ pub fn embedded_workflow_validation_schema() -> ValidationSchema<EmbeddedWorkflo
                 .unwrap_or_default()
         })],
     );
-    structural.insert(
-        "extensions",
-        vec![Box::new(|e: &TrackedEmbeddedWorkflow| {
-            e.extensions
-                .get()
-                .map(|v| x_prefix_keys(v))
-                .unwrap_or_default()
-        })],
-    );
-
     let mut semantic: std::collections::HashMap<
         &'static str,
         Vec<AnySemanticRule<EmbeddedWorkflow>>,

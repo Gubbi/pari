@@ -3,7 +3,6 @@ use super::{
     structural::{
         primitives::{
             each_item_non_empty, non_empty_list, non_empty_str, opt_non_empty_str, pascal_case_id,
-            x_prefix_keys,
         },
         raci::raci_structural,
         task::states_valid_task,
@@ -108,16 +107,6 @@ pub fn task_validation_schema() -> ValidationSchema<Task> {
                 .unwrap_or_default()
         })],
     );
-    structural.insert(
-        "extensions",
-        vec![Box::new(|e: &TrackedTask| {
-            e.extensions
-                .get()
-                .map(|v| x_prefix_keys(v))
-                .unwrap_or_default()
-        })],
-    );
-
     let mut cross_entity: std::collections::HashMap<&'static str, Vec<AnyCrossEntityRule<Task>>> =
         std::collections::HashMap::new();
     cross_entity.insert(

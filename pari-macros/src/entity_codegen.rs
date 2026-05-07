@@ -514,10 +514,16 @@ fn generate_serialize_impl(
             let fname = &f.ident;
             let fname_str = fname.as_ref().unwrap().to_string();
             if fname_str == "extensions" {
+                // Delegate the `x-` prefix to `Extensions::Serialize`,
+                // then merge the resulting object into the parent map.
                 quote! {
                     if let Some(ext) = self.#fname.get() {
-                        for (k, v) in ext {
-                            map.insert(k.clone(), v.clone());
+                        let value = ::serde_json::to_value(ext)
+                            .map_err(::serde::ser::Error::custom)?;
+                        if let ::serde_json::Value::Object(obj) = value {
+                            for (k, v) in obj {
+                                map.insert(k, v);
+                            }
                         }
                     }
                 }
@@ -575,9 +581,12 @@ fn generate_deserialize_impl(
         .collect();
 
     let extensions_accum = if has_extensions_field {
+        // Accumulate `x-` prefixed entries verbatim. The strip is owned
+        // by `Extensions::Deserialize`, which we delegate to once the
+        // accumulator is full.
         quote! {
             let mut extensions: ::std::option::Option<
-                ::std::collections::HashMap<::std::string::String, ::serde_json::Value>
+                ::serde_json::Map<::std::string::String, ::serde_json::Value>
             > = None;
         }
     } else {
@@ -594,12 +603,18 @@ fn generate_deserialize_impl(
         })
         .collect();
 
+    // Recognize `x-` keys at the parent-map dispatch level so they
+    // don't fall through to the unknown-key drop arm. Accumulate them
+    // verbatim; the strip is delegated to `Extensions::Deserialize` at
+    // finalize. Non-`x-` keys at the top level still fall through and
+    // are dropped here — the schema gate at the input boundary is the
+    // authoritative rejector.
     let extensions_x_arm = if has_extensions_field {
         quote! {
             k if k.starts_with("x-") => {
                 let v: ::serde_json::Value = map.next_value()?;
                 extensions
-                    .get_or_insert_with(::std::collections::HashMap::new)
+                    .get_or_insert_with(::serde_json::Map::new)
                     .insert(k.to_string(), v);
             }
         }
@@ -626,8 +641,17 @@ fn generate_deserialize_impl(
         })
         .collect();
 
+    // Finalize via `Extensions::Deserialize`, which strips the `x-`
+    // prefix. Keeps the prefix knowledge in one place.
     let extensions_init_call = if has_extensions_field {
-        quote! { if let Some(v) = extensions { tracked.extensions.initialize(v.into()); } }
+        quote! {
+            if let Some(map) = extensions {
+                let ext: ::pari::entity::types::Extensions =
+                    ::serde_json::from_value(::serde_json::Value::Object(map))
+                        .map_err(::serde::de::Error::custom)?;
+                tracked.extensions.initialize(ext);
+            }
+        }
     } else {
         quote! {}
     };

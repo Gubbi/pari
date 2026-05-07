@@ -486,28 +486,6 @@ async fn raci_with_empty_responsible_fails() {
     .await;
 }
 
-// FIXME: extensions validation does not fire when inserting a plain
-// entity through `Workspace::insert`. The structural rule is registered
-// (see `role_validation_schema`), but the field appears un-loaded after
-// the JSON → tracked conversion. Likely a `#[serde(flatten)]` artifact
-// in the JSON pipeline. Tracked separately from this test rewrite.
-#[ignore]
-#[tokio::test]
-async fn extensions_with_non_x_prefix_fails() {
-    run_with(SubstrateKind::InMemory, |workspace| async move {
-        let mut ext_map = HashMap::new();
-        ext_map.insert("foo".to_string(), serde_json::json!("bar"));
-        let ext: Extensions = ext_map.into();
-        let bad = role("eng-lead", "ok", ext);
-        assert_validation_error(
-            workspace.insert(bad).await,
-            "extensions",
-            naming_violation("x_prefix_keys"),
-        );
-    })
-    .await;
-}
-
 #[tokio::test]
 async fn relay_with_invalid_state_map_key_fails() {
     run_with(SubstrateKind::InMemory, |workspace| async move {

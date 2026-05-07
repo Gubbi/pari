@@ -1,7 +1,7 @@
 use super::{
     super::schema::{AnyStructuralRule, ValidationSchema},
     structural::{
-        primitives::{kebab_case_id, non_empty_str, opt_non_empty_str, x_prefix_keys},
+        primitives::{kebab_case_id, non_empty_str, opt_non_empty_str},
         role::each_item_non_empty_str,
     },
 };
@@ -48,16 +48,6 @@ pub fn role_validation_schema() -> ValidationSchema<Role> {
                 .unwrap_or_default()
         })],
     );
-    structural.insert(
-        "extensions",
-        vec![Box::new(|e: &TrackedRole| {
-            e.extensions
-                .get()
-                .map(|v| x_prefix_keys(v))
-                .unwrap_or_default()
-        })],
-    );
-
     ValidationSchema {
         structural,
         semantic: std::collections::HashMap::new(),

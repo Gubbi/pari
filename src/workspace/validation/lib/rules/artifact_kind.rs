@@ -1,6 +1,6 @@
 use super::{
     super::schema::{AnyStructuralRule, ValidationSchema},
-    structural::primitives::{kebab_case_id, non_empty_str, opt_non_empty_str, x_prefix_keys},
+    structural::primitives::{kebab_case_id, non_empty_str, opt_non_empty_str},
 };
 use crate::entity::entities::artifact_kind::{ArtifactKind, TrackedArtifactKind};
 
@@ -58,16 +58,6 @@ pub fn artifact_kind_validation_schema() -> ValidationSchema<ArtifactKind> {
                 .unwrap_or_default()
         })],
     );
-    structural.insert(
-        "extensions",
-        vec![Box::new(|e: &TrackedArtifactKind| {
-            e.extensions
-                .get()
-                .map(|v| x_prefix_keys(v))
-                .unwrap_or_default()
-        })],
-    );
-
     ValidationSchema {
         structural,
         semantic: std::collections::HashMap::new(),

@@ -14,14 +14,68 @@ use crate::entity::{
     EntityRef,
 };
 
-/// Open-ended metadata. Only `x-` prefixed keys are permitted (enforced by validation).
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, pari_macros::CollectRefs)]
-#[serde(transparent)]
+/// Open-ended metadata.
+///
+/// On the wire, extension keys carry an `x-` prefix; in memory, the
+/// prefix is stripped so the bag holds bare keys. Serialization adds
+/// the prefix back. Non-`x-` prefixed keys appearing in input JSON are
+/// not absorbed here — the schema gate at the input boundary rejects
+/// them before this type ever sees them.
+#[derive(Debug, Clone, Default, pari_macros::CollectRefs)]
 pub struct Extensions(pub HashMap<String, serde_json::Value>);
 
 impl Extensions {
     pub fn new() -> Self {
         Self(HashMap::new())
+    }
+}
+
+const X_PREFIX: &str = "x-";
+
+impl serde::Serialize for Extensions {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(Some(self.0.len()))?;
+        for (k, v) in &self.0 {
+            map.serialize_entry(&format!("{X_PREFIX}{k}"), v)?;
+        }
+        map.end()
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Extensions {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use std::fmt;
+
+        struct Visitor;
+
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = Extensions;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "a map of x- prefixed extension entries")
+            }
+
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<Extensions, A::Error> {
+                let mut bag: HashMap<String, serde_json::Value> = HashMap::new();
+                while let Some(key) = map.next_key::<String>()? {
+                    let value: serde_json::Value = map.next_value()?;
+                    if let Some(stripped) = key.strip_prefix(X_PREFIX) {
+                        bag.insert(stripped.to_string(), value);
+                    }
+                    // Non-`x-` keys are dropped here; the schema gate
+                    // at the input boundary is the authoritative
+                    // rejector. Until that gate runs, dropping is the
+                    // safest in-memory outcome.
+                }
+                Ok(Extensions(bag))
+            }
+        }
+
+        deserializer.deserialize_map(Visitor)
     }
 }
 
@@ -66,6 +120,8 @@ impl schemars::JsonSchema for Extensions {
         obj.object()
             .pattern_properties
             .insert("^x-".to_string(), Schema::Bool(true));
+        // Reject non-`x-` keys at the schema boundary.
+        obj.object().additional_properties = Some(Box::new(Schema::Bool(false)));
         Schema::Object(obj)
     }
 }

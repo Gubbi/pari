@@ -1,7 +1,7 @@
 use std::hash::Hash;
 
 use crate::{
-    entity::{types::Extensions, Entity, EntityRef, ParentKind},
+    entity::{Entity, EntityRef, ParentKind},
     error::primitive::PrimitiveError,
 };
 
@@ -142,19 +142,4 @@ pub fn unique_by<T, K: Eq + Hash>(value: &[T], key_fn: fn(&T) -> K) -> Vec<Primi
         }
     }
     violations
-}
-
-/// All keys in extensions must start with `"x-"`
-pub fn x_prefix_keys(value: &Extensions) -> Vec<PrimitiveError> {
-    value
-        .keys()
-        .filter(|k| !k.starts_with("x-"))
-        .map(|k| {
-            PrimitiveError::naming_format_violation(
-                format!("extension key '{k}' must start with 'x-'"),
-                Some(format!(".{k}")),
-                "x_prefix_keys",
-            )
-        })
-        .collect()
 }
