@@ -52,3 +52,6 @@ pub mod refresh_entity_from_substrate;
 
 #[path = "external_corruption.rs"]
 pub mod external_corruption;
+
+#[path = "import_from_json.rs"]
+pub mod import_from_json;

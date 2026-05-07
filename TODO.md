@@ -127,6 +127,45 @@ Source-code changes that landed alongside the tests:
   iterative authoring of cross-referenced trees) captured in
   `docs/design/layers/entities.md`.
 
+## Phase 1.5 — Schema & Extensions Coverage
+
+Tests for the schema-validation gate and `Extensions` `x-` prefix
+behavior landed in commits `d0f41fe`, `3063575`, `1ce2254`, `ea979c6`.
+None of this work has functional coverage today.
+
+### 1.5.1 `import_from_json.rs` — functional (e2e)
+
+User job: import a raw-JSON entity into a workspace via
+`Workspace::import_json`. One file, mirroring
+`validation_failures.rs` style (sectioned by concern). Runs against
+both substrate backends where persistence-meaningful.
+
+Sections and test cases:
+
+- **Happy path** (one per representative entity kind; runs against
+  both substrate backends):
+  - `import_json_role_round_trips_through_persist`
+  - `import_json_team_round_trips_through_persist`
+  - `import_json_workflow_round_trips_through_persist`
+- **Schema rejections** (each surfaces a schema error, not a
+  downstream structural/semantic error):
+  - `import_json_rejects_missing_required_field`
+  - `import_json_rejects_wrong_json_type`
+  - `import_json_rejects_unknown_top_level_field`
+  - `import_json_rejects_bare_extension_key`
+- **Validation ordering** (schema gate runs first; later tiers
+  still fire):
+  - `import_json_schema_valid_then_structural_failure_surfaces_structural_error`
+  - `import_json_schema_and_structural_valid_then_semantic_failure_surfaces_semantic_error`
+- **Extensions round-trip.** Prefix logic is mechanical:
+  serialize prepends `x-`, deserialize strips the first `x-`
+  (so wire `x-x-foo` ↔ in-memory `x-foo`):
+  - `import_json_strips_x_prefix_on_extension_keys`
+  - `serialize_prepends_x_prefix_on_extension_keys`
+  - `extensions_round_trip_preserves_multiple_and_nested_values`
+  - `extensions_round_trip_handles_empty_map`
+  - `extensions_double_x_prefix_round_trip`
+
 ## Phase 2 — Integration Tests (Deferred)
 
 Only added when a real boundary-failure mode resists end-to-end
@@ -150,6 +189,27 @@ need fault injection rather than functional coverage):
 - **Partial substrate-response merge paths.** A substrate that
   returns a subset of the requested fields exercises the store's
   load merge logic differently than the standard backends do.
+- **Substrate-side schema gate at load (commit `1ce2254`).**
+  Hand-craft a persistence artifact whose codec parses cleanly but
+  whose JSON slice violates the projected schema. Load must surface
+  a schema error before merge into the tracked entity. Cover
+  per-backend validator caching against both substrate kinds.
+  Cases:
+  - `load_rejects_artifact_with_missing_required_field`
+  - `load_rejects_artifact_with_wrong_field_type`
+  - `load_rejects_artifact_with_unknown_field`
+  - `load_rejects_artifact_with_bare_extension_key`
+- **Extensions `x-` prefix at the disk boundary.** On-disk artifact
+  carries `x-`-prefixed keys; loaded entity exposes bare keys.
+  Cases:
+  - `repo_substrate_writes_x_prefixed_extension_keys_to_disk`
+  - `repo_substrate_loads_x_prefixed_disk_keys_as_bare_keys`
+- **Generated-schema artifacts.** Build-time output under
+  `schemas/` matches the runtime validator. Cases:
+  - `schemas_dir_contains_file_per_entity_kind`
+  - `generated_schemas_set_additional_properties_false`
+  - `generated_schemas_constrain_extensions_to_x_prefix`
+  - `generated_schemas_match_runtime_validator`
 
 ## Phase 3 — Unit Tests (Deferred)
 
