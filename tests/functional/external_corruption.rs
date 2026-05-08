@@ -112,6 +112,46 @@ async fn unterminated_frontmatter_surfaces_codec_error() {
     .await;
 }
 
+/// Persist a role, then delete its on-disk file before refetch.
+/// File-not-found is a distinct executor-level path from
+/// malformed-data — pinned here so loaders see a structured error
+/// rather than success-with-stale-state or a panic.
+#[tokio::test]
+async fn externally_deleted_file_after_persist_surfaces_error() {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().to_path_buf();
+    let role_file = path.join("common/roles/eng-lead.md");
+
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+            workspace.persist().await.unwrap();
+            assert!(role_file.exists(), "fixture: role file should be created");
+
+            std::fs::remove_file(&role_file).unwrap();
+            workspace.forget(role_ref("eng-lead")).await.unwrap();
+
+            let result = trigger_load(&workspace, "eng-lead").await;
+            // File-not-found is an executor-level fault — distinct
+            // from codec/schema-gate corruption. Surfaces as
+            // CorruptPersistenceState carrying a FileRead primitive
+            // with the asset path so operators can locate the missing
+            // artifact.
+            let err = result.expect_err("expected an error");
+            let cause = match &err {
+                ActivityError::CorruptPersistenceState { cause, .. } => cause,
+                _ => panic!("expected CorruptPersistenceState, got: {err:?}"),
+            };
+            assert!(
+                matches!(cause, PrimitiveError::FileRead { .. }),
+                "expected FileRead primitive, got: {cause:?}"
+            );
+        },
+    )
+    .await;
+}
+
 /// Replace the file body with content that has no `---` fence at all
 /// and no H1 — the codec cannot extract the slots it needs.
 #[tokio::test]
