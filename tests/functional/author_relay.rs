@@ -42,6 +42,14 @@ async fn author_relay_in_workflow(#[case] kind: SubstrateKind) {
     run_with(kind, |workspace| async move {
         author_workflow_with_relay(&workspace).await;
 
+        // Drop loaded fields so the accessors below drive the codec +
+        // schema gate on load.
+        workspace.forget(workflow_ref("DesignFlow")).await.unwrap();
+        workspace
+            .forget(relay_ref("Handoff", "DesignFlow"))
+            .await
+            .unwrap();
+
         let wf = workspace.resolve(workflow_ref("DesignFlow")).await.unwrap();
         let steps = wf.steps().await.unwrap().clone();
         assert_eq!(steps.len(), 1);

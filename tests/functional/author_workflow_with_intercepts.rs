@@ -28,6 +28,10 @@ fn workflow_ref(id: &str) -> EntityRef<Workflow> {
     EntityRef::new(id)
 }
 
+fn hook_ref(id: &str) -> EntityRef<Hook> {
+    EntityRef::new(id)
+}
+
 fn intercept(hook_id: &str, with: Option<HashMap<String, String>>) -> HookCall {
     HookCall {
         hook: EntityRef::<Hook>::new(hook_id),
@@ -60,6 +64,12 @@ async fn minimal_workflow_with_intercept(#[case] kind: SubstrateKind) {
             .unwrap();
         workspace.persist().await.unwrap();
 
+        // Drop loaded fields so the accessors below drive the codec +
+        // schema gate on load. Forgetting the hook too exercises Hook's
+        // own codec round-trip.
+        workspace.forget(workflow_ref("DesignFlow")).await.unwrap();
+        workspace.forget(hook_ref("on-done-hook")).await.unwrap();
+
         let wf = workspace.resolve(workflow_ref("DesignFlow")).await.unwrap();
         let intercepts = wf
             .intercepts()
@@ -73,6 +83,9 @@ async fn minimal_workflow_with_intercept(#[case] kind: SubstrateKind) {
             .expect("OnDone intercept present");
         assert_eq!(call.hook.id(), "on-done-hook");
         assert!(call.with.is_none());
+
+        let hook = workspace.resolve(hook_ref("on-done-hook")).await.unwrap();
+        assert_eq!(hook.name().await.unwrap(), "Notify Slack");
     })
     .await;
 }

@@ -48,6 +48,15 @@ async fn author_embedded_workflow_with_task(#[case] kind: SubstrateKind) {
     run_with(kind, |workspace| async move {
         author_nested_workflow(&workspace).await;
 
+        // Drop loaded fields so the accessors below drive the codec +
+        // schema gate on load for both the parent workflow and the
+        // embedded workflow.
+        workspace.forget(workflow_ref("DesignFlow")).await.unwrap();
+        workspace
+            .forget(embedded_workflow_ref("Onboarding", "DesignFlow"))
+            .await
+            .unwrap();
+
         let parent_wf = workspace.resolve(workflow_ref("DesignFlow")).await.unwrap();
         let parent_steps = parent_wf.steps().await.unwrap().clone();
         assert_eq!(parent_steps.len(), 1);

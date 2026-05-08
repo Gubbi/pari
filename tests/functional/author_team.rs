@@ -29,6 +29,10 @@ async fn minimal_team_is_observable_after_persist(#[case] kind: SubstrateKind) {
         workspace.insert(a_minimal_team("eng")).await.unwrap();
         workspace.persist().await.unwrap();
 
+        // Drop loaded fields so accessors below drive the codec +
+        // schema gate on load instead of returning the in-memory copy.
+        workspace.forget(team_ref("eng")).await.unwrap();
+
         let team = workspace.resolve(team_ref("eng")).await.unwrap();
         assert_eq!(team.name().await.unwrap(), "Minimal Team");
         assert_eq!(team.description().await.unwrap(), Some("A team for tests."));
@@ -57,6 +61,8 @@ async fn team_with_members_is_observable_after_persist(#[case] kind: SubstrateKi
             .await
             .unwrap();
         workspace.persist().await.unwrap();
+
+        workspace.forget(team_ref("eng")).await.unwrap();
 
         let team = workspace.resolve(team_ref("eng")).await.unwrap();
         let members = team

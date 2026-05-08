@@ -28,6 +28,13 @@ async fn minimal_reusable_workflow_is_observable_after_persist(#[case] kind: Sub
     run_with(kind, |workspace| async move {
         author_minimal_reusable_workflow(&workspace).await;
 
+        // Drop loaded fields so the accessors below drive the codec +
+        // schema gate on load.
+        workspace
+            .forget(reusable_workflow_ref("ApprovalLoop"))
+            .await
+            .unwrap();
+
         let rwf = workspace
             .resolve(reusable_workflow_ref("ApprovalLoop"))
             .await

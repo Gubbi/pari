@@ -9,7 +9,7 @@
 //! shape.
 
 use pari::{
-    entities::{task::Task, workflow::Workflow},
+    entities::{artifact_kind::ArtifactKind, task::Task, workflow::Workflow},
     entity::{EntityRef, WorkflowParent},
     substrate::RepoSubstrate,
     workspace::Workspace,
@@ -40,6 +40,15 @@ async fn workflow_with_task_and_review_is_observable_after_persist(#[case] kind:
     run_with(kind, |workspace| async move {
         author_workflow_with_task_and_review(&workspace).await;
 
+        // Drop loaded fields so accessors below drive the codec +
+        // schema gate on load. Covers Workflow and ArtifactKind
+        // round-trips on both backends in one scenario.
+        workspace.forget(workflow_ref("DesignFlow")).await.unwrap();
+        workspace
+            .forget(EntityRef::<ArtifactKind>::new("design-doc"))
+            .await
+            .unwrap();
+
         let wf = workspace.resolve(workflow_ref("DesignFlow")).await.unwrap();
         assert_eq!(wf.name().await.unwrap(), "Design Workflow");
         let steps = wf.steps().await.unwrap().clone();
@@ -49,6 +58,13 @@ async fn workflow_with_task_and_review_is_observable_after_persist(#[case] kind:
         let states = wf.states().await.unwrap().to_vec();
         assert_eq!(states.len(), 3);
         assert!(states.iter().any(|s| s.id == "InReview"));
+
+        let kind = workspace
+            .resolve(EntityRef::<ArtifactKind>::new("design-doc"))
+            .await
+            .unwrap();
+        assert_eq!(kind.name().await.unwrap(), "Design Doc");
+        assert_eq!(kind.service().await.unwrap(), "github");
     })
     .await;
 }
