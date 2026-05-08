@@ -55,3 +55,6 @@ pub mod external_corruption;
 
 #[path = "import_from_json.rs"]
 pub mod import_from_json;
+
+#[path = "substrate_load_boundary.rs"]
+pub mod substrate_load_boundary;

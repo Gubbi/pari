@@ -166,6 +166,36 @@ Sections and test cases:
   - `extensions_round_trip_handles_empty_map`
   - `extensions_double_x_prefix_round_trip`
 
+## Phase 1.6 — Codec / Slot Refactor (Blocking Phase 1.5 substrate cases)
+
+Tests in `tests/functional/substrate_load_boundary.rs` flagged
+`#[ignore]` until this lands. Three regressions surfaced post-`d0f41fe`
+(extensions flatten on the wire) that the codec hasn't caught up with.
+Both backends are affected.
+
+Done in three steps:
+
+1. **Common.** `Codec::decode` returns `serde_json::Value` (object,
+   wire-shaped) instead of `HashMap<String, Value>`. Drop the
+   `extensions` special case in `merge_field_map_into_json` (becomes a
+   flat insert). Schema-init invariant relaxes for flattened slots
+   sharing a field key (allowed only within one asset). New error
+   variants for unmatched-key rejection.
+2. **Repo.** Add `FlattenRule::Prefix(&'static str)`. Change
+   `RepoSlot::FrontmatterFlattened` → `FrontmatterFlattened(FlattenRule)`.
+   Add `RepoSlot::SectionFlattened(FlattenRule, SectionContent)`.
+   Update existing schema entries to `FrontmatterFlattened(Prefix("x-"))`.
+   Wire `SectionFlattened(Prefix("x-doc-"), Paragraph)` into Task to
+   exercise the new variant. Encode/decode use longest-prefix-match
+   routing for unclaimed wire keys; unmatched keys error on either
+   side.
+3. **In-memory.** Parallel fix — store the entity's wire JSON without
+   relying on a nested `extensions` envelope. No flatten routing
+   needed (no frontmatter vs sections distinction in-memory).
+
+After each step, the relevant `#[ignore]`d tests in
+`substrate_load_boundary.rs` flip on.
+
 ## Phase 2 — Integration Tests (Deferred)
 
 Only added when a real boundary-failure mode resists end-to-end
