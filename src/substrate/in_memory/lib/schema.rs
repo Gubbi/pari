@@ -10,7 +10,8 @@ use crate::{
     },
     substrate::{
         pipeline::{
-            AssetKind, EntitySchema, FieldMapping, RefAssetDef, SubstrateSchema, ValueSlot,
+            AssetKind, EntitySchema, FieldMapping, FlattenRule, RefAssetDef, SubstrateSchema,
+            ValueSlot,
         },
         InMemorySubstrate,
     },
@@ -39,7 +40,7 @@ const ROLE_FIELDS: &[FieldMapping<ValueSlot>] = &[
     },
     FieldMapping {
         key: "extensions",
-        slot: ValueSlot::Value,
+        slot: ValueSlot::Flattened(FlattenRule::Prefix("x-")),
     },
 ];
 const HOOK_FIELDS: &[FieldMapping<ValueSlot>] = &[
@@ -61,7 +62,7 @@ const HOOK_FIELDS: &[FieldMapping<ValueSlot>] = &[
     },
     FieldMapping {
         key: "extensions",
-        slot: ValueSlot::Value,
+        slot: ValueSlot::Flattened(FlattenRule::Prefix("x-")),
     },
 ];
 const TEAM_FIELDS: &[FieldMapping<ValueSlot>] = &[
@@ -87,7 +88,7 @@ const TEAM_FIELDS: &[FieldMapping<ValueSlot>] = &[
     },
     FieldMapping {
         key: "extensions",
-        slot: ValueSlot::Value,
+        slot: ValueSlot::Flattened(FlattenRule::Prefix("x-")),
     },
 ];
 const ARTIFACT_KIND_FIELDS: &[FieldMapping<ValueSlot>] = &[
@@ -113,7 +114,7 @@ const ARTIFACT_KIND_FIELDS: &[FieldMapping<ValueSlot>] = &[
     },
     FieldMapping {
         key: "extensions",
-        slot: ValueSlot::Value,
+        slot: ValueSlot::Flattened(FlattenRule::Prefix("x-")),
     },
 ];
 const WORKFLOW_FIELDS: &[FieldMapping<ValueSlot>] = &[
@@ -151,7 +152,7 @@ const WORKFLOW_FIELDS: &[FieldMapping<ValueSlot>] = &[
     },
     FieldMapping {
         key: "extensions",
-        slot: ValueSlot::Value,
+        slot: ValueSlot::Flattened(FlattenRule::Prefix("x-")),
     },
 ];
 const TASK_FIELDS: &[FieldMapping<ValueSlot>] = &[
@@ -201,7 +202,7 @@ const TASK_FIELDS: &[FieldMapping<ValueSlot>] = &[
     },
     FieldMapping {
         key: "extensions",
-        slot: ValueSlot::Value,
+        slot: ValueSlot::Flattened(FlattenRule::Prefix("x-")),
     },
 ];
 const RELAY_FIELDS: &[FieldMapping<ValueSlot>] = &[
@@ -247,7 +248,7 @@ const RELAY_FIELDS: &[FieldMapping<ValueSlot>] = &[
     },
     FieldMapping {
         key: "extensions",
-        slot: ValueSlot::Value,
+        slot: ValueSlot::Flattened(FlattenRule::Prefix("x-")),
     },
 ];
 

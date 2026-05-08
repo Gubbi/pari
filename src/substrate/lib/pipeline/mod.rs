@@ -23,4 +23,4 @@ pub use resolver::LocationResolver;
 pub use schema::{
     AssetDef, EntitySchema, FieldMapping, LoadStrategy, RefAssetDef, SchemaAsset, SubstrateSchema,
 };
-pub use slot::{Slot, ValueSlot};
+pub use slot::{FlattenRule, Slot, ValueSlot};

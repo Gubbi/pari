@@ -10,7 +10,8 @@ use crate::{
     },
     substrate::{
         pipeline::{
-            AssetDef, AssetKind, EntitySchema, FieldMapping, RefAssetDef, Slot, SubstrateSchema,
+            AssetDef, AssetKind, EntitySchema, FieldMapping, FlattenRule, RefAssetDef, Slot,
+            SubstrateSchema,
         },
         RepoSubstrate,
     },
@@ -35,26 +36,6 @@ pub enum RepoSlot {
 }
 
 impl Slot for RepoSlot {}
-
-/// Selects which unclaimed top-level wire keys a flattened slot
-/// absorbs. Disjointness across slots in the same asset is *not*
-/// required — overlapping prefixes are resolved by longest-match.
-#[derive(Clone, Copy)]
-pub enum FlattenRule {
-    /// Match wire keys whose name starts with this exact (case-sensitive)
-    /// prefix.
-    Prefix(&'static str),
-}
-
-impl FlattenRule {
-    /// Length of the matching prefix when `key` is absorbed by this
-    /// rule, or `None` if the rule rejects `key`.
-    pub fn match_len(&self, key: &str) -> Option<usize> {
-        match self {
-            FlattenRule::Prefix(p) => key.starts_with(p).then_some(p.len()),
-        }
-    }
-}
 
 #[derive(Clone, Copy)]
 pub enum SectionContent {

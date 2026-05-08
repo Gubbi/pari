@@ -166,35 +166,32 @@ Sections and test cases:
   - `extensions_round_trip_handles_empty_map`
   - `extensions_double_x_prefix_round_trip`
 
-## Phase 1.6 — Codec / Slot Refactor (Blocking Phase 1.5 substrate cases)
+## Phase 1.6 — Codec / Slot Refactor ✅
 
-Tests in `tests/functional/substrate_load_boundary.rs` flagged
-`#[ignore]` until this lands. Three regressions surfaced post-`d0f41fe`
-(extensions flatten on the wire) that the codec hasn't caught up with.
-Both backends are affected.
+Three-step landing:
 
-Done in three steps:
-
-1. **Common.** `Codec::decode` returns `serde_json::Value` (object,
-   wire-shaped) instead of `HashMap<String, Value>`. Drop the
-   `extensions` special case in `merge_field_map_into_json` (becomes a
-   flat insert). Schema-init invariant relaxes for flattened slots
-   sharing a field key (allowed only within one asset). New error
-   variants for unmatched-key rejection.
-2. **Repo.** Add `FlattenRule::Prefix(&'static str)`. Change
-   `RepoSlot::FrontmatterFlattened` → `FrontmatterFlattened(FlattenRule)`.
-   Add `RepoSlot::SectionFlattened(FlattenRule, SectionContent)`.
-   Update existing schema entries to `FrontmatterFlattened(Prefix("x-"))`.
-   Wire `SectionFlattened(Prefix("x-doc-"), Paragraph)` into Task to
-   exercise the new variant. Encode/decode use longest-prefix-match
-   routing for unclaimed wire keys; unmatched keys error on either
-   side.
-3. **In-memory.** Parallel fix — store the entity's wire JSON without
-   relying on a nested `extensions` envelope. No flatten routing
-   needed (no frontmatter vs sections distinction in-memory).
-
-After each step, the relevant `#[ignore]`d tests in
-`substrate_load_boundary.rs` flip on.
+1. **Common ✅** (`f99d7b5`). `Codec::decode` returns `serde_json::Value`
+   (wire-shaped object). `merge_field_map_into_json` adapted to take a
+   `Value`. Thin shims in both codec impls; behavior unchanged.
+2. **Repo ✅** (`34453c3`). Added `FlattenRule::Prefix`,
+   `RepoSlot::FrontmatterFlattened(rule)`,
+   `RepoSlot::SectionFlattened(rule, content)`. RepoCodec rewritten
+   for longest-prefix-match routing on unclaimed wire keys; unmatched
+   keys error at codec-level. `TASK_FIELDS` carries both flatten
+   variants (`Prefix("x-")` for frontmatter, `Prefix("x-doc-")` for
+   sections) demonstrating same-key co-ownership of one struct field.
+   Pipeline schema invariant relaxed for flattened slots sharing a
+   key. Workspace validation runner stops rejecting fields with no
+   rules (load path may pass extension-bag fields).
+   `substrate_load_boundary` tests flipped from 3 ignored → all green.
+3. **In-memory ✅** (this commit). `FlattenRule` hoisted into
+   `pipeline/slot.rs`. Added `ValueSlot::Flattened(FlattenRule)`.
+   InMemoryCodec rewritten to mirror repo's prefix-match routing.
+   Schema entries for `extensions` updated to
+   `ValueSlot::Flattened(Prefix("x-"))` across all entities. Added
+   `role_with_extensions_round_trips_through_persist` parametrized
+   over both backends — covers the original missing e2e: extensions
+   inserted with bare keys round-trip through persist + reload.
 
 ## Phase 2 — Integration Tests (Deferred)
 

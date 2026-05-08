@@ -7,6 +7,7 @@
 
 use pari::{entities::role::Role, entity::EntityRef, substrate::RepoSubstrate};
 use rstest::rstest;
+use serde_json::json;
 use tempfile::TempDir;
 
 use crate::{
@@ -57,6 +58,47 @@ async fn role_with_optional_fields_is_observable_after_persist(#[case] kind: Sub
         assert_eq!(
             role.traits().await.unwrap(),
             Some(["accountable".to_string(), "technical".to_string()].as_slice())
+        );
+    })
+    .await;
+}
+
+/// Populated `Extensions` round-trip through `insert + persist +
+/// forget + resolve` against both substrates. Covers the codec/slot
+/// refactor: in-memory keeps `x-` keys flat in its stored blob, repo
+/// renders them into frontmatter; both surfaces strip the `x-` prefix
+/// back to bare keys at the workspace boundary.
+#[rstest]
+#[case::in_memory(SubstrateKind::InMemory)]
+#[case::repo(SubstrateKind::Repo)]
+#[tokio::test]
+async fn role_with_extensions_round_trips_through_persist(#[case] kind: SubstrateKind) {
+    run_with(kind, |workspace| async move {
+        let mut role = a_minimal_role("eng-lead");
+        role.extensions.0.insert("color".to_string(), json!("red"));
+        role.extensions.0.insert("priority".to_string(), json!(7));
+        role.extensions
+            .0
+            .insert("nested".to_string(), json!({"deep": [1, 2, 3]}));
+        workspace.insert(role).await.unwrap();
+        workspace.persist().await.unwrap();
+
+        // Drop the loaded fields so the next access has to refetch
+        // through the codec.
+        workspace.forget(role_ref("eng-lead")).await.unwrap();
+
+        let role = workspace.resolve(role_ref("eng-lead")).await.unwrap();
+        let extensions = role.extensions().await.unwrap();
+        assert_eq!(extensions.0.get("color"), Some(&json!("red")));
+        assert_eq!(extensions.0.get("priority"), Some(&json!(7)));
+        assert_eq!(
+            extensions.0.get("nested"),
+            Some(&json!({"deep": [1, 2, 3]}))
+        );
+        assert!(
+            !extensions.0.keys().any(|k| k.starts_with("x-")),
+            "in-memory bag must not retain x- prefix, got: {:?}",
+            extensions.0
         );
     })
     .await;
