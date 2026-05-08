@@ -77,17 +77,33 @@ static FULL_SCHEMARS_BY_KIND: LazyLock<HashMap<EntityKind, serde_json::Value>> =
 /// updates `required` similarly. The slice schema's other top-level
 /// constraints (`patternProperties`, `additionalProperties`) carry
 /// over verbatim.
+///
+/// Field keys may be dot-paths (e.g. `"artifact.kind"`) when an asset
+/// covers a sub-tree of a nested entity property. The projection
+/// retains the top-level property (`"artifact"`) whenever any field's
+/// first dot-segment matches it; finer-grained narrowing of nested
+/// shapes would over-constrain the slice and is left to the entity
+/// schema author.
 fn project_to_fields(full: &serde_json::Value, fields: &[&'static str]) -> serde_json::Value {
     let mut projected = full.clone();
     let obj = projected
         .as_object_mut()
         .expect("entity schema is a JSON object");
 
+    let top_level_fields: std::collections::HashSet<&str> = fields
+        .iter()
+        .map(|f| f.split_once('.').map(|(head, _)| head).unwrap_or(*f))
+        .collect();
+
     if let Some(serde_json::Value::Object(props)) = obj.get_mut("properties") {
-        props.retain(|k, _| fields.contains(&k.as_str()));
+        props.retain(|k, _| top_level_fields.contains(k.as_str()));
     }
     if let Some(serde_json::Value::Array(req)) = obj.get_mut("required") {
-        req.retain(|v| v.as_str().map(|s| fields.contains(&s)).unwrap_or(false));
+        req.retain(|v| {
+            v.as_str()
+                .map(|s| top_level_fields.contains(s))
+                .unwrap_or(false)
+        });
     }
 
     projected

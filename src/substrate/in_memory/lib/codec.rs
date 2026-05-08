@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::{
     error::primitive::PrimitiveError,
     substrate::{
-        lib::serde::value_at_path,
+        lib::serde::{insert_path_value, value_at_path},
         pipeline::{Codec, FieldMapping, ValueSlot},
     },
 };
@@ -22,12 +22,14 @@ impl Codec for InMemoryCodec {
         let mut slice = serde_json::Map::new();
 
         // Phase 1: literal-key slots. Each `Value` field looks up its
-        // wire key in entity_json and writes that entry into the slice.
+        // wire key in entity_json and writes that entry into the slice
+        // at the same dot-path so the stored blob mirrors wire shape
+        // (nested objects, not literal dot-keys).
         for field in schema {
             match field.slot {
                 ValueSlot::Value => {
                     if let Some(value) = value_at_path(entity_json, field.key) {
-                        slice.insert(field.key.to_string(), value.clone());
+                        insert_path_value(&mut slice, field.key, value.clone());
                     }
                 }
                 ValueSlot::Flattened(_) => {}

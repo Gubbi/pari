@@ -9,9 +9,13 @@
 //! shape.
 
 use pari::{
-    entities::workflow::Workflow, entity::EntityRef, substrate::RepoSubstrate, workspace::Workspace,
+    entities::{task::Task, workflow::Workflow},
+    entity::{EntityRef, WorkflowParent},
+    substrate::RepoSubstrate,
+    workspace::Workspace,
 };
 use rstest::rstest;
+use serde_json::json;
 use tempfile::TempDir;
 
 use crate::{
@@ -111,6 +115,111 @@ async fn repo_substrate_writes_expected_workflow_files() {
     assert!(
         task_contents.contains("# Design Doc Draft"),
         "expected H1 with task name, got:\n{task_contents}"
+    );
+}
+
+/// `Task` carries two flatten slots: `FrontmatterFlattened(Prefix("x-"))`
+/// for general extensions and `SectionFlattened(Prefix("x-doc-"), …)`
+/// for long-form documentation extensions. `x-doc-`-prefixed wire keys
+/// must route to markdown sections (longest-prefix-match wins over
+/// `x-`), and the on-disk shape round-trips back to bare keys at the
+/// workspace boundary.
+#[rstest]
+#[case::in_memory(SubstrateKind::InMemory)]
+#[case::repo(SubstrateKind::Repo)]
+#[tokio::test]
+async fn task_extensions_route_by_prefix_match(#[case] kind: SubstrateKind) {
+    run_with(kind, |workspace| async move {
+        workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+        workspace
+            .insert(a_minimal_artifact_kind("design-doc"))
+            .await
+            .unwrap();
+        workspace
+            .insert(a_workflow_with_empty_steps("DesignFlow", "eng-lead"))
+            .await
+            .unwrap();
+
+        let mut task = a_minimal_task("Design", "DesignFlow", "design-doc");
+        task.extensions.0.insert("color".to_string(), json!("red"));
+        task.extensions.0.insert(
+            "doc-rationale".to_string(),
+            json!("Why this task exists.\n\nLong-form text body."),
+        );
+        workspace.insert(task).await.unwrap();
+        workspace.persist().await.unwrap();
+
+        let task_ref = EntityRef::<Task, _>::with_parent(
+            "Design",
+            WorkflowParent::Workflow(EntityRef::<Workflow>::new("DesignFlow")),
+        );
+        workspace.forget(task_ref.clone()).await.unwrap();
+
+        let task = workspace.resolve(task_ref).await.unwrap();
+        let extensions = task.extensions().await.unwrap();
+        assert_eq!(extensions.0.get("color"), Some(&json!("red")));
+        assert_eq!(
+            extensions.0.get("doc-rationale"),
+            Some(&json!("Why this task exists.\n\nLong-form text body."))
+        );
+        assert!(
+            !extensions.0.keys().any(|k| k.starts_with("x-")),
+            "in-memory bag must not retain x- prefix, got: {:?}",
+            extensions.0
+        );
+    })
+    .await;
+}
+
+/// `RepoSubstrate`-specific: `x-doc-` extensions render as markdown
+/// sections, plain `x-` extensions stay in frontmatter. Pins the
+/// on-disk shape so external tools can rely on it.
+#[tokio::test]
+async fn repo_substrate_writes_x_doc_extension_to_section() {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().to_path_buf();
+    let task_file = path.join("workflows/DesignFlow/Design/README.md");
+
+    with_workspace(
+        RepoSubstrate::new(path.clone()).unwrap(),
+        |workspace| async move {
+            workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
+            workspace
+                .insert(a_minimal_artifact_kind("design-doc"))
+                .await
+                .unwrap();
+            workspace
+                .insert(a_workflow_with_empty_steps("DesignFlow", "eng-lead"))
+                .await
+                .unwrap();
+
+            let mut task = a_minimal_task("Design", "DesignFlow", "design-doc");
+            task.extensions.0.insert("color".to_string(), json!("red"));
+            task.extensions
+                .0
+                .insert("doc-rationale".to_string(), json!("Why this task exists."));
+            workspace.insert(task).await.unwrap();
+            workspace.persist().await.unwrap();
+        },
+    )
+    .await;
+
+    let raw = std::fs::read_to_string(&task_file).unwrap();
+    assert!(
+        raw.contains("x-color: red"),
+        "expected x-color in frontmatter, got:\n{raw}"
+    );
+    assert!(
+        raw.contains("## x-doc-rationale"),
+        "expected x-doc-rationale section heading, got:\n{raw}"
+    );
+    assert!(
+        raw.contains("Why this task exists."),
+        "expected section body text, got:\n{raw}"
+    );
+    assert!(
+        !raw.contains("x-doc-rationale: "),
+        "x-doc-rationale must not appear as a frontmatter key, got:\n{raw}"
     );
 }
 
