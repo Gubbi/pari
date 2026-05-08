@@ -20,13 +20,41 @@ use crate::{
 pub enum RepoSlot {
     H1,
     FrontmatterKey(&'static str),
-    FrontmatterFlattened,
+    /// Frontmatter slot that absorbs unclaimed top-level wire keys
+    /// matching `FlattenRule`. Multiple `FrontmatterFlattened` slots
+    /// per asset are allowed; longest-prefix-match wins per key.
+    FrontmatterFlattened(FlattenRule),
     DescriptionParagraph,
     Section(&'static str, SectionContent),
+    /// Markdown-section slot whose absorbed wire keys each render as a
+    /// `## <key>` heading with the given content shape. Selection by
+    /// `FlattenRule`; longest-prefix-match against other flattened
+    /// slots in the same asset.
+    SectionFlattened(FlattenRule, SectionContent),
     FileContent,
 }
 
 impl Slot for RepoSlot {}
+
+/// Selects which unclaimed top-level wire keys a flattened slot
+/// absorbs. Disjointness across slots in the same asset is *not*
+/// required — overlapping prefixes are resolved by longest-match.
+#[derive(Clone, Copy)]
+pub enum FlattenRule {
+    /// Match wire keys whose name starts with this exact (case-sensitive)
+    /// prefix.
+    Prefix(&'static str),
+}
+
+impl FlattenRule {
+    /// Length of the matching prefix when `key` is absorbed by this
+    /// rule, or `None` if the rule rejects `key`.
+    pub fn match_len(&self, key: &str) -> Option<usize> {
+        match self {
+            FlattenRule::Prefix(p) => key.starts_with(p).then_some(p.len()),
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 pub enum SectionContent {
@@ -62,7 +90,7 @@ const ROLE_FIELDS: &[FieldMapping<RepoSlot>] = &[
     },
     FieldMapping {
         key: "extensions",
-        slot: RepoSlot::FrontmatterFlattened,
+        slot: RepoSlot::FrontmatterFlattened(FlattenRule::Prefix("x-")),
     },
 ];
 const HOOK_FIELDS: &[FieldMapping<RepoSlot>] = &[
@@ -84,7 +112,7 @@ const HOOK_FIELDS: &[FieldMapping<RepoSlot>] = &[
     },
     FieldMapping {
         key: "extensions",
-        slot: RepoSlot::FrontmatterFlattened,
+        slot: RepoSlot::FrontmatterFlattened(FlattenRule::Prefix("x-")),
     },
 ];
 const TEAM_FIELDS: &[FieldMapping<RepoSlot>] = &[
@@ -110,7 +138,7 @@ const TEAM_FIELDS: &[FieldMapping<RepoSlot>] = &[
     },
     FieldMapping {
         key: "extensions",
-        slot: RepoSlot::FrontmatterFlattened,
+        slot: RepoSlot::FrontmatterFlattened(FlattenRule::Prefix("x-")),
     },
 ];
 const ARTIFACT_KIND_FIELDS: &[FieldMapping<RepoSlot>] = &[
@@ -136,7 +164,7 @@ const ARTIFACT_KIND_FIELDS: &[FieldMapping<RepoSlot>] = &[
     },
     FieldMapping {
         key: "extensions",
-        slot: RepoSlot::FrontmatterFlattened,
+        slot: RepoSlot::FrontmatterFlattened(FlattenRule::Prefix("x-")),
     },
 ];
 const WORKFLOW_FIELDS: &[FieldMapping<RepoSlot>] = &[
@@ -174,7 +202,7 @@ const WORKFLOW_FIELDS: &[FieldMapping<RepoSlot>] = &[
     },
     FieldMapping {
         key: "extensions",
-        slot: RepoSlot::FrontmatterFlattened,
+        slot: RepoSlot::FrontmatterFlattened(FlattenRule::Prefix("x-")),
     },
 ];
 const TASK_FIELDS: &[FieldMapping<RepoSlot>] = &[
@@ -220,7 +248,11 @@ const TASK_FIELDS: &[FieldMapping<RepoSlot>] = &[
     },
     FieldMapping {
         key: "extensions",
-        slot: RepoSlot::FrontmatterFlattened,
+        slot: RepoSlot::FrontmatterFlattened(FlattenRule::Prefix("x-")),
+    },
+    FieldMapping {
+        key: "extensions",
+        slot: RepoSlot::SectionFlattened(FlattenRule::Prefix("x-doc-"), SectionContent::Paragraph),
     },
 ];
 const RELAY_FIELDS: &[FieldMapping<RepoSlot>] = &[
@@ -266,7 +298,7 @@ const RELAY_FIELDS: &[FieldMapping<RepoSlot>] = &[
     },
     FieldMapping {
         key: "extensions",
-        slot: RepoSlot::FrontmatterFlattened,
+        slot: RepoSlot::FrontmatterFlattened(FlattenRule::Prefix("x-")),
     },
 ];
 

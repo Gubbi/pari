@@ -61,7 +61,7 @@ pub(crate) fn value_at_path<'a>(
     Some(current)
 }
 
-fn insert_path_value(
+pub(crate) fn insert_path_value(
     target: &mut serde_json::Map<String, serde_json::Value>,
     path: &str,
     value: serde_json::Value,

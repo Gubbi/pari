@@ -3,10 +3,7 @@ use std::collections::HashMap;
 use crate::{
     entity::Entity,
     error::primitive::PrimitiveError,
-    validation::{
-        kind::ValidationKind,
-        lib::schema::{validate_field_selection, ValidatableTracked},
-    },
+    validation::{kind::ValidationKind, lib::schema::ValidatableTracked},
     workspace::XViewer,
 };
 
@@ -29,10 +26,14 @@ where
     let mut errors: HashMap<String, Vec<PrimitiveError>> = HashMap::new();
 
     let all_fields = schema.all_field_names();
+    // Fields with no registered rules are tolerated — the per-rule
+    // lookups below skip them silently. This lets callers (e.g. the
+    // store's load path) pass field names that exist on the entity
+    // but carry no validation, such as the open-ended `extensions`
+    // bag, without surfacing a programmer-bug error.
     let target_fields: Vec<&str> = if fields.is_empty() {
         all_fields
     } else {
-        validate_field_selection(schema, fields)?;
         fields.to_vec()
     };
 

@@ -169,23 +169,34 @@ impl<S: Slot> EntitySchema<S> {
         let schema_id = self as *const Self as usize;
         let mut cache = FIELD_INDEX_CACHE.lock().unwrap();
         let index = cache.entry(schema_id).or_insert_with(|| {
+            // Multiple field-mappings may share a key when they are
+            // co-owners of one struct field (e.g. flatten-style slots
+            // routed by prefix). Co-ownership is only legal *inside a
+            // single asset* — across assets, `load_strategy_for(field)`
+            // must resolve to a unique answer, so cross-asset duplicates
+            // panic. Within an asset the slot-level resolution belongs
+            // to the codec, not this index.
             let mut index: HashMap<&'static str, AssetSelector> = HashMap::new();
             for mapping in self.ref_asset.fields {
-                let previous = index.insert(mapping.key, AssetSelector::RefAsset);
-                assert!(
-                    previous.is_none(),
-                    "field '{}' mapped more than once in schema",
-                    mapping.key
-                );
-            }
-            for (asset_index, asset) in self.assets.iter().enumerate() {
-                for mapping in asset.fields {
-                    let previous = index.insert(mapping.key, AssetSelector::Asset(asset_index));
+                let selector = AssetSelector::RefAsset;
+                if let Some(previous) = index.insert(mapping.key, selector) {
                     assert!(
-                        previous.is_none(),
-                        "field '{}' mapped more than once in schema",
+                        previous == selector,
+                        "field '{}' mapped to multiple assets in schema",
                         mapping.key
                     );
+                }
+            }
+            for (asset_index, asset) in self.assets.iter().enumerate() {
+                let selector = AssetSelector::Asset(asset_index);
+                for mapping in asset.fields {
+                    if let Some(previous) = index.insert(mapping.key, selector) {
+                        assert!(
+                            previous == selector,
+                            "field '{}' mapped to multiple assets in schema",
+                            mapping.key
+                        );
+                    }
                 }
             }
             index

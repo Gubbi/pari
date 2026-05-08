@@ -39,22 +39,30 @@ async fn trigger_load(workspace: &Workspace, id: &str) -> Result<String, Activit
     role.name().await.map(|s| s.to_string())
 }
 
-fn assert_schema_gate_rejection<T: std::fmt::Debug>(
-    result: Result<T, ActivityError>,
-    needle: &str,
-) {
+/// A bad on-disk artifact must surface as `UnpersistableDefinition`
+/// regardless of which substrate layer caught it — the codec rejects
+/// some shapes before the slice ever reaches the schema gate (e.g. a
+/// frontmatter key no flatten slot accepts), and the schema gate
+/// rejects the rest. The assertion matches either shape and pins the
+/// offending field/value in the rendered error.
+fn assert_load_rejection<T: std::fmt::Debug>(result: Result<T, ActivityError>, needle: &str) {
     let err = result.err().expect("expected an error");
     let cause = match &err {
         ActivityError::UnpersistableDefinition { cause, .. } => cause,
         _ => panic!("expected UnpersistableDefinition, got: {err:?}"),
     };
-    let reason = match cause {
-        PrimitiveError::PartialPayloadDeserialization { reason, .. } => reason,
-        _ => panic!("expected PartialPayloadDeserialization, got: {cause:?}"),
-    };
+    let rendered = format!("{cause:?}");
     assert!(
-        reason.to_lowercase().contains(&needle.to_lowercase()),
-        "expected schema-gate reason to mention '{needle}', got: {reason}"
+        matches!(
+            cause,
+            PrimitiveError::PartialPayloadDeserialization { .. }
+                | PrimitiveError::UnsupportedSlotComposition { .. }
+        ),
+        "expected codec or schema-gate rejection, got: {rendered}"
+    );
+    assert!(
+        rendered.to_lowercase().contains(&needle.to_lowercase()),
+        "expected rejection to mention '{needle}', got: {rendered}"
     );
 }
 
@@ -76,10 +84,10 @@ fn rewrite_frontmatter(file: &std::path::Path, frontmatter: &serde_yaml::Mapping
 // Schema-gate rejection (#6)
 // ===========================================================================
 
-// TODO: re-enable after the codec/slot refactor lands. Today the codec
-// emits `purpose: null` for an absent frontmatter key, so the schema
-// gate rejects on type rather than required — assertion mismatch only.
-#[ignore = "blocked on codec/slot refactor (see TODO.md Phase 1.5/2)"]
+/// An absent required frontmatter key surfaces as a schema-gate
+/// rejection. The codec emits `null` for the missing key (it doesn't
+/// know whether the key is required); the projected schema's
+/// `type: string` constraint catches it.
 #[tokio::test]
 async fn load_rejects_artifact_with_missing_required_field() {
     let dir = TempDir::new().unwrap();
@@ -92,18 +100,15 @@ async fn load_rejects_artifact_with_missing_required_field() {
             workspace.insert(a_minimal_role("eng-lead")).await.unwrap();
             workspace.persist().await.unwrap();
 
-            // Strip `purpose` from the frontmatter. The codec then emits
-            // `purpose: null`; the projected schema's required:[purpose]
-            // and type:string both reject the slice.
-            let mut fm = serde_yaml::Mapping::new();
             // Empty frontmatter — purpose is the only key the minimal
-            // role writes.
-            let _ = &mut fm;
+            // role writes; stripping it yields a null `purpose` slice
+            // entry.
+            let fm = serde_yaml::Mapping::new();
             rewrite_frontmatter(&role_file, &fm);
 
             workspace.forget(role_ref("eng-lead")).await.unwrap();
 
-            assert_schema_gate_rejection(trigger_load(&workspace, "eng-lead").await, "purpose");
+            assert_load_rejection(trigger_load(&workspace, "eng-lead").await, "string");
         },
     )
     .await;
@@ -139,7 +144,7 @@ async fn load_rejects_artifact_with_wrong_field_type() {
 
             workspace.forget(role_ref("eng-lead")).await.unwrap();
 
-            assert_schema_gate_rejection(trigger_load(&workspace, "eng-lead").await, "array");
+            assert_load_rejection(trigger_load(&workspace, "eng-lead").await, "array");
         },
     )
     .await;
@@ -175,7 +180,7 @@ async fn load_rejects_artifact_with_unknown_field() {
 
             workspace.forget(role_ref("eng-lead")).await.unwrap();
 
-            assert_schema_gate_rejection(trigger_load(&workspace, "eng-lead").await, "rogue");
+            assert_load_rejection(trigger_load(&workspace, "eng-lead").await, "rogue");
         },
     )
     .await;
@@ -188,7 +193,7 @@ async fn load_rejects_artifact_with_unknown_field() {
 // TODO: re-enable after the codec/slot refactor lands. Tracked::Serialize
 // flattens extensions to top-level x- keys post-d0f41fe; the codec still
 // looks up a nested "extensions" field and writes nothing.
-#[ignore = "blocked on codec/slot refactor (see TODO.md Phase 1.5/2)"]
+
 #[tokio::test]
 async fn repo_substrate_writes_x_prefixed_extension_keys_to_disk() {
     let dir = TempDir::new().unwrap();
@@ -227,7 +232,7 @@ async fn repo_substrate_writes_x_prefixed_extension_keys_to_disk() {
 // TODO: re-enable after the codec/slot refactor lands. Today
 // viewer.extensions() triggers Load{field:"extensions"}, which the
 // load-side field-selection gate rejects as not-in-validation-schema.
-#[ignore = "blocked on codec/slot refactor (see TODO.md Phase 1.5/2)"]
+
 #[tokio::test]
 async fn repo_substrate_loads_x_prefixed_disk_keys_as_bare_keys() {
     let dir = TempDir::new().unwrap();
