@@ -204,12 +204,12 @@ need fault injection rather than functional coverage):
   Cases:
   - `repo_substrate_writes_x_prefixed_extension_keys_to_disk`
   - `repo_substrate_loads_x_prefixed_disk_keys_as_bare_keys`
-- **Generated-schema artifacts.** Build-time output under
-  `schemas/` matches the runtime validator. Cases:
-  - `schemas_dir_contains_file_per_entity_kind`
-  - `generated_schemas_set_additional_properties_false`
-  - `generated_schemas_constrain_extensions_to_x_prefix`
-  - `generated_schemas_match_runtime_validator`
+- **Generated-schema artifacts.** Both drift and structural
+  invariants live in CI, not dev tests. Drift: regenerate +
+  `git diff --exit-code schemas/`. Structural invariants
+  (top-level `additionalProperties: false`, `patternProperties: ^x-`):
+  `cargo xtask check-schemas`. Both wired into the `schemas` job in
+  [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
 ## Phase 3 — Unit Tests (Deferred)
 

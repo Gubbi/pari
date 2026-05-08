@@ -81,6 +81,82 @@ fn generate_schemas() {
     println!("Done.");
 }
 
+/// Structural invariants every entity schema must satisfy at the top
+/// level. Closes the entity to unknown bare keys while still admitting
+/// `x-` prefixed extensions. Independent of whether the on-disk file
+/// matches the runtime — drift is the `git diff` step's job.
+fn check_schemas() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let schemas_dir = manifest_dir.parent().unwrap().join("schemas");
+    let schema_files = [
+        "artifact_kind.json",
+        "embedded_workflow.json",
+        "hook.json",
+        "relay.json",
+        "reusable_workflow.json",
+        "role.json",
+        "task.json",
+        "team.json",
+        "workflow.json",
+    ];
+
+    println!("Checking schemas in {}", schemas_dir.display());
+
+    let mut failures: Vec<String> = Vec::new();
+
+    for filename in schema_files {
+        let path = schemas_dir.join(filename);
+        let bytes = match fs::read(&path) {
+            Ok(b) => b,
+            Err(e) => {
+                failures.push(format!("{filename}: read failed: {e}"));
+                continue;
+            }
+        };
+        let schema: serde_json::Value = match serde_json::from_slice(&bytes) {
+            Ok(v) => v,
+            Err(e) => {
+                failures.push(format!("{filename}: parse failed: {e}"));
+                continue;
+            }
+        };
+
+        match schema.get("additionalProperties") {
+            Some(serde_json::Value::Bool(false)) => {}
+            Some(other) => failures.push(format!(
+                "{filename}: top-level additionalProperties must be false, got {other}"
+            )),
+            None => failures.push(format!(
+                "{filename}: missing top-level additionalProperties"
+            )),
+        }
+
+        match schema
+            .get("patternProperties")
+            .and_then(serde_json::Value::as_object)
+        {
+            Some(pp) if pp.contains_key("^x-") => {}
+            Some(pp) => failures.push(format!(
+                "{filename}: top-level patternProperties must include '^x-', got keys {:?}",
+                pp.keys().collect::<Vec<_>>()
+            )),
+            None => failures.push(format!("{filename}: missing top-level patternProperties")),
+        }
+
+        println!("  checked {filename}");
+    }
+
+    if !failures.is_empty() {
+        eprintln!("\nSchema check failed:");
+        for f in &failures {
+            eprintln!("  - {f}");
+        }
+        std::process::exit(1);
+    }
+
+    println!("Done.");
+}
+
 fn main() {
     let command = std::env::args()
         .nth(1)
@@ -88,6 +164,7 @@ fn main() {
 
     match command.as_str() {
         "generate-schemas" => generate_schemas(),
+        "check-schemas" => check_schemas(),
         _ => panic!("unknown xtask command: {command}"),
     }
 }

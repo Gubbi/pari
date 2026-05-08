@@ -24,6 +24,9 @@ jobs:
       - name: Regenerate schemas
         run: cargo xtask generate-schemas
 
+      - name: Check structural invariants
+        run: cargo xtask check-schemas
+
       - name: Fail if schemas differ from committed
         run: |
           if ! git diff --exit-code schemas/; then
