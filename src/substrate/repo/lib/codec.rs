@@ -173,12 +173,14 @@ impl Codec for RepoCodec {
         &self,
         raw: &Self::Encoded,
         schema: &[FieldMapping<Self::Slot>],
-    ) -> Result<HashMap<String, serde_json::Value>, PrimitiveError> {
+    ) -> Result<serde_json::Value, PrimitiveError> {
         if schema.len() == 1 && matches!(schema[0].slot, RepoSlot::FileContent) {
-            return Ok(HashMap::from([(
+            let mut out = serde_json::Map::new();
+            out.insert(
                 schema[0].key.to_string(),
                 serde_json::Value::String(raw.clone()),
-            )]));
+            );
+            return Ok(serde_json::Value::Object(out));
         }
 
         let (frontmatter, body) = split_frontmatter(raw).map_err(|_| {
@@ -196,7 +198,7 @@ impl Codec for RepoCodec {
             })
             .collect();
 
-        let mut out = HashMap::new();
+        let mut out = serde_json::Map::new();
         for field in schema {
             let value = match field.slot {
                 RepoSlot::H1 => title
@@ -243,7 +245,7 @@ impl Codec for RepoCodec {
             out.insert(field.key.to_string(), value);
         }
 
-        Ok(out)
+        Ok(serde_json::Value::Object(out))
     }
 }
 

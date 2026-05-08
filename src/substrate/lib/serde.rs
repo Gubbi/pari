@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::{
     entity::{AnyEntityRef, TrackedEntity},
     error::primitive::PrimitiveError,
@@ -21,24 +19,33 @@ pub(crate) fn entity_to_json(entity: &TrackedEntity) -> Result<serde_json::Value
     })
 }
 
-/// Merge a codec-decoded `field_map` into an in-progress JSON
-/// accumulator that already carries `entity_ref`. `extensions` is
-/// flattened so its keys land at the entity-root namespace, and
-/// dot-notation keys (e.g. `"raci.accountable"`) become nested
-/// objects.
+/// Merge a codec-decoded slice into an in-progress JSON accumulator
+/// that already carries `entity_ref`. Dot-notation keys (e.g.
+/// `"raci.accountable"`) become nested objects.
+///
+/// `extensions` (if the codec emits it as a nested envelope) is
+/// flattened so its keys land at the entity-root namespace. Codecs
+/// rewritten to emit wire-flat slices directly will not surface an
+/// `extensions` key here; the special case is harmless in that
+/// scenario and slated for removal once both backends produce
+/// wire-flat output.
 pub(crate) fn merge_field_map_into_json(
     accumulator: &mut serde_json::Map<String, serde_json::Value>,
-    mut field_map: HashMap<String, serde_json::Value>,
+    field_map: serde_json::Value,
 ) {
-    if let Some(ext) = field_map.remove("extensions") {
-        if let Some(obj) = ext.as_object() {
-            for (k, v) in obj {
-                field_map.insert(k.clone(), v.clone());
+    let serde_json::Value::Object(mut obj) = field_map else {
+        return;
+    };
+
+    if let Some(ext) = obj.remove("extensions") {
+        if let serde_json::Value::Object(inner) = ext {
+            for (k, v) in inner {
+                obj.insert(k, v);
             }
         }
     }
 
-    for (key, value) in field_map {
+    for (key, value) in obj {
         insert_path_value(accumulator, &key, value);
     }
 }

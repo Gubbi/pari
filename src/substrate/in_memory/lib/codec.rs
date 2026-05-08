@@ -8,6 +8,11 @@ use crate::{
     },
 };
 
+// TODO (step 3): rewrite to emit wire-flat slice JSON without relying
+// on a nested "extensions" envelope. Until then this codec keeps the
+// pre-refactor field-map shape, lifted into a Value::Object at the
+// trait boundary.
+
 pub struct InMemoryCodec;
 
 impl Codec for InMemoryCodec {
@@ -36,10 +41,12 @@ impl Codec for InMemoryCodec {
         &self,
         raw: &Self::Encoded,
         _schema: &[FieldMapping<Self::Slot>],
-    ) -> Result<HashMap<String, serde_json::Value>, PrimitiveError> {
-        serde_json::from_str(raw).map_err(|_| PrimitiveError::MalformedJsonPayload {
-            context: PrimitiveError::context("malformed json payload"),
-            raw_snippet: raw.clone(),
-        })
+    ) -> Result<serde_json::Value, PrimitiveError> {
+        let map: HashMap<String, serde_json::Value> =
+            serde_json::from_str(raw).map_err(|_| PrimitiveError::MalformedJsonPayload {
+                context: PrimitiveError::context("malformed json payload"),
+                raw_snippet: raw.clone(),
+            })?;
+        Ok(serde_json::Value::Object(map.into_iter().collect()))
     }
 }

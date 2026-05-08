@@ -51,8 +51,8 @@ impl pipeline::Codec for VoidCodec {
         &self,
         _: &String,
         _: &[pipeline::FieldMapping<VoidSlot>],
-    ) -> Result<std::collections::HashMap<String, serde_json::Value>, PrimitiveError> {
-        Ok(std::collections::HashMap::new())
+    ) -> Result<serde_json::Value, PrimitiveError> {
+        Ok(serde_json::Value::Object(serde_json::Map::new()))
     }
 }
 
