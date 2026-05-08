@@ -58,3 +58,6 @@ pub mod import_from_json;
 
 #[path = "substrate_load_boundary.rs"]
 pub mod substrate_load_boundary;
+
+#[path = "store_unavailable.rs"]
+pub mod store_unavailable;
