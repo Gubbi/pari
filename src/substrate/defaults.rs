@@ -171,7 +171,24 @@ where
                 ),
             ));
         }
-        if let serde_json::Value::Object(slice) = slice_value {
+        if let serde_json::Value::Object(mut slice) = slice_value {
+            // Fill `null` for every field the asset covers but the
+            // codec didn't emit. Schema validation has already
+            // accepted the slice (so absences here are optional fields,
+            // not required ones); the merge step needs an entry per
+            // field so the store marks it loaded — otherwise the next
+            // accessor would re-issue Load and panic on the still-
+            // empty TrackedField.
+            for field in asset.fields() {
+                let head = field
+                    .key
+                    .split_once('.')
+                    .map(|(head, _)| head)
+                    .unwrap_or(field.key);
+                if !slice.contains_key(head) {
+                    slice.insert(head.to_string(), serde_json::Value::Null);
+                }
+            }
             for (k, v) in slice {
                 accumulator.insert(k, v);
             }
