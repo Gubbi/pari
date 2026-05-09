@@ -93,7 +93,7 @@ Production code (`src/`) must not depend on `tokio` or any other specific async 
 
 ## Working Preferences
 
-- Queue new topics and open questions in the repo-root [TODO.md](/Users/vinuth/code/pari/TODO.md).
+- Queue new topics and open questions in a repo-root `TODO.md` — create it when there are items to track, delete it when the queue empties.
 - Work through queued items one at a time.
 - Treat design docs as authoritative unless a real implementation constraint forces a design amendment.
 - Keep concepts DRY across docs and local guidance. Link to the authoritative design doc instead of repeating long explanations.
