@@ -48,3 +48,72 @@ pub fn states_valid_task(value: &[TaskStateEntry]) -> Vec<PrimitiveError> {
     }
     v
 }
+
+#[cfg(test)]
+mod tests {
+    //! Task state-list validation mirrors the workflow rule but over
+    //! `TaskSemantic::Done`. The exhaustive cases live in the workflow
+    //! tests; here we only pin task-specific behavior — that the rule
+    //! resolves Done against `TaskSemantic`, not `WorkflowSemantic`.
+
+    use super::*;
+    use crate::entity::types::TaskSemantic;
+
+    fn state(id: &str, semantic: Option<TaskSemantic>) -> TaskStateEntry {
+        TaskStateEntry {
+            id: id.to_string(),
+            description: String::new(),
+            semantic,
+        }
+    }
+
+    #[test]
+    fn states_valid_canonical_passes() {
+        let states = vec![
+            state("InProgress", None),
+            state("Done", Some(TaskSemantic::Done)),
+        ];
+        assert!(states_valid_task(&states).is_empty());
+    }
+
+    #[test]
+    fn states_valid_missing_done_violates() {
+        let states = vec![state("A", None), state("B", None)];
+        let v = states_valid_task(&states);
+        assert!(v.iter().any(|e| matches!(
+            e,
+            PrimitiveError::WorkflowGraphInconsistency { reason, .. }
+                if reason == "missing_done_semantic"
+        )));
+    }
+
+    #[test]
+    fn states_valid_blocked_semantic_alone_is_not_done() {
+        // `Blocked` is a TaskSemantic variant but not Done; the rule
+        // still requires a Done entry.
+        let states = vec![
+            state("InProgress", None),
+            state("Stuck", Some(TaskSemantic::Blocked)),
+        ];
+        let v = states_valid_task(&states);
+        assert!(v.iter().any(|e| matches!(
+            e,
+            PrimitiveError::WorkflowGraphInconsistency { reason, .. }
+                if reason == "missing_done_semantic"
+        )));
+    }
+
+    #[test]
+    fn states_valid_all_done_violates() {
+        let states = vec![
+            state("Done", Some(TaskSemantic::Done)),
+            state("AlsoDone", Some(TaskSemantic::Done)),
+        ];
+        let v = states_valid_task(&states);
+        assert!(v.iter().any(|e| matches!(
+            e,
+            PrimitiveError::WorkflowGraphInconsistency { reason, .. }
+                if reason == "all_done_states"
+        )));
+    }
+}

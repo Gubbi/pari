@@ -1,6 +1,9 @@
 use crate::{
-    entity::entities::workflow::{
-        Step, TrackedEmbeddedWorkflow, TrackedReusableWorkflow, TrackedWorkflow,
+    entity::{
+        entities::workflow::{
+            Step, TrackedEmbeddedWorkflow, TrackedReusableWorkflow, TrackedWorkflow,
+        },
+        types::{WorkflowSemantic, WorkflowStateEntry},
     },
     error::primitive::PrimitiveError,
 };
@@ -85,31 +88,33 @@ pub async fn on_reject_valid(e: &TrackedWorkflow) -> Vec<PrimitiveError> {
     }
 }
 
-pub async fn reviewing_state_required(e: &TrackedWorkflow) -> Vec<PrimitiveError> {
-    let steps = match e.steps.get() {
-        Some(s) => s,
-        None => return vec![],
-    };
+/// If any step is a `Review`, the states list must include one with
+/// `WorkflowSemantic::Reviewing`. Returns no violations when there are
+/// no Review steps, regardless of state shape.
+fn check_reviewing_state(
+    steps: &indexmap::IndexMap<String, Step>,
+    states: &[WorkflowStateEntry],
+) -> Vec<PrimitiveError> {
     if !steps.values().any(|s| matches!(s, Step::Review { .. })) {
         return vec![];
     }
-    let states = match e.states.get() {
-        Some(s) => s,
-        None => return vec![],
-    };
-    let has_reviewing = states.iter().any(|s| {
-        matches!(
-            s.semantic,
-            Some(crate::entity::types::WorkflowSemantic::Reviewing)
-        )
-    });
-    if !has_reviewing {
+    let has_reviewing = states
+        .iter()
+        .any(|s| matches!(s.semantic, Some(WorkflowSemantic::Reviewing)));
+    if has_reviewing {
+        vec![]
+    } else {
         vec![PrimitiveError::workflow_graph_inconsistency(
             "workflow has Review steps but no state with Reviewing semantic",
             "missing_reviewing_semantic",
         )]
-    } else {
-        vec![]
+    }
+}
+
+pub async fn reviewing_state_required(e: &TrackedWorkflow) -> Vec<PrimitiveError> {
+    match (e.steps.get(), e.states.get()) {
+        (Some(steps), Some(states)) => check_reviewing_state(steps, states),
+        _ => vec![],
     }
 }
 
@@ -132,30 +137,9 @@ pub async fn on_reject_valid_reusable(e: &TrackedReusableWorkflow) -> Vec<Primit
 }
 
 pub async fn reviewing_state_required_reusable(e: &TrackedReusableWorkflow) -> Vec<PrimitiveError> {
-    let steps = match e.steps.get() {
-        Some(s) => s,
-        None => return vec![],
-    };
-    if !steps.values().any(|s| matches!(s, Step::Review { .. })) {
-        return vec![];
-    }
-    let states = match e.states.get() {
-        Some(s) => s,
-        None => return vec![],
-    };
-    let has_reviewing = states.iter().any(|s| {
-        matches!(
-            s.semantic,
-            Some(crate::entity::types::WorkflowSemantic::Reviewing)
-        )
-    });
-    if !has_reviewing {
-        vec![PrimitiveError::workflow_graph_inconsistency(
-            "workflow has Review steps but no state with Reviewing semantic",
-            "missing_reviewing_semantic",
-        )]
-    } else {
-        vec![]
+    match (e.steps.get(), e.states.get()) {
+        (Some(steps), Some(states)) => check_reviewing_state(steps, states),
+        _ => vec![],
     }
 }
 
@@ -178,30 +162,9 @@ pub async fn on_reject_valid_embedded(e: &TrackedEmbeddedWorkflow) -> Vec<Primit
 }
 
 pub async fn reviewing_state_required_embedded(e: &TrackedEmbeddedWorkflow) -> Vec<PrimitiveError> {
-    let steps = match e.steps.get() {
-        Some(s) => s,
-        None => return vec![],
-    };
-    if !steps.values().any(|s| matches!(s, Step::Review { .. })) {
-        return vec![];
-    }
-    let states = match e.states.get() {
-        Some(s) => s,
-        None => return vec![],
-    };
-    let has_reviewing = states.iter().any(|s| {
-        matches!(
-            s.semantic,
-            Some(crate::entity::types::WorkflowSemantic::Reviewing)
-        )
-    });
-    if !has_reviewing {
-        vec![PrimitiveError::workflow_graph_inconsistency(
-            "workflow has Review steps but no state with Reviewing semantic",
-            "missing_reviewing_semantic",
-        )]
-    } else {
-        vec![]
+    match (e.steps.get(), e.states.get()) {
+        (Some(steps), Some(states)) => check_reviewing_state(steps, states),
+        _ => vec![],
     }
 }
 
@@ -426,5 +389,78 @@ mod tests {
         ]);
         let v = check_on_reject(&s);
         assert_eq!(v.len(), 2);
+    }
+
+    // -----------------------------------------------------------------------
+    // check_reviewing_state
+    // -----------------------------------------------------------------------
+
+    fn state(id: &str, semantic: Option<WorkflowSemantic>) -> WorkflowStateEntry {
+        WorkflowStateEntry {
+            id: id.to_string(),
+            description: String::new(),
+            semantic,
+        }
+    }
+
+    #[test]
+    fn reviewing_state_no_review_step_no_violations() {
+        // Without a Review step, the rule never fires — even if the
+        // states list lacks a Reviewing-semantic state.
+        let s = steps(vec![("A", task_step("A", None))]);
+        let states = vec![
+            state("InProgress", None),
+            state("Done", Some(WorkflowSemantic::Done)),
+        ];
+        assert!(check_reviewing_state(&s, &states).is_empty());
+    }
+
+    #[test]
+    fn reviewing_state_required_when_review_step_present() {
+        let s = steps(vec![
+            ("A", task_step("A", None)),
+            ("R", review_step("approver", "A")),
+        ]);
+        let states = vec![
+            state("InProgress", None),
+            state("InReview", Some(WorkflowSemantic::Reviewing)),
+            state("Done", Some(WorkflowSemantic::Done)),
+        ];
+        assert!(check_reviewing_state(&s, &states).is_empty());
+    }
+
+    #[test]
+    fn reviewing_state_missing_when_review_step_present_violates() {
+        let s = steps(vec![
+            ("A", task_step("A", None)),
+            ("R", review_step("approver", "A")),
+        ]);
+        let states = vec![
+            state("InProgress", None),
+            state("Done", Some(WorkflowSemantic::Done)),
+        ];
+        let v = check_reviewing_state(&s, &states);
+        assert_eq!(v.len(), 1);
+        assert!(matches!(
+            v[0],
+            PrimitiveError::WorkflowGraphInconsistency { .. }
+        ));
+    }
+
+    #[test]
+    fn reviewing_state_one_review_among_many_steps_still_fires_rule() {
+        // A single Review step is enough to require the Reviewing
+        // semantic — the rule doesn't count multiplicities.
+        let s = steps(vec![
+            ("A", task_step("A", None)),
+            ("B", task_step("B", Some(vec!["A"]))),
+            ("R", review_step("approver", "B")),
+        ]);
+        let states = vec![
+            state("InProgress", None),
+            state("Done", Some(WorkflowSemantic::Done)),
+        ];
+        let v = check_reviewing_state(&s, &states);
+        assert_eq!(v.len(), 1);
     }
 }
