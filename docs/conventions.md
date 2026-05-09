@@ -55,7 +55,7 @@ Looking for the rule on something? Scan the bullet lists below until a category 
 - Runtime independence requirement
 
 ### docs/design/layers/layer-model.md
-- Formal layer vocabulary (entity, workspace, store, substrate, validation, error)
+- Formal layer vocabulary (entity, workspace, store, substrate, error). Validation lives inside `workspace` as a sub-area.
 - Dependency rules between layers
 - Pure (`lib/`) vs orchestration (layer root) split
 - Structural conventions (`mod.rs` scope, naming)

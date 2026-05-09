@@ -32,9 +32,9 @@ pub use error::pari_error::PariError;
 pub mod store;
 pub mod substrate;
 pub mod workspace;
-/// Validation lives inside the `workspace` layer; this re-export keeps
-/// the `pari::validation::*` paths used by `#[derive(Entity)]`-generated
-/// code and external callers stable across the relocation.
+/// Validation lives inside the `workspace` layer. This re-export exposes
+/// it at `pari::validation::*` so `#[derive(Entity)]`-generated code and
+/// external callers can refer to it through the top-level path.
 pub use workspace::validation;
 
 /// Caller-provided spawner used by [`store::Store::start`] to drive
