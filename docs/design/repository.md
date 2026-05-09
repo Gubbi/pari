@@ -88,9 +88,9 @@ For path-only consumers within the workspace that should never publish (e.g. `xt
 pari = { package = "pari-core", path = "..", features = ["..."] }
 ```
 
-Once the workspace grows past 4–5 members, common metadata (`edition`, `license`, frequently shared deps) consolidates under `[workspace.package]` and `[workspace.dependencies]` in the root manifest. Members then write `version.workspace = true` etc. Premature for the current size.
+Common metadata (`edition`, `license`, frequently shared deps) consolidates under `[workspace.package]` and `[workspace.dependencies]` in the root manifest once the workspace grows past 4–5 members. Members then write `version.workspace = true` etc.
 
-## Release Tooling (Forward-Looking)
+## Release Tooling
 
 - **Library crates** (`pari-core`, `pari-macros`): published with `cargo publish -p <name>`. Order: leaves first (`pari-macros` before `pari-core`).
 - **Binary crates** (`pari-cli`, `pari-local-mcp`): released via [`cargo-dist`](https://github.com/axodotdev/cargo-dist) — generates a GitHub Actions workflow that on tag-push cross-compiles for Linux/macOS/Windows, builds installer scripts, uploads to GitHub Releases, and optionally publishes to a Homebrew tap.

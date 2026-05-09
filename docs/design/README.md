@@ -32,3 +32,7 @@ Design docs follow the [C4 model](https://c4model.com). Each C4 level has a home
 ### Cross-cutting
 
 - [test.md](./test.md) — testing strategy: black-box principles, three-tier coverage funnel, layout, fixture style, substrate parameterization.
+
+### Repo & Release
+
+- [repository.md](./repository.md) — workspace shape, published vs internal crates, library vs package naming, lockstep versioning, stable-Rust requirement, distribution mechanisms.
