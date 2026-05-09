@@ -234,7 +234,7 @@ the codec being generic across entity kinds were dropped per the
   [.github/workflows/ci.yml](.github/workflows/ci.yml) via
   `cargo xtask generate-schemas` + `cargo xtask check-schemas`.
 
-## Phase 3 — Unit Tests
+## Phase 3 — Unit Tests ✅
 
 Logic-heavy pure functions, future-proof assumptions, combinatorial
 coverage. Colocated as `#[cfg(test)] mod tests` in the source file.
@@ -244,59 +244,37 @@ Coverage-over-exhaustiveness applies (see
 functional tests can't reach cheaply, not redundant variations of
 paths already pinned end-to-end.
 
-### 3.1 Canonical pure-logic batch (the design doc's named examples)
+**Final state:** 206 unit + 129 functional = 335 tests, 0 ignored,
+0 failures. Three small DRY refactors (`check_on_reject`,
+`check_reviewing_state`, `cycle_exists`) fell out of the testability
+work — duplicated bodies that the unit-test path naturally collapsed.
 
-Land these first — the test doc explicitly cites them as the shape
-unit tests are for.
+### 3.1 Canonical pure-logic batch ✅
 
-- **`RepoCodec` parsers.** `split_frontmatter`, `find_h1`,
-  `find_description`, `parse_sections`, `parse_bullet_list` in
-  [src/substrate/repo/lib/codec.rs](src/substrate/repo/lib/codec.rs).
-  Edge cases functional tests skip: empty body, missing fence,
-  unterminated fence, multi-fence, no H1 / multiple H1s, sections
-  with code blocks, malformed bullet lines, sections at end of file.
-- **Workflow cycle detection / step-graph rules.** `on_reject`
-  targets, `depends_on` graph in
-  [src/workspace/validation/lib/rules/](src/workspace/validation/lib/rules/).
-  Cases: self-loops, multi-hop cycles, branching `depends_on`,
-  forward references, dangling targets.
-- **State-map invariants** on `Workflow` / `Relay` / `Task`. Done
-  required, Reviewing required iff a review step exists, no
-  duplicate ids, pascal-case ids, semantic uniqueness.
-- **`CollectRefs` over the embed graph.** Walks every ref-bearing
-  type. Combinatorial coverage of all entity kinds and embedded
-  shapes (Workflow → EmbeddedWorkflow → Task; Relay; Hook intercepts;
-  RACI; Artifact).
+The test doc's named examples; landed first.
 
-### 3.2 Targeted helpers (caught regressions; central to refactors)
+| Concern | Commit | Cases |
+|---|---|---|
+| `RepoCodec` parsers (`split_frontmatter`, `find_h1`, `find_description`, `parse_sections`, `parse_bullet_list`) | `ea444cb` | 37 |
+| Workflow step-graph rules (`check_depends_on`, `check_on_reject` extracted) | `533acbd` | 15 |
+| State-map invariants (`states_valid_workflow`, `states_valid_task`, relay state-map; `check_reviewing_state` extracted) | `0c77851` | 29 |
+| `CollectRefs` container wrappers (Option / Vec / HashMap / tuple / IndexMap) | `7fb7764` | 14 |
+| Team `cycle_exists` extracted to pure async BFS over a closure | `300ca33` | 10 |
 
-Add when 3.1 lands and a gap emerges, or alongside future refactors
-of the surrounding code.
+### 3.2 Targeted helpers ✅ (`25cce32`)
 
-- **`insert_path_value`, `value_at_path`** in
-  [src/substrate/lib/serde.rs](src/substrate/lib/serde.rs). Dot-path
-  semantics — empty path, single segment, deep nesting, existing
-  non-object intermediate, idempotent overwrite.
-- **`project_to_fields`** in
-  [src/substrate/lib/schema_registry.rs](src/substrate/lib/schema_registry.rs).
-  No fields, all dot-paths, multiple fields under one head, fields
-  not present in entity schema.
-- **Flatten-rule resolution.** `FlattenRule::match_len` in
-  [src/substrate/lib/pipeline/slot.rs](src/substrate/lib/pipeline/slot.rs);
-  `best_flatten_match` / `best_flatten_target_match` in the repo and
-  in-memory codec helpers. Longest-prefix-match across overlapping
-  prefixes; no-match returning None; future rule kinds plugging in
-  cleanly.
+47 cases across the small pure functions the codec / schema layers
+trust to thread dot-paths and resolve flatten rules:
+`insert_path_value`, `value_at_path`, `project_to_fields`,
+`FlattenRule::match_len`, `best_flatten_match`,
+`best_flatten_target_match`, `claimed_top_level_keys` (repo +
+in-memory).
 
-### 3.3 Validation primitives — combinatorial / parameterized
+### 3.3 Validation primitives ✅ (`83606d6`)
 
-Final batch. `rstest` parameterized cases over each primitive's
-input space.
-
-- `kebab_case_id`, `pascal_case`, `non_empty_str`, `opt_non_empty_str`,
-  `each_item_non_empty_str` in
-  [src/workspace/validation/lib/rules/structural/primitives.rs](src/workspace/validation/lib/rules/structural/primitives.rs).
-  Empty / whitespace / leading digit / unicode / valid forms.
+54 parameterized cases over `kebab_case`, `pascal_case`,
+`non_empty_str`, `opt_non_empty_str`, `non_empty_list`,
+`each_item_non_empty`, `non_empty_map`, `min_length`, `unique_by`.
 
 ### What gets skipped
 
