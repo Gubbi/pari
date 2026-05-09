@@ -27,7 +27,7 @@ Looking for the rule on something? Scan the bullet lists below until a category 
 
 ### CLAUDE.md (repo root)
 - First-read orientation for Claude during active work in this repo
-- Authoritative source for communication style, ways of working, workflows, and authoring guidelines during interactive development sessions in this repo
+- Authoritative source for communication style, ways of working, workflows, and authoring guidelines
 - Internal-developer-facing — distinct from CONTRIBUTING.md, which governs external contribution workflow
 - Strong orientation toward design docs as binding for design principles, not optional guidance — refer out, do not skip or restate
 - Pointers into design docs and per-layer CLAUDE.md files for everything outside its own authority
