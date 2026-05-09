@@ -287,6 +287,3 @@ in-memory).
 - `AssetMapper::select_for_*` — routine asset selection with no edge
   cases worth direct unit coverage; load/persist exercises it.
 
-## Cleanup
-
-- Remove `docs/old_design/`.
