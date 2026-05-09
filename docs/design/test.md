@@ -69,6 +69,39 @@ tests fill specific gaps the functional layer cannot reach.
 Empty tiers are fine. If functional coverage already pins everything
 worth pinning, the integration and unit folders may stay empty.
 
+### Pure Means Logic-Pure
+
+"Pure functions" in the Unit row is a *logic* qualifier, not a strict
+referential-transparency one. A function whose algorithm is the
+substance of the function — graph traversal, parser primitive,
+projection — counts as pure for unit-test purposes even if it's
+`async` or holds I/O. If the algorithm is currently entangled with
+the I/O hop, the right move is to extract: parameterise the I/O
+through a closure or trait-injected dependency so the pure logic
+gets a unit-test seam. The team-cycle BFS in
+`src/workspace/validation/lib/rules/cross_entity/team.rs` is the
+canonical shape — `cycle_exists(self_id, seeds, fetch_neighbors)`
+is unit-tested over a static adjacency map; production wraps it
+with a closure that calls `workspace.resolve_any`.
+
+### Beyond `cargo test`
+
+Some checks belong to CI, not the dev test runs. Output artifacts
+checked into the repo (e.g. `schemas/*.json`) are part of the public
+contract that other systems consume; they are gated by CI steps,
+not by unit/functional tests. The boundary:
+
+- **Unit/functional/integration**: behavior under code paths the
+  library executes.
+- **CI gates**: invariants on artifacts the library *produces*,
+  including drift between source and committed artifact.
+
+Today's example: `cargo xtask generate-schemas` regenerates
+`schemas/`, `cargo xtask check-schemas` enforces structural
+invariants on the result, and `git diff --exit-code schemas/` flags
+drift. All three live in `.github/workflows/ci.yml`'s `schemas`
+job, not in `cargo test`.
+
 ## Layout
 
 | Tier | Path | Grouping |
@@ -156,6 +189,11 @@ incidental to the behavior under test.
   or capability.
 - Integration tests that duplicate coverage already provided by
   functional tests.
+- Dedicated tests for generated code — `Tracked::Serialize`,
+  `Tracked::Deserialize`, generated viewer/editor accessors, and the
+  rest of `#[derive(Entity)]` output are exercised end-to-end by
+  every functional test that round-trips the entity. Adding unit
+  tests against the generated impls is exhaustiveness, not coverage.
 
 ## What This Does Not Rule Out
 
