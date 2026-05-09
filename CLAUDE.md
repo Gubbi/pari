@@ -1,18 +1,17 @@
 # Pari — Codebase Guide
 
+Onboarding for Claude during active development in this repo. Authoritative for communication style, ways of working, workflows, and authoring guidelines. Design rules live in design docs and are binding — refer out, do not skip.
+
+For the repo-wide convention map, see [docs/conventions.md](/Users/vinuth/code/pari/docs/conventions.md).
+
 ## What This Is
 
-Rust library (`pari`) for workflow runtime behavior in hybrid human-agent teams.
+Rust library (package `pari-core`, crate name `pari`) for workflow runtime behavior in hybrid human-agent teams.
 
-The authoritative architecture reference is [docs/design/layers/layer-model.md](/Users/vinuth/code/pari/docs/design/layers/layer-model.md). Use the formal layer vocabulary from that doc when describing code ownership:
-
-- `entity`
-- `workspace`
-- `store`
-- `substrate`
-- `error`
-
-Validation lives inside `workspace` as a sub-area, not as a peer layer.
+- Project pitch and the problem being solved: [README.md](/Users/vinuth/code/pari/README.md).
+- Vision and the world being built for: [docs/vision.md](/Users/vinuth/code/pari/docs/vision.md).
+- Intended end users: [docs/who-is-pari-for.md](/Users/vinuth/code/pari/docs/who-is-pari-for.md).
+- Architectural reference (formal layers, ownership, dependency rules, within-layer structure): [docs/design/layers/layer-model.md](/Users/vinuth/code/pari/docs/design/layers/layer-model.md). Use that vocabulary when describing code ownership.
 
 ## Layer Map In Source
 
@@ -39,69 +38,37 @@ tests/
 
 When working in a subtree, also look for a `CLAUDE.md` file in that directory or an ancestor within the repo. Treat nested guidance as additional local context.
 
-## Current Naming And Ownership
-
-- `TrackedEntity` is the type-erased tracked wrapper enum in `src/entity/mod.rs`. Construction is `pub(crate)` and reachable only through the store's JSON-to-tracked pipeline; substrate returns `serde_json::Value`, not `TrackedEntity`.
-- `EntityChange` from `src/store/lib/change.rs` is the store-to-substrate persist handoff.
-- Mutation is gated by typed workspace-bound handles. `Workspace::resolve(ref)` returns an `XViewer<'ws, T>` (read-only — typed async accessors, `validate` / `validate_with`). `Workspace::checkout::<T>(ref)` returns the typed `XEditor<'ws, T>` — setters and `commit(self)` / `undo_checkout(self)` live there. `XEditor` derefs to `XViewer` so reads work uniformly. Editors are not `Clone`. The contract is enforced at the type level.
-- `EntityRef<T, P>::to_any_ref(&self)` is an instance method (no associated-fn form in current code).
-- `workspace` owns caller-facing async operations, viewer/editor handles, validation rules and schemas, the runner, and the `Validator` type.
-- `store` owns orchestration flow, in-memory state, checkout lifecycle, persist orchestration, the `Dispatcher` (workspace-facing) and `StoreDispatcher` (state-actor-facing) trait boundaries, and the JSON ↔ tracked conversion. `StoreServer` is the stateless workspace-facing dispatcher; `Store` is the layer's only async actor and sole state custodian.
-- `substrate` owns the persistence trait, pipeline, schema-backed defaults, and concrete backends. The trait surface takes `&AnyEntityRef` (not `EntityKind`) and returns `serde_json::Value` for entity payloads.
-- `error` owns cross-cutting classification and aggregation, including `PariError`.
-- `pari-macros` is support code, not a separate architecture layer. Generated behavior belongs to the formal layer that owns that behavior.
-
-## Composition
-
-There are no globally-installed servers. Integrators wire components bottom-up:
-
-- `Store::start(spawn_fn)` returns `Arc<dyn StoreDispatcher>`.
-- `StoreServer::start(substrate, store_dispatcher)` returns `Arc<dyn Dispatcher>`.
-- `Workspace::new(server_dispatcher)` returns a `Workspace`.
-
-Multiple workspaces over the same server coexist; `StoreServer` itself constructs per-request workspaces internally for validation. The same composition is used in production and in tests.
-
-## Entity Identity And Tracking
-
-- `EntityRef<T, P>` uses `NoParent` for top-level entities and concrete parent kinds such as `WorkflowParent` for embedded workflow tree entities.
-- Top-level refs use `EntityRef::new(id)`.
-- Embedded refs use `EntityRef::with_parent(id, parent)`.
-- Parent identity is part of semantic identity. Do not reintroduce workflow-id-only constructor helpers.
-- `TrackedField<T>` paths: `loaded(value)` for the JSON-to-tracked pipeline (load and insert), `mutated(value)` for setter-side COW replacement.
-- Author cross-referenced entity trees iteratively: insert parent shell with empty steps → insert each embedded child (its parent now exists) → modify parent's steps to point at the children. Recursive across embedded depth. See `docs/design/layers/entities.md` *Authoring Constraints*.
-
-## Structural Conventions
-
-The authoritative reference for these conventions is [docs/design/layers/layer-model.md — Within-Layer Structure](/Users/vinuth/code/pari/docs/design/layers/layer-model.md).
-
-**Pure vs orchestration split**
-Every layer has pure components in `lib/` (emit only `PrimitiveError`) and orchestration components at the layer root (wrap primitives into activity errors, or forward activity errors from deeper layers unchanged). `entity` is the sole exception — no orchestration layer, `PrimitiveError` at all boundaries.
-
-**`mod.rs` files**
-Contain only `mod` declarations and `pub use` re-exports — no logic, no `impl` blocks, no free functions.
-
-**Runtime independence**
-Production code (`src/`) must not depend on `tokio` or any other specific async runtime. Use `futures` channels, await futures, and route any spawning through a caller-provided `SpawnFn`. See [docs/design/framework.md](/Users/vinuth/code/pari/docs/design/framework.md) — *Runtime and Composition Integration*.
-
-## Key Boundaries
-
-- `entity` code should not absorb workspace, store, or substrate orchestration.
-- `workspace` should stay focused on caller-facing APIs, viewer/editor handles, and validation rule authoring/execution.
-- `store` may depend on `entity`, `substrate`, `workspace` (only via the validation back-edge through `Workspace::import_erased(...).validate_with(...)`), and `error`. It should not own persistence layout or caller ergonomics.
-- `substrate` may depend on `entity`, `error`, and explicit store-owned handoff types such as `EntityChange`, but not on `StoreServer`/`Store` internals.
-- Production layers must not depend on test code.
-
 ## Working Preferences
 
-- Queue new topics and open questions in a repo-root `TODO.md` — create it when there are items to track, delete it when the queue empties.
-- Work through queued items one at a time.
 - Treat design docs as authoritative unless a real implementation constraint forces a design amendment.
-- Keep concepts DRY across docs and local guidance. Link to the authoritative design doc instead of repeating long explanations.
-- Commit at the end of each completed task so diffs stay easy to review task-by-task.
-- Apply edits one file at a time. Do not preview diffs in chat before writing — the editor shows the diff natively. Pause after each file so the user can course-correct before the next one.
+- Implement one task at a time. After each task, wait for the diff to be reviewed, and commit only once approved. Commits map to tasks so diffs stay easy to review task-by-task.
+- Both implementation and tests follow the design. They are coordinate, not sequential — implementation does not dictate tests, tests do not dictate implementation, and design dictates both. Every change updates whichever are affected to stay aligned with the relevant design principles. Orthogonal or minor changes that don't affect behavior may not warrant test changes.
+- If a test is awkward to write or pushes against the design, that is a design gap. Escalate as a design change rather than bending implementation or tests to work around it.
+
+## TODO.md Lifecycle
+
+A `TODO.md` is the working plan for a single change. It is scoped to a single git branch — created at branch start, deleted in the last commit of the branch when it is ready to merge.
+
+- **Create** at the start of any sizable change. Structure the file as **Phases > Sections > Steps**, covering the change end to end: design, implementation, tests, build, deploy. Trivial changes (single-file edits, one-step fixes) don't need one.
+- **Use** as the single queue for the change. Add new topics, open questions, and follow-ups into the active `TODO.md` as they surface.
+- **Parallel work** is supported. One or more agents may work the list concurrently. Coordination among them is decided per change run, not statically prescribed.
+- **Groom** when scope changes. Re-shape phases, surface anything that should escalate to a design doc, and remove outdated tasks outright — git tracks the history.
+- **Absorb and delete** when the change is complete. Move durable artifacts — decisions, learnings, new conventions — into the appropriate docs (design docs, conventions, CLAUDE.md). Delete the `TODO.md` in the last commit of the branch.
+
+This lifecycle will eventually be replaced by Pari's own workflow runtime once the runtime side of workflow execution lands; the authoring side already exists.
+
+## Engineering Principles
+
+- **DRY across code and docs.** A concept lives in exactly one place. Other places link to it. Applies equally to code (no duplicated logic) and documentation (no restated rules).
+- **Articulative naming.** Names should explain themselves. When the right name isn't obvious, raise it with the developer rather than picking one in isolation — naming is a design decision worth a brief discussion.
+- **Modularize, componentize, compose.** Treat every problem, at its granularity, as a candidate for a standalone, reusable component — one that could theoretically be published independently. Forces generic, loosely-coupled interfaces and prevents implicit coupling.
+- **Folder and file structure encapsulate a single concept.** Each folder or file owns one concept at its granularity, grouping related items together. Don't scatter what belongs together.
+- **Always present the current state.** Code, docs, and plans describe how things are now — not how they got here, what they used to be, or what was changed. No "previously this was X", no "renamed from Y", no commentary that assumes the reader knows prior versions. Git history is the canonical record of evolution; current artifacts are the canonical record of current state.
 
 ## Useful References
 
+- Conventions index: [docs/conventions.md](/Users/vinuth/code/pari/docs/conventions.md)
 - Architecture: [docs/design/layers/layer-model.md](/Users/vinuth/code/pari/docs/design/layers/layer-model.md)
 - Design index: [docs/design/README.md](/Users/vinuth/code/pari/docs/design/README.md)
+- Repository organization: [docs/design/repository.md](/Users/vinuth/code/pari/docs/design/repository.md)
 - Root crate wiring: [src/lib.rs](/Users/vinuth/code/pari/src/lib.rs)

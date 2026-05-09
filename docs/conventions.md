@@ -8,6 +8,21 @@ If a bullet list under a file grows past ~8 items, that's a signal to split the 
 
 Looking for the rule on something? Scan the bullet lists below until a category matches, then open that file. The index is keyed by file path; topics live in their files.
 
+## Product context
+
+### README.md (repo root)
+- Project pitch and problem statement
+- High-level overview of what Pari does
+- Top-level entry point for visitors
+
+### docs/vision.md
+- The world Pari is being built for
+- Hybrid human-agent team thesis
+
+### docs/who-is-pari-for.md
+- Intended end users — the "champion" persona
+- Frustrations and contexts that surface Pari
+
 ## Starting points
 
 ### CLAUDE.md (repo root)
