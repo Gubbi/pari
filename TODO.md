@@ -193,50 +193,46 @@ Three-step landing:
    over both backends — covers the original missing e2e: extensions
    inserted with bare keys round-trip through persist + reload.
 
-## Phase 2 — Integration Tests (Deferred)
+## Phase 2 — Integration Tests ✅
 
-Only added when a real boundary-failure mode resists end-to-end
-coverage.
+Boundary-failure modes that resist functional coverage. Only the
+genuinely-orthogonal cases were kept; routine variations covered by
+the codec being generic across entity kinds were dropped per the
+"coverage over exhaustiveness" principle.
 
-Candidates identified during Phase 1 (boundary-failure modes that
-need fault injection rather than functional coverage):
-
-- **Substrate corruption — malformed frontmatter on disk.** Write a
-  hand-crafted `roles/<id>.md` with broken YAML frontmatter, then
-  resolve. Should surface as `MalformedPersistenceArtifact`.
-- **Substrate corruption — missing required field in stored file.**
-  Write a `Workflow/<id>/README.md` missing the `name` H1 or required
-  frontmatter keys; resolve should surface a structured codec error.
-- **Substrate corruption — unparseable shape.** Non-markdown content
-  in a `.md` slot, conflicting field assignments across assets, etc.
-- **Channel-closed mid-operation on workspace ↔ store seam.** Drop
-  the `StoreManager` future before a request completes; the
-  workspace must surface `ActivityError::store_unavailable`. Requires
-  a hand-written test substrate or a controllable cancel point.
-- **Partial substrate-response merge paths.** A substrate that
-  returns a subset of the requested fields exercises the store's
-  load merge logic differently than the standard backends do.
-- **Substrate-side schema gate at load (commit `1ce2254`).**
-  Hand-craft a persistence artifact whose codec parses cleanly but
-  whose JSON slice violates the projected schema. Load must surface
-  a schema error before merge into the tracked entity. Cover
-  per-backend validator caching against both substrate kinds.
-  Cases:
-  - `load_rejects_artifact_with_missing_required_field`
-  - `load_rejects_artifact_with_wrong_field_type`
-  - `load_rejects_artifact_with_unknown_field`
-  - `load_rejects_artifact_with_bare_extension_key`
-- **Extensions `x-` prefix at the disk boundary.** On-disk artifact
-  carries `x-`-prefixed keys; loaded entity exposes bare keys.
-  Cases:
-  - `repo_substrate_writes_x_prefixed_extension_keys_to_disk`
-  - `repo_substrate_loads_x_prefixed_disk_keys_as_bare_keys`
-- **Generated-schema artifacts.** Both drift and structural
-  invariants live in CI, not dev tests. Drift: regenerate +
-  `git diff --exit-code schemas/`. Structural invariants
-  (top-level `additionalProperties: false`, `patternProperties: ^x-`):
-  `cargo xtask check-schemas`. Both wired into the `schemas` job in
-  [.github/workflows/ci.yml](.github/workflows/ci.yml).
+- **Substrate corruption.** Existing tests in
+  [tests/functional/external_corruption.rs](tests/functional/external_corruption.rs)
+  cover malformed frontmatter, unterminated frontmatter, garbage
+  content, and (added during this phase) externally-deleted files
+  (`a68ac5a`). Cases for missing-required, wrong-type, and unknown
+  fields are pinned in
+  [tests/functional/substrate_load_boundary.rs](tests/functional/substrate_load_boundary.rs)
+  alongside the schema gate work from Phase 1.6. Other entity kinds,
+  H1-specific corruption, and multi-asset Task corruption skipped:
+  same code path as Role, no new coverage.
+- **Channel-closed → `StoreUnavailable`** ✅ (`8da525e`).
+  [tests/functional/store_unavailable.rs](tests/functional/store_unavailable.rs)
+  covers the workspace ↔ store seam with two harnesses: a
+  `BrokenStoreDispatcher` that fails immediately (resolve / persist
+  paths) and a `ToggleStoreDispatcher` for mid-session actor drop
+  (field-accessor path).
+- **Partial substrate-response merge paths** ✅ (`d3e7dd9`).
+  Contract pinned in
+  [tests/functional/sparse_substrate_response.rs](tests/functional/sparse_substrate_response.rs):
+  required-missing surfaces a schema-gate rejection;
+  optional-missing fills `null` so the field is loaded and accessors
+  don't re-issue Load. `defaults::load` gained a fill-in-null pass
+  after slice validation.
+- **Substrate-side schema gate at load** ✅ (Phase 1.6, `34453c3`).
+  Cases in [substrate_load_boundary.rs](tests/functional/substrate_load_boundary.rs).
+- **Extensions `x-` prefix at the disk boundary** ✅ (Phase 1.6 +
+  `34453c3`, `5e2c048`). Repo-side disk-shape pin in
+  `repo_substrate_writes_x_doc_extension_to_section`; in-memory
+  round-trip in `role_with_extensions_round_trips_through_persist`.
+- **Generated-schema artifacts** ✅ (CI gate, not a dev test).
+  Drift + structural invariants both wired into the `schemas` job in
+  [.github/workflows/ci.yml](.github/workflows/ci.yml) via
+  `cargo xtask generate-schemas` + `cargo xtask check-schemas`.
 
 ## Phase 3 — Unit Tests (Deferred)
 
