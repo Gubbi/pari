@@ -25,12 +25,19 @@ cycle-detection function asserts on its public input/output the same
 way a functional test asserts on the result of a user-visible
 operation.
 
-## No Zealous Coverage
+## Coverage Over Exhaustiveness
 
 Tests track real, plausible failure modes — not every theoretically
 reachable rare scenario. It is a legitimate outcome for a tier to be
 empty. The point of the funnel below is *not* to require tests at
 every level; it is to describe where coverage naturally lands.
+
+When the same code path is reachable from multiple variants — one
+codec serving every entity kind, one validation rule on every field,
+one merge step over every asset — pin the path once with a
+representative case rather than enumerating each variant. New
+variant-specific tests are added only when a variant introduces
+behavior the existing test cannot reach.
 
 ## Coverage Funnel
 
