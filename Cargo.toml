@@ -2,7 +2,7 @@
 members = [".", "xtask", "pari-macros"]
 
 [package]
-name = "pari"
+name = "pari-core"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
@@ -24,7 +24,7 @@ tracing = "0.1"
 tracing-error = "0.2"
 opentelemetry-semantic-conventions = "0.29"
 indexmap = { version = "2", features = ["serde"] }
-pari-macros = { path = "pari-macros" }
+pari-macros = { path = "pari-macros", version = "0.1" }
 futures = "0.3"
 jsonschema = "0.45"
 

@@ -2,12 +2,13 @@
 name = "xtask"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
 [[bin]]
 name = "xtask"
 path = "src/main.rs"
 
 [dependencies]
-pari = { path = "..", features = ["skip-schema-build"] }
+pari = { package = "pari-core", path = "..", features = ["skip-schema-build"] }
 schemars = { version = "0.8", features = ["indexmap2"] }
 serde_json = "1"

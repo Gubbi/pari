@@ -14,7 +14,6 @@
 //! There are no globals. The runtime is the integrator's choice —
 //! [`SpawnFn`] is the only async-runtime touch-point inside `pari`.
 
-#![feature(error_generic_member_access)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::must_use_candidate)]
 
