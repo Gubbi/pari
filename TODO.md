@@ -234,10 +234,80 @@ the codec being generic across entity kinds were dropped per the
   [.github/workflows/ci.yml](.github/workflows/ci.yml) via
   `cargo xtask generate-schemas` + `cargo xtask check-schemas`.
 
-## Phase 3 — Unit Tests (Deferred)
+## Phase 3 — Unit Tests
 
 Logic-heavy pure functions, future-proof assumptions, combinatorial
 coverage. Colocated as `#[cfg(test)] mod tests` in the source file.
+
+Coverage-over-exhaustiveness applies (see
+[docs/design/test.md](docs/design/test.md)): unit tests fill gaps that
+functional tests can't reach cheaply, not redundant variations of
+paths already pinned end-to-end.
+
+### 3.1 Canonical pure-logic batch (the design doc's named examples)
+
+Land these first — the test doc explicitly cites them as the shape
+unit tests are for.
+
+- **`RepoCodec` parsers.** `split_frontmatter`, `find_h1`,
+  `find_description`, `parse_sections`, `parse_bullet_list` in
+  [src/substrate/repo/lib/codec.rs](src/substrate/repo/lib/codec.rs).
+  Edge cases functional tests skip: empty body, missing fence,
+  unterminated fence, multi-fence, no H1 / multiple H1s, sections
+  with code blocks, malformed bullet lines, sections at end of file.
+- **Workflow cycle detection / step-graph rules.** `on_reject`
+  targets, `depends_on` graph in
+  [src/workspace/validation/lib/rules/](src/workspace/validation/lib/rules/).
+  Cases: self-loops, multi-hop cycles, branching `depends_on`,
+  forward references, dangling targets.
+- **State-map invariants** on `Workflow` / `Relay` / `Task`. Done
+  required, Reviewing required iff a review step exists, no
+  duplicate ids, pascal-case ids, semantic uniqueness.
+- **`CollectRefs` over the embed graph.** Walks every ref-bearing
+  type. Combinatorial coverage of all entity kinds and embedded
+  shapes (Workflow → EmbeddedWorkflow → Task; Relay; Hook intercepts;
+  RACI; Artifact).
+
+### 3.2 Targeted helpers (caught regressions; central to refactors)
+
+Add when 3.1 lands and a gap emerges, or alongside future refactors
+of the surrounding code.
+
+- **`insert_path_value`, `value_at_path`** in
+  [src/substrate/lib/serde.rs](src/substrate/lib/serde.rs). Dot-path
+  semantics — empty path, single segment, deep nesting, existing
+  non-object intermediate, idempotent overwrite.
+- **`project_to_fields`** in
+  [src/substrate/lib/schema_registry.rs](src/substrate/lib/schema_registry.rs).
+  No fields, all dot-paths, multiple fields under one head, fields
+  not present in entity schema.
+- **Flatten-rule resolution.** `FlattenRule::match_len` in
+  [src/substrate/lib/pipeline/slot.rs](src/substrate/lib/pipeline/slot.rs);
+  `best_flatten_match` / `best_flatten_target_match` in the repo and
+  in-memory codec helpers. Longest-prefix-match across overlapping
+  prefixes; no-match returning None; future rule kinds plugging in
+  cleanly.
+
+### 3.3 Validation primitives — combinatorial / parameterized
+
+Final batch. `rstest` parameterized cases over each primitive's
+input space.
+
+- `kebab_case_id`, `pascal_case`, `non_empty_str`, `opt_non_empty_str`,
+  `each_item_non_empty_str` in
+  [src/workspace/validation/lib/rules/structural/primitives.rs](src/workspace/validation/lib/rules/structural/primitives.rs).
+  Empty / whitespace / leading digit / unicode / valid forms.
+
+### What gets skipped
+
+- `Extensions::Serialize` / `Extensions::Deserialize` — covered by
+  `import_from_json.rs` round-trip tests.
+- `Tracked::Serialize` / `Tracked::Deserialize` — generated; covered
+  by every e2e that persists+reloads.
+- Workspace / Store / Substrate orchestration — that's the e2e tier's
+  job.
+- `AssetMapper::select_for_*` — routine asset selection with no edge
+  cases worth direct unit coverage; load/persist exercises it.
 
 ## Cleanup
 
