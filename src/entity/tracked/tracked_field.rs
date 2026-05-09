@@ -20,6 +20,15 @@ use std::sync::{
 /// [`loaded`](Self::loaded) for a clean field built from a plain entity;
 /// [`mutated`](Self::mutated) for the setter-side replacement carrying the
 /// dirty flag.
+///
+/// The dirty flag is `AtomicBool`, not `bool` or `Cell<bool>`. The store
+/// and any clients that already hold a clone of the `Arc` share a single
+/// allocation; after `substrate.persist` succeeds, the store needs to
+/// reset every modified field's dirty flag in-place so all sharers see
+/// the field clean without anyone replacing the `Arc`. `AtomicBool`'s
+/// interior mutability via `&self` lets [`reset_dirty`](Self::reset_dirty)
+/// do that without forcing the whole field type onto a different
+/// concurrency primitive.
 pub struct TrackedField<T> {
     value: OnceLock<T>,
     dirty: AtomicBool,

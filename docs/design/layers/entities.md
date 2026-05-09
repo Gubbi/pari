@@ -104,6 +104,17 @@ Nine entity types, partitioned by parent. All carry an `entity_ref`, `extensions
 
 Non-entity shapes embedded in entity fields ([src/entity/types.rs](../../../src/entity/types.rs)): `Extensions`, `Raci`, `Artifact`, `HookCall`, `WorkflowStateEntry`, `TaskStateEntry`, `WorkflowSemantic`, `TaskSemantic`, `WorkflowTrigger`, `TaskTrigger`. These are plain serde structs/enums with `CollectRefs` so refs inside them (e.g., `Raci::accountable: EntityRef<Role>`) surface under their container path. They are not entities — no identity, no tracked companion.
 
+### Typed refs over identifiers
+
+Every cross-entity reference is an `EntityRef<T, P>`, never a `String`. RACI's `accountable` is `EntityRef<Role>`; a `Step::Task` carries `EntityRef<Task, WorkflowParent>`; a `HookCall` carries `EntityRef<Hook>`. This is deliberate:
+
+- **Type safety** — the entity kind is in the type, so a workflow step that should reference a task can't accidentally point at a hook. The compiler forbids the mistake.
+- **Validation enforcement** — every `EntityRef` flows through the same id-format checks (`kebab_case_id`, `pascal_case_id`); a `String` field would need its own per-field rule.
+- **Uniform navigation** — `CollectRefs` walks every ref-bearing field with a single trait. A heterogeneous mix of typed refs and bare strings would require parallel walkers.
+- **Extraction at runtime** — `EntityRef::to_any_ref()` and the macro-generated dispatch let workspace and store code resolve a ref without per-kind branching at every call site.
+
+The cost — slightly more verbose construction (`EntityRef::<Role>::new("eng-lead")` rather than `"eng-lead"`) — is paid once at the authoring boundary and pays for itself across the rest of the system.
+
 ## Tracked Fields
 
 Every domain field on a tracked entity is `Arc<TrackedField<T>>`. The `Arc` makes checkout-time clone cheap and enables copy-on-write mutation; the inner `TrackedField<T>` carries the value and a per-field dirty flag.

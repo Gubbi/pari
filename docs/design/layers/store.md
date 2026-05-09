@@ -182,6 +182,8 @@ The snapshot is a `Vec<EntityChange>` — the store-owned handoff type:
 
 Dirty state is cleared **only after** `substrate.persist` returns successfully — a substrate error leaves the store's change lists intact for a retry. Persist itself does not validate; it trusts that prior commits and inserts were already gated.
 
+The substrate consumes the snapshot through an `Iterator<Item = EntityChange>` rather than a callback. The pull model lets the substrate process changes at its own pace — batch-write strategies, transactional grouping, throttled fan-out — without the store having to know which strategy a backend prefers. The store materialises the full snapshot up front (a vector, not a streaming source) so a backend that fails partway never observes a half-modified store; the store's dirty state is also untouched until the substrate returns success, so retries see the same input.
+
 ## Where Store Decides Validation Runs
 
 | Operation | Kinds run | Scope |

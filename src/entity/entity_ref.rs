@@ -93,6 +93,13 @@ impl<T: Entity, P: ParentKind> EntityRef<T, P> {
     }
 }
 
+// Equality and hashing both treat (id, parent) as the runtime key. The
+// entity kind is encoded by the type parameter `T`, so two refs of
+// different kinds inhabit different `EntityRef<_, _>` types and the
+// compiler refuses to compare them — no runtime check on `T::KIND` is
+// needed in `PartialEq`. `Hash` mixes `T::KIND` in anyway because
+// `AnyEntityRef` (the type-erased equivalent) needs the kind to be part
+// of the hash for cross-kind hash maps to remain collision-free.
 impl<T: Entity, P: ParentKind + PartialEq> PartialEq for EntityRef<T, P> {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id && self.parent == other.parent
