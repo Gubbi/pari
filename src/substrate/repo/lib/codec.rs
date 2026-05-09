@@ -523,3 +523,261 @@ fn parse_sections(body: &str) -> HashMap<String, String> {
 
     sections
 }
+
+#[cfg(test)]
+mod tests {
+    //! Unit coverage for the repo codec's pure markdown parsers.
+    //! Functional tests exercise the happy paths via persist+reload;
+    //! these pin malformed and edge-case inputs that don't fit the
+    //! end-to-end shape.
+
+    use rstest::rstest;
+    use serde_json::json;
+
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // split_frontmatter
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn split_frontmatter_no_fence_returns_empty_map_and_full_body() {
+        let (fm, body) = split_frontmatter("just a body\n").unwrap();
+        assert!(fm.is_empty());
+        assert_eq!(body, "just a body\n");
+    }
+
+    #[test]
+    fn split_frontmatter_empty_input_returns_empty_map_and_empty_body() {
+        let (fm, body) = split_frontmatter("").unwrap();
+        assert!(fm.is_empty());
+        assert_eq!(body, "");
+    }
+
+    #[test]
+    fn split_frontmatter_single_key_value() {
+        let (fm, body) = split_frontmatter("---\nkey: val\n---\nbody\n").unwrap();
+        assert_eq!(fm.get("key"), Some(&json!("val")));
+        assert_eq!(body, "body\n");
+    }
+
+    #[test]
+    fn split_frontmatter_multi_key() {
+        let raw = "---\nname: a\ncount: 7\nflag: true\n---\nbody";
+        let (fm, body) = split_frontmatter(raw).unwrap();
+        assert_eq!(fm.get("name"), Some(&json!("a")));
+        assert_eq!(fm.get("count"), Some(&json!(7)));
+        assert_eq!(fm.get("flag"), Some(&json!(true)));
+        assert_eq!(body, "body");
+    }
+
+    #[test]
+    fn split_frontmatter_unterminated_fence_errors() {
+        let raw = "---\nkey: val\nbody without closing fence";
+        let err = split_frontmatter(raw).unwrap_err();
+        assert!(
+            err.contains("unterminated"),
+            "expected unterminated message, got: {err}"
+        );
+    }
+
+    #[test]
+    fn split_frontmatter_malformed_yaml_errors() {
+        let raw = "---\n: : not: valid: yaml\n---\nbody";
+        assert!(split_frontmatter(raw).is_err());
+    }
+
+    #[test]
+    fn split_frontmatter_first_closing_fence_terminates() {
+        // A second `---` in the body must not re-enter frontmatter.
+        let raw = "---\nkey: val\n---\nbody line\n---\nmore body";
+        let (fm, body) = split_frontmatter(raw).unwrap();
+        assert_eq!(fm.get("key"), Some(&json!("val")));
+        assert_eq!(body, "body line\n---\nmore body");
+    }
+
+    // -----------------------------------------------------------------------
+    // find_h1
+    // -----------------------------------------------------------------------
+
+    #[rstest]
+    #[case::simple("# Title", Some("Title"))]
+    #[case::trailing_whitespace("# Title   ", Some("Title"))]
+    #[case::leading_blank_line("\n# Title", Some("Title"))]
+    #[case::after_other_text("preamble\n# Title", Some("Title"))]
+    #[case::no_h1("body without heading", None)]
+    #[case::only_h2("## sub-heading", None)]
+    #[case::missing_space_after_hash("#NoSpace", None)]
+    #[case::empty("", None)]
+    #[case::multiple_h1s_picks_first("# First\n# Second", Some("First"))]
+    fn find_h1_cases(#[case] input: &str, #[case] expected: Option<&str>) {
+        assert_eq!(find_h1(input).as_deref(), expected);
+    }
+
+    // -----------------------------------------------------------------------
+    // find_description
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn find_description_returns_paragraph_after_h1() {
+        let body = "# Title\n\nA description paragraph.\n\n## Section\n";
+        assert_eq!(
+            find_description(body).as_deref(),
+            Some("A description paragraph.")
+        );
+    }
+
+    #[test]
+    fn find_description_skips_blank_lines_between_h1_and_text() {
+        let body = "# Title\n\n\n\nThe description.\n\n## Section";
+        assert_eq!(find_description(body).as_deref(), Some("The description."));
+    }
+
+    #[test]
+    fn find_description_collects_multiline_paragraph_until_blank() {
+        let body = "# Title\n\nLine one.\nLine two.\n\nLine three (separate paragraph).";
+        assert_eq!(
+            find_description(body).as_deref(),
+            Some("Line one.\nLine two.")
+        );
+    }
+
+    #[test]
+    fn find_description_breaks_at_section_heading() {
+        let body = "# Title\n\nDescription.\n## Section";
+        assert_eq!(find_description(body).as_deref(), Some("Description."));
+    }
+
+    #[test]
+    fn find_description_returns_none_when_no_h1() {
+        let body = "Text without heading.";
+        assert_eq!(find_description(body), None);
+    }
+
+    #[test]
+    fn find_description_returns_none_when_only_h1() {
+        assert_eq!(find_description("# Title\n").as_deref(), None);
+    }
+
+    #[test]
+    fn find_description_returns_none_when_only_h1_then_section() {
+        assert_eq!(find_description("# Title\n## Section").as_deref(), None);
+    }
+
+    // -----------------------------------------------------------------------
+    // parse_sections
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn parse_sections_empty_body_returns_empty_map() {
+        assert!(parse_sections("").is_empty());
+    }
+
+    #[test]
+    fn parse_sections_no_h2_returns_empty_map() {
+        assert!(parse_sections("# Title\n\nDescription.").is_empty());
+    }
+
+    #[test]
+    fn parse_sections_single_section() {
+        let body = "## Notes\n\ncontent line";
+        let sections = parse_sections(body);
+        assert_eq!(
+            sections.get("Notes").map(String::as_str),
+            Some("content line")
+        );
+    }
+
+    #[test]
+    fn parse_sections_multiple_sections() {
+        let body = "## A\n\nbody A\n\n## B\n\nbody B";
+        let sections = parse_sections(body);
+        assert_eq!(sections.get("A").map(String::as_str), Some("body A"));
+        assert_eq!(sections.get("B").map(String::as_str), Some("body B"));
+    }
+
+    #[test]
+    fn parse_sections_section_with_multiline_body() {
+        let body = "## Notes\n\nline 1\nline 2\nline 3";
+        let sections = parse_sections(body);
+        assert_eq!(
+            sections.get("Notes").map(String::as_str),
+            Some("line 1\nline 2\nline 3")
+        );
+    }
+
+    #[test]
+    fn parse_sections_duplicate_heading_keeps_last() {
+        // HashMap insert overwrites — second occurrence wins.
+        let body = "## A\n\nfirst\n\n## A\n\nsecond";
+        let sections = parse_sections(body);
+        assert_eq!(sections.get("A").map(String::as_str), Some("second"));
+    }
+
+    #[test]
+    fn parse_sections_ignores_content_before_first_heading() {
+        let body = "# Title\n\npreamble that should be ignored\n\n## A\n\nbody A";
+        let sections = parse_sections(body);
+        assert_eq!(sections.len(), 1);
+        assert_eq!(sections.get("A").map(String::as_str), Some("body A"));
+    }
+
+    #[test]
+    fn parse_sections_trims_section_body_whitespace() {
+        let body = "## A\n\n\n  content with surrounding blanks\n\n";
+        let sections = parse_sections(body);
+        assert_eq!(
+            sections.get("A").map(String::as_str),
+            Some("content with surrounding blanks")
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // parse_bullet_list
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn parse_bullet_list_empty_body() {
+        assert!(parse_bullet_list("").is_empty());
+    }
+
+    #[test]
+    fn parse_bullet_list_single_item() {
+        assert_eq!(parse_bullet_list("- one"), vec![json!("one")]);
+    }
+
+    #[test]
+    fn parse_bullet_list_multiple_items() {
+        assert_eq!(
+            parse_bullet_list("- one\n- two\n- three"),
+            vec![json!("one"), json!("two"), json!("three")]
+        );
+    }
+
+    #[test]
+    fn parse_bullet_list_drops_non_bullet_lines() {
+        // The parser only collects lines beginning with `- `; everything
+        // else (headings, prose, blank lines) is silently skipped.
+        let body = "preamble\n- a\n\n- b\nrandom text\n- c";
+        assert_eq!(
+            parse_bullet_list(body),
+            vec![json!("a"), json!("b"), json!("c")]
+        );
+    }
+
+    #[test]
+    fn parse_bullet_list_requires_space_after_dash() {
+        // `-foo` is not a bullet entry; dropped.
+        assert!(parse_bullet_list("-foo").is_empty());
+    }
+
+    #[test]
+    fn parse_bullet_list_preserves_inner_whitespace() {
+        // Strip is only the literal `- ` prefix; trailing/leading
+        // whitespace on the item is kept verbatim.
+        assert_eq!(
+            parse_bullet_list("-   spaced item   "),
+            vec![json!("  spaced item   ")]
+        );
+    }
+}
