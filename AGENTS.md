@@ -1,83 +1,13 @@
-# Pari — Codebase Guide
+# Pari — Agent Entry Point
 
-## What This Is
+Entry point for non-Claude agents (Codex, Cursor, etc.) working in this repo. Claude Code auto-loads `CLAUDE.md`; this file is the equivalent surface for agents that follow the AGENTS.md convention.
 
-Rust library (`pari`) for workflow runtime behavior in hybrid human-agent teams.
+The same documentation governs all agents — agent identity does not change the rules. The pointers below apply uniformly.
 
-The authoritative architecture reference is [docs/design/architecture/layer-model.md](/Users/vinuth/code/pari/docs/design/architecture/layer-model.md). Use the formal layer vocabulary from that doc when describing code ownership:
+## Where to start
 
-- `entity`
-- `workspace`
-- `store`
-- `substrate`
-- `validation`
-- `error`
-- `test`
-
-## Layer Map In Source
-
-```text
-src/
-  entity/        entity-layer identity, plain entities, refs,
-                 and tracked-field primitives                  -> see src/entity/CLAUDE.md
-  workspace/     workspace-layer caller-facing async API        -> see src/workspace/CLAUDE.md
-  store/         store-layer server/state/orchestration          -> see src/store/CLAUDE.md
-  substrate/     substrate-layer persistence contracts/backends -> see src/substrate/CLAUDE.md
-  validation/    validation-layer rules and schemas             -> see src/validation/CLAUDE.md
-  error/         error-layer shared error infrastructure        -> see src/error/CLAUDE.md
-  lib.rs         crate module wiring
-
-pari-macros/
-  proc-macro support for generated behavior across formal layers -> see pari-macros/CLAUDE.md
-
-tests/
-  test-layer integration coverage                              -> see tests/CLAUDE.md
-```
-
-`schemas/` contains generated JSON Schema outputs for plain entity types. It is an output directory, not an architectural layer.
+1. **[docs/conventions.md](docs/conventions.md)** — reverse index of every doc, keyed by file path. Use it to navigate the repo.
+2. **[CLAUDE.md](CLAUDE.md)** — authoritative for onboarding, communication style, ways of working, workflows, and authoring guidelines during active development. Apply its rules regardless of which agent reads it.
+3. **[docs/design/](docs/design/)** — authoritative for design principles. Binding, not optional.
 
 When working in a subtree, also look for a `CLAUDE.md` file in that directory or an ancestor within the repo. Treat nested guidance as additional local context.
-
-## Current Naming And Ownership
-
-- Use `TrackedEntity`, not `StoreEntity`, for the type-erased tracked wrapper enum in `src/entity/mod.rs`.
-- Use `EntityChange` from `src/store/change.rs` for the store-to-substrate persist handoff.
-- The lazy persist-set helper is `PersistChanges` in `src/store/change.rs`; it remains store-owned plumbing behind the `EntityChange<'_>` contract.
-- `workspace` owns caller-facing async operations and operation error types.
-- `store` owns server message flow, in-memory state, checkout lifecycle, and persist orchestration.
-- `substrate` owns the persistence trait, pipeline, schema-backed defaults, and concrete backends.
-- `validation` owns rule definition and execution over tracked entities.
-- `error` owns cross-cutting classification and aggregation, including `PariError`.
-- `pari-macros` is support code, not a separate architecture layer. Generated behavior belongs to the formal layer that owns that behavior.
-
-## Entity Identity And Tracking
-
-- `EntityRef<T, P>` uses `NoParent` for top-level entities and concrete parent kinds such as `WorkflowParent` for embedded workflow tree entities.
-- Top-level refs use `EntityRef::new(id)`.
-- Embedded refs use `EntityRef::with_parent(id, parent)`.
-- Parent identity is part of semantic identity. Do not reintroduce workflow-id-only constructor helpers.
-- `TrackedField<T>` uses `initialize(value)` for write-once load/deserializer paths and `TrackedField::mutated(value)` for setter-side COW replacement.
-- There is no separate `#[derive(Tracked)]`, `TrackedMap`, or generic tracked framework in the current design.
-
-## Key Boundaries
-
-- `entity` code should not absorb store, substrate, or validation orchestration.
-- `workspace` should stay focused on caller-facing APIs over `EntityServer`.
-- `store` may depend on `entity`, `substrate`, `validation`, and `error`, but should not own persistence layout or caller ergonomics.
-- `substrate` may depend on `entity`, `error`, and explicit store-owned handoff types such as `EntityChange`, but not on store server internals.
-- `validation` defines rules; it should not own persistence or server flow.
-- `test` may reach across production layers, but production layers must not depend on test code.
-
-## Working Preferences
-
-- Queue new topics and open questions in the repo-root [TODO.md](/Users/vinuth/code/pari/TODO.md).
-- Work through queued items one at a time.
-- Treat design docs as authoritative unless a real implementation constraint forces a design amendment.
-- Keep concepts DRY across docs and local guidance. Link to the authoritative design doc instead of repeating long explanations.
-- Commit at the end of each completed task so diffs stay easy to review task-by-task.
-
-## Useful References
-
-- Architecture: [docs/design/architecture/layer-model.md](/Users/vinuth/code/pari/docs/design/architecture/layer-model.md)
-- Design index: [docs/design/README.md](/Users/vinuth/code/pari/docs/design/README.md)
-- Root crate wiring: [src/lib.rs](/Users/vinuth/code/pari/src/lib.rs)
