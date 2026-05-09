@@ -133,3 +133,98 @@ fn best_flatten_match(schema: &[FieldMapping<ValueSlot>], key: &str) -> Option<V
         .max_by_key(|(len, _)| *len)
         .map(|(_, slot)| slot)
 }
+
+#[cfg(test)]
+mod tests {
+    //! In-memory codec helpers mirror the repo codec's, just over a
+    //! simpler slot type (`ValueSlot` has only `Value` and
+    //! `Flattened` variants — no positional concept). Tests pin
+    //! claimed-key derivation and longest-prefix flatten resolution.
+
+    use super::*;
+    use crate::substrate::pipeline::FlattenRule;
+
+    fn fields(entries: &[(&'static str, ValueSlot)]) -> Vec<FieldMapping<ValueSlot>> {
+        entries
+            .iter()
+            .map(|(k, s)| FieldMapping { key: k, slot: *s })
+            .collect()
+    }
+
+    #[test]
+    fn claimed_keys_includes_entity_ref_and_field_heads() {
+        let s = fields(&[
+            ("name", ValueSlot::Value),
+            ("artifact.kind", ValueSlot::Value),
+            (
+                "extensions",
+                ValueSlot::Flattened(FlattenRule::Prefix("x-")),
+            ),
+        ]);
+        let claimed = claimed_top_level_keys(&s);
+        assert!(claimed.contains("entity_ref"));
+        assert!(claimed.contains("name"));
+        assert!(claimed.contains("artifact"));
+        assert!(!claimed.contains("artifact.kind"));
+        assert!(!claimed.contains("extensions"));
+    }
+
+    #[test]
+    fn best_flatten_match_picks_only_matching_slot() {
+        let s = fields(&[(
+            "extensions",
+            ValueSlot::Flattened(FlattenRule::Prefix("x-")),
+        )]);
+        assert!(matches!(
+            best_flatten_match(&s, "x-color"),
+            Some(ValueSlot::Flattened(_))
+        ));
+        assert!(best_flatten_match(&s, "rogue").is_none());
+    }
+
+    #[test]
+    fn best_flatten_match_longest_prefix_wins() {
+        // Two flatten slots with overlapping prefixes co-existing in
+        // one asset is allowed; longest match wins per key.
+        let s = fields(&[
+            (
+                "extensions",
+                ValueSlot::Flattened(FlattenRule::Prefix("x-")),
+            ),
+            (
+                "extensions",
+                ValueSlot::Flattened(FlattenRule::Prefix("x-doc-")),
+            ),
+        ]);
+        // `x-doc-rationale` matches both; `x-doc-` is longer.
+        let general = ValueSlot::Flattened(FlattenRule::Prefix("x-"));
+        let specific = ValueSlot::Flattened(FlattenRule::Prefix("x-doc-"));
+        let _ = general; // silence dead-code on the variant references
+        let _ = specific;
+
+        // The chosen slot's rule should match `x-doc-rationale` with
+        // length 6; the general rule would have produced 2.
+        let chosen = best_flatten_match(&s, "x-doc-rationale").expect("matches");
+        match chosen {
+            ValueSlot::Flattened(rule) => {
+                assert_eq!(rule.match_len("x-doc-rationale"), Some(6));
+            }
+            _ => panic!("expected Flattened slot"),
+        }
+
+        // A non-doc key only matches the general rule (length 2).
+        let chosen = best_flatten_match(&s, "x-color").expect("matches");
+        match chosen {
+            ValueSlot::Flattened(rule) => {
+                assert_eq!(rule.match_len("x-color"), Some(2));
+            }
+            _ => panic!("expected Flattened slot"),
+        }
+    }
+
+    #[test]
+    fn best_flatten_match_no_flatten_slots_returns_none() {
+        let s = fields(&[("name", ValueSlot::Value)]);
+        assert!(best_flatten_match(&s, "x-foo").is_none());
+    }
+}

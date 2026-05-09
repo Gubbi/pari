@@ -780,4 +780,186 @@ mod tests {
             vec![json!("  spaced item   ")]
         );
     }
+
+    // -----------------------------------------------------------------------
+    // claimed_top_level_keys
+    // -----------------------------------------------------------------------
+
+    use crate::substrate::pipeline::FlattenRule;
+
+    fn fields(entries: &[(&'static str, RepoSlot)]) -> Vec<FieldMapping<RepoSlot>> {
+        entries
+            .iter()
+            .map(|(k, s)| FieldMapping { key: k, slot: *s })
+            .collect()
+    }
+
+    #[test]
+    fn claimed_keys_includes_entity_ref_implicitly() {
+        // `entity_ref` is always claimed even when no field declares
+        // it — every entity has one and the codec must not absorb it
+        // into a flatten slot.
+        let s = fields(&[]);
+        assert!(claimed_top_level_keys(&s).contains("entity_ref"));
+    }
+
+    #[test]
+    fn claimed_keys_includes_simple_field_keys() {
+        let s = fields(&[
+            ("name", RepoSlot::H1),
+            ("purpose", RepoSlot::FrontmatterKey("purpose")),
+        ]);
+        let claimed = claimed_top_level_keys(&s);
+        assert!(claimed.contains("name"));
+        assert!(claimed.contains("purpose"));
+    }
+
+    #[test]
+    fn claimed_keys_dot_path_uses_first_segment() {
+        // Task's `artifact.kind` claims top-level `artifact` so the
+        // flatten slot doesn't try to absorb `artifact` as an
+        // extension key.
+        let s = fields(&[("artifact.kind", RepoSlot::FrontmatterKey("artifact"))]);
+        let claimed = claimed_top_level_keys(&s);
+        assert!(claimed.contains("artifact"));
+        assert!(!claimed.contains("artifact.kind"));
+    }
+
+    #[test]
+    fn claimed_keys_skips_flatten_slots() {
+        // Flatten slots are catch-alls for unclaimed keys — their
+        // own `key` ("extensions") shouldn't be in the claimed set
+        // (it's a struct-field handle, not a wire key).
+        let s = fields(&[
+            ("name", RepoSlot::H1),
+            (
+                "extensions",
+                RepoSlot::FrontmatterFlattened(FlattenRule::Prefix("x-")),
+            ),
+        ]);
+        let claimed = claimed_top_level_keys(&s);
+        assert!(claimed.contains("name"));
+        assert!(!claimed.contains("extensions"));
+    }
+
+    // -----------------------------------------------------------------------
+    // best_flatten_match — longest-prefix-match across both targets
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn best_flatten_match_returns_none_when_no_flatten_slots() {
+        let s = fields(&[("name", RepoSlot::H1)]);
+        assert!(best_flatten_match(&s, "x-foo").is_none());
+    }
+
+    #[test]
+    fn best_flatten_match_returns_none_when_no_rule_matches() {
+        let s = fields(&[(
+            "extensions",
+            RepoSlot::FrontmatterFlattened(FlattenRule::Prefix("x-")),
+        )]);
+        assert!(best_flatten_match(&s, "rogue").is_none());
+    }
+
+    #[test]
+    fn best_flatten_match_picks_only_matching_slot() {
+        let s = fields(&[(
+            "extensions",
+            RepoSlot::FrontmatterFlattened(FlattenRule::Prefix("x-")),
+        )]);
+        assert!(matches!(
+            best_flatten_match(&s, "x-color"),
+            Some(RepoSlot::FrontmatterFlattened(_))
+        ));
+    }
+
+    #[test]
+    fn best_flatten_match_longest_prefix_wins_across_targets() {
+        // Same asset declares both a frontmatter and a section
+        // flatten slot. `x-doc-rationale` matches both (the section
+        // prefix is more specific) — the section wins.
+        let s = fields(&[
+            (
+                "extensions",
+                RepoSlot::FrontmatterFlattened(FlattenRule::Prefix("x-")),
+            ),
+            (
+                "extensions",
+                RepoSlot::SectionFlattened(
+                    FlattenRule::Prefix("x-doc-"),
+                    SectionContent::Paragraph,
+                ),
+            ),
+        ]);
+        assert!(matches!(
+            best_flatten_match(&s, "x-doc-rationale"),
+            Some(RepoSlot::SectionFlattened(_, _))
+        ));
+        // The non-doc key only matches the general rule.
+        assert!(matches!(
+            best_flatten_match(&s, "x-color"),
+            Some(RepoSlot::FrontmatterFlattened(_))
+        ));
+    }
+
+    // -----------------------------------------------------------------------
+    // best_flatten_target_match — decode-side, restricted to a target
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn target_match_frontmatter_only_considers_frontmatter_slots() {
+        // Both flatten slots match `x-doc-rationale` by prefix, but a
+        // frontmatter entry on disk can only ever come from the
+        // frontmatter slot — the section slot must be invisible.
+        let s = fields(&[
+            (
+                "extensions",
+                RepoSlot::FrontmatterFlattened(FlattenRule::Prefix("x-")),
+            ),
+            (
+                "extensions",
+                RepoSlot::SectionFlattened(
+                    FlattenRule::Prefix("x-doc-"),
+                    SectionContent::Paragraph,
+                ),
+            ),
+        ]);
+        assert!(matches!(
+            best_flatten_target_match(&s, "x-doc-rationale", FlattenTarget::Frontmatter),
+            Some(RepoSlot::FrontmatterFlattened(_))
+        ));
+    }
+
+    #[test]
+    fn target_match_section_only_considers_section_slots() {
+        let s = fields(&[
+            (
+                "extensions",
+                RepoSlot::FrontmatterFlattened(FlattenRule::Prefix("x-")),
+            ),
+            (
+                "extensions",
+                RepoSlot::SectionFlattened(
+                    FlattenRule::Prefix("x-doc-"),
+                    SectionContent::Paragraph,
+                ),
+            ),
+        ]);
+        // A section heading "x-color" doesn't match any
+        // SectionFlattened rule (the only one wants `x-doc-`); the
+        // FrontmatterFlattened rule doesn't apply to sections.
+        assert!(best_flatten_target_match(&s, "x-color", FlattenTarget::Section).is_none());
+        // `x-doc-rationale` as a section heading DOES match.
+        assert!(matches!(
+            best_flatten_target_match(&s, "x-doc-rationale", FlattenTarget::Section),
+            Some(RepoSlot::SectionFlattened(_, _))
+        ));
+    }
+
+    #[test]
+    fn target_match_no_flatten_slots_returns_none() {
+        let s = fields(&[("name", RepoSlot::H1)]);
+        assert!(best_flatten_target_match(&s, "x-foo", FlattenTarget::Frontmatter).is_none());
+        assert!(best_flatten_target_match(&s, "x-foo", FlattenTarget::Section).is_none());
+    }
 }

@@ -109,6 +109,178 @@ fn project_to_fields(full: &serde_json::Value, fields: &[&'static str]) -> serde
     projected
 }
 
+#[cfg(test)]
+mod tests {
+    //! Unit coverage for `project_to_fields`. The dot-path handling
+    //! in particular caught a regression earlier — a Task slice's
+    //! `artifact: {kind: ...}` was rejected because `artifact.kind`
+    //! didn't match the entity-level property name literally. These
+    //! tests pin the projection contract directly so the next change
+    //! flags any drift.
+
+    use serde_json::json;
+
+    use super::*;
+
+    fn full_role_like_schema() -> serde_json::Value {
+        // Shape mirrors what `schemars` emits for a Role-ish entity:
+        // top-level properties, `required`, plus the boundary
+        // constraints (`patternProperties`, `additionalProperties`)
+        // that the projection must carry over verbatim.
+        json!({
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "purpose": {"type": "string"},
+                "description": {"type": ["string", "null"]},
+                "traits": {"type": ["array", "null"]},
+            },
+            "required": ["name", "purpose"],
+            "patternProperties": {"^x-": true},
+            "additionalProperties": false,
+        })
+    }
+
+    #[test]
+    fn project_retains_only_fields_in_set() {
+        let projected = project_to_fields(&full_role_like_schema(), &["name", "purpose"]);
+        let props = projected
+            .get("properties")
+            .and_then(|v| v.as_object())
+            .unwrap();
+        let mut keys: Vec<&str> = props.keys().map(String::as_str).collect();
+        keys.sort();
+        assert_eq!(keys, vec!["name", "purpose"]);
+    }
+
+    #[test]
+    fn project_filters_required_to_fields_in_set() {
+        let projected = project_to_fields(&full_role_like_schema(), &["name"]);
+        let req = projected
+            .get("required")
+            .and_then(|v| v.as_array())
+            .unwrap();
+        assert_eq!(req, &vec![json!("name")]);
+    }
+
+    #[test]
+    fn project_retains_pattern_properties_verbatim() {
+        let projected = project_to_fields(&full_role_like_schema(), &["name"]);
+        assert_eq!(
+            projected.get("patternProperties"),
+            Some(&json!({"^x-": true}))
+        );
+    }
+
+    #[test]
+    fn project_retains_additional_properties_verbatim() {
+        let projected = project_to_fields(&full_role_like_schema(), &["name"]);
+        assert_eq!(projected.get("additionalProperties"), Some(&json!(false)));
+    }
+
+    #[test]
+    fn project_empty_field_list_yields_empty_properties_and_required() {
+        let projected = project_to_fields(&full_role_like_schema(), &[]);
+        let props = projected
+            .get("properties")
+            .and_then(|v| v.as_object())
+            .unwrap();
+        assert!(props.is_empty());
+        let req = projected
+            .get("required")
+            .and_then(|v| v.as_array())
+            .unwrap();
+        assert!(req.is_empty());
+    }
+
+    #[test]
+    fn project_dot_path_field_retains_top_level_property() {
+        // Task's `artifact.kind` field references the top-level
+        // `artifact` property — the projection must keep it.
+        let full = json!({
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "artifact": {
+                    "type": "object",
+                    "properties": {"kind": {"type": "object"}, "template": {"type": ["string", "null"]}},
+                    "required": ["kind"],
+                },
+            },
+            "required": ["name", "artifact"],
+            "additionalProperties": false,
+        });
+        let projected = project_to_fields(&full, &["artifact.kind"]);
+        let props = projected
+            .get("properties")
+            .and_then(|v| v.as_object())
+            .unwrap();
+        assert!(
+            props.contains_key("artifact"),
+            "expected `artifact`, got {props:?}"
+        );
+        assert!(!props.contains_key("name"));
+        // Required is filtered the same way — `artifact` survives,
+        // `name` does not.
+        let req = projected
+            .get("required")
+            .and_then(|v| v.as_array())
+            .unwrap();
+        assert_eq!(req, &vec![json!("artifact")]);
+    }
+
+    #[test]
+    fn project_multiple_dot_paths_under_one_head_collapse_to_one_property() {
+        // Both `raci.accountable` and `raci.responsible` map to the
+        // same top-level `raci` property; it appears once.
+        let full = json!({
+            "type": "object",
+            "properties": {
+                "raci": {"type": "object"},
+                "name": {"type": "string"},
+            },
+            "required": ["raci"],
+            "additionalProperties": false,
+        });
+        let projected = project_to_fields(&full, &["raci.accountable", "raci.responsible"]);
+        let props = projected
+            .get("properties")
+            .and_then(|v| v.as_object())
+            .unwrap();
+        assert_eq!(props.len(), 1);
+        assert!(props.contains_key("raci"));
+    }
+
+    #[test]
+    fn project_field_not_in_entity_schema_drops_silently() {
+        // If the asset declares a field key the entity schema doesn't
+        // mention (a schema-author bug), the projection just drops
+        // it from the retained set — no panic, no error. The schema
+        // gate downstream catches the resulting validation oddities.
+        let projected = project_to_fields(&full_role_like_schema(), &["bogus"]);
+        let props = projected
+            .get("properties")
+            .and_then(|v| v.as_object())
+            .unwrap();
+        assert!(props.is_empty());
+    }
+
+    #[test]
+    fn project_does_not_mutate_input() {
+        // The function clones internally; the caller's view is
+        // untouched. Pin so future "optimisation" doesn't break this.
+        let full = full_role_like_schema();
+        let _ = project_to_fields(&full, &["name"]);
+        assert_eq!(
+            full.get("properties")
+                .and_then(|v| v.as_object())
+                .map(|o| o.len()),
+            Some(4),
+            "input schema must not be mutated"
+        );
+    }
+}
+
 /// Build the per-(kind, asset path_template) projected validator map
 /// for a backend. Each backend stamps its own `LazyLock<HashMap>` from
 /// this helper.

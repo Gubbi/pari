@@ -42,3 +42,68 @@ impl FlattenRule {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! `FlattenRule::match_len` is the building block of longest-
+    //! prefix-match resolution between flatten slots in the same
+    //! asset. `Some(len)` means "this rule absorbs this key, and the
+    //! rule's prefix is `len` characters" — callers use the length
+    //! to pick the most-specific matching rule among several.
+
+    use super::*;
+
+    #[test]
+    fn prefix_matches_returns_prefix_length() {
+        let rule = FlattenRule::Prefix("x-");
+        assert_eq!(rule.match_len("x-color"), Some(2));
+    }
+
+    #[test]
+    fn prefix_no_match_returns_none() {
+        let rule = FlattenRule::Prefix("x-");
+        assert_eq!(rule.match_len("color"), None);
+    }
+
+    #[test]
+    fn prefix_exact_key_matches() {
+        // The literal prefix string itself is a match — the key
+        // happens to be exactly the prefix with nothing after.
+        let rule = FlattenRule::Prefix("x-");
+        assert_eq!(rule.match_len("x-"), Some(2));
+    }
+
+    #[test]
+    fn prefix_case_sensitive() {
+        let rule = FlattenRule::Prefix("x-");
+        assert_eq!(rule.match_len("X-color"), None);
+    }
+
+    #[test]
+    fn empty_prefix_matches_everything_with_zero_length() {
+        // An empty prefix always matches; length is 0 so it loses
+        // every longest-match contest against any non-empty rule.
+        // Schemas should not declare empty prefixes, but the helper
+        // shouldn't panic if they do.
+        let rule = FlattenRule::Prefix("");
+        assert_eq!(rule.match_len("anything"), Some(0));
+        assert_eq!(rule.match_len(""), Some(0));
+    }
+
+    #[test]
+    fn longer_prefix_yields_longer_length() {
+        // The contract that callers depend on: a more-specific
+        // prefix produces a strictly larger match length than a
+        // less-specific one for the same key.
+        let general = FlattenRule::Prefix("x-");
+        let specific = FlattenRule::Prefix("x-doc-");
+        let key = "x-doc-rationale";
+        assert!(general.match_len(key).unwrap() < specific.match_len(key).unwrap());
+    }
+
+    #[test]
+    fn empty_key_only_matches_empty_prefix() {
+        assert_eq!(FlattenRule::Prefix("").match_len(""), Some(0));
+        assert_eq!(FlattenRule::Prefix("x-").match_len(""), None);
+    }
+}
