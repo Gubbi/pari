@@ -41,11 +41,15 @@ When working in a subtree, also look for a `CLAUDE.md` file in that directory or
 ## Working Preferences
 
 - Treat design docs as authoritative unless a real implementation constraint forces a design amendment.
-- Implement one task at a time. After each task, wait for the diff to be reviewed, and commit only once approved. Commits map to tasks so diffs stay easy to review task-by-task.
+- Implement one task at a time. After each task, wait for the diff to be reviewed before committing. Per-task commits keep the branch reviewable; they get squashed on merge. Full git rules in [docs/design/git-workflow.md](/Users/vinuth/code/pari/docs/design/git-workflow.md).
 - Both implementation and tests follow the design. They are coordinate, not sequential — implementation does not dictate tests, tests do not dictate implementation, and design dictates both. Every change updates whichever are affected to stay aligned with the relevant design principles. Orthogonal or minor changes that don't affect behavior may not warrant test changes.
 - If a test is awkward to write or pushes against the design, that is a design gap. Escalate as a design change rather than bending implementation or tests to work around it.
 
-## TODO.md Lifecycle
+## Working Notes (`context/`)
+
+`context/` holds working notes that aren't yet (or never will be) authoritative documentation. Two files have explicit lifecycles; other material is ad-hoc and may be added or removed as exploration warrants.
+
+### `context/TODO.md` — per-branch working plan
 
 A `TODO.md` is the working plan for a single change. It is scoped to a single git branch — created at branch start, deleted in the last commit of the branch when it is ready to merge.
 
@@ -56,6 +60,17 @@ A `TODO.md` is the working plan for a single change. It is scoped to a single gi
 - **Absorb and delete** when the change is complete. Move durable artifacts — decisions, learnings, new conventions — into the appropriate docs (design docs, conventions, CLAUDE.md). Delete the `TODO.md` in the last commit of the branch.
 
 This lifecycle will eventually be replaced by Pari's own workflow runtime once the runtime side of workflow execution lands; the authoring side already exists.
+
+### `context/backlog.md` — short next-up queue
+
+A small, hand-curated queue (typically 3–5 items) of confirmed high-priority items not currently being worked on. **Not** an exhaustive idea list — only things the team has decided to pick up next. Items are grouped by area, added when surfaced, and removed when a branch starts addressing them or they are explicitly dropped.
+
+- When work in a branch surfaces something out of scope but worth doing, add it to `context/backlog.md` rather than letting it bloat the active `TODO.md`.
+- When starting a branch that addresses a backlog item, remove the entry as part of the same branch's first commit.
+
+### Other ad-hoc material
+
+`context/` may also hold design scratchpads, exploration notes, or other working material that doesn't yet belong in `docs/design/`. Such files have no fixed lifecycle: keep them while useful, promote them to `docs/design/` when they stabilise, delete them when superseded.
 
 ## Engineering Principles
 

@@ -73,6 +73,15 @@ Looking for the rule on something? Scan the bullet lists below until a category 
 - Stable-Rust requirement and rationale
 - Distribution mechanisms (crates.io, cargo-dist, Docker, npm)
 
+### docs/design/git-workflow.md
+- Branching rules (no direct commits to `main`, branch naming, deletion after merge)
+- Long-lived-branches-are-an-antipattern, framed by size of change
+- Commit philosophy and commit-message rules (intent + context + delta; no laundry list)
+- Strict rebase model (no merging `main` into a branch)
+- Squash-on-merge with a cumulative-intent squash message
+- Build and verification pipeline (CI jobs, `xtask` role, coverage publishing policy)
+- CI cost discipline (`paths-ignore`, `concurrency`)
+
 ### docs/design/test.md
 - Testing strategy and black-box principles
 - Three-tier coverage funnel
@@ -83,6 +92,22 @@ Looking for the rule on something? Scan the bullet lists below until a category 
 - Authoring guidance for design docs
 - Source-of-truth rules (L2/L3 in design/, L4 in rustdoc, CLAUDE.md is derived)
 - Style requirements (no meta-commentary, visual richness)
+
+## Working notes (non-authoritative)
+
+### context/TODO.md
+- Per-branch working plan (Phases > Sections > Steps)
+- Single queue for the active change
+- Created at branch start, deleted in the last commit before merge
+
+### context/backlog.md
+- Short next-up queue (typically 3–5 items)
+- Confirmed high-priority items only — not an exhaustive idea list
+- Grouped by area; entries removed when picked up or explicitly dropped
+
+### context/*.md (other)
+- Ad-hoc design scratchpads, exploration notes, working material
+- No fixed lifecycle — promote to `docs/design/` when stable, delete when superseded
 
 ## Per-area onboarding (CLAUDE.md tree)
 
